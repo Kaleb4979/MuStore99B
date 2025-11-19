@@ -88,7 +88,7 @@
   <style>@view-transition { navigation: auto; }</style>
 
   <script>
-    const DB_KEY = 'mu_marketplace_db_v1';
+    const DB_KEY = 'mu_marketplace_db_v2'; // Actualizado version DB
 
     // Inicializar DB en memoria desde LocalStorage o vacío
     let savedData = localStorage.getItem(DB_KEY);
@@ -141,7 +141,6 @@
       },
       setConfig: (newConfig) => {
         window.elementSdk.config = { ...window.elementSdk.config, ...newConfig };
-        // En un entorno real esto dispararía onConfigChange, aquí lo hacemos simple
       }
     };
   </script>
@@ -303,12 +302,12 @@
       reader.onload = async (e) => {
         try {
           const importedData = JSON.parse(e.target.result);
-          if (!importedData.products || !importedData.users) {
+          if (!importedData.products && !importedData.users) { // Check relajado para permitir parciales
             showToast('❌ Archivo JSON inválido');
             return;
           }
           showModal = 'importConfirm';
-          selectedOrder = importedData;
+          selectedOrder = importedData; // Uso temporal de variable
           render();
         } catch (error) {
           showToast('❌ Error al leer el archivo JSON');
@@ -322,25 +321,27 @@
       const importedData = selectedOrder;
       if (!importedData) return;
 
-      let successCount = 0;
+      const btn = document.getElementById('confirmImportBtn');
+      if(btn) {
+        btn.innerHTML = '<div class="loading-spinner mx-auto"></div> Importando...';
+        btn.disabled = true;
+      }
 
-      // Import logic (Simplified for mock DB: just push if not exists)
-      // Note: In a real backend this would be bulk insert
+      // Import logic (Iterate via DataSDK to trigger Updates)
       const collections = ['users', 'products', 'orders', 'reviews'];
       
       for (const col of collections) {
           if(importedData[col]) {
               for(const item of importedData[col]) {
-                  // Check existence based on a unique field if possible, simplistic approach here
                   const newItem = {...item};
-                  delete newItem.__backendId; // Generate new IDs for the mock DB
-                  await window.dataSdk.create(newItem);
-                  successCount++;
+                  delete newItem.__backendId; // Generar nuevos IDs
+                  // Esto dispara notify(), lo que actualiza la UI en tiempo real
+                  await window.dataSdk.create(newItem); 
               }
           }
       }
 
-      showToast(`✅ Importación completada`);
+      showToast(`✅ Importación completada con éxito`);
       showModal = null;
       selectedOrder = null;
       render();
@@ -364,6 +365,12 @@
 
       const user = allUsers.find(u => u.username === username && u.password === password);
       if (user) {
+        // VERIFICAR SI ESTÁ BANEADO
+        if (user.status === 'banned') {
+            showToast('🚫 Tu cuenta ha sido suspendida/baneada.');
+            return;
+        }
+
         if (user.role === 'reseller' && !user.approved) {
           showToast('Tu cuenta aún no ha sido aprobada');
           return;
@@ -472,7 +479,6 @@
     async function updateUserActivity() {
       if (!currentUser) return;
       
-      // En el mock DB solo actualizamos si existe
       const activityRecords = window.mockDb.data.filter(item => item.type === 'activity');
       const existingActivity = activityRecords.find(a => a.username === currentUser.username);
       
@@ -567,18 +573,20 @@
       }
     }
 
+    // LOGICA DE APROBACIÓN / RECHAZO (Borrado)
     async function approveReseller(backendId, approve) {
       const user = allUsers.find(u => u.__backendId === backendId);
       if (!user) return;
 
-      user.approved = approve;
-      user.status = approve ? 'approved' : 'rejected';
-
-      const result = await window.dataSdk.update(user);
-      if (result.isOk) {
-        showToast(approve ? 'Vendedor aprobado' : 'Vendedor rechazado');
+      if (approve) {
+        user.approved = true;
+        user.status = 'approved';
+        const result = await window.dataSdk.update(user);
+        if (result.isOk) showToast('Vendedor aprobado');
       } else {
-        showToast('Error al procesar solicitud');
+        // SI ES RECHAZADO, SE BORRA LA SOLICITUD
+        const result = await window.dataSdk.delete(user);
+        if (result.isOk) showToast('Solicitud rechazada y eliminada de la base de datos');
       }
     }
 
@@ -611,6 +619,47 @@
       } else {
         showToast('Error al cambiar rol');
       }
+    }
+
+    // NUEVAS FUNCIONES: BANEO Y ELIMINAR CUENTA
+    async function banUser(backendId) {
+        const user = allUsers.find(u => u.__backendId === backendId);
+        if (!user) return;
+
+        if(user.status === 'banned') {
+            // Unban logic if needed, or just inform
+            user.status = 'active';
+            user.approved = true;
+            await window.dataSdk.update(user);
+            showToast('Usuario desbaneado (activo)');
+        } else {
+            user.status = 'banned';
+            user.approved = false;
+            await window.dataSdk.update(user);
+            showToast('🚫 Usuario BANEADO exitosamente');
+        }
+    }
+
+    async function deleteUserAccount(backendId) {
+        if(!confirm("⚠️ ¿Estás seguro de ELIMINAR DEFINITIVAMENTE esta cuenta y todos sus datos?")) return;
+        
+        const user = allUsers.find(u => u.__backendId === backendId);
+        if (!user) return;
+
+        // Opcional: Borrar productos asociados si es vendedor
+        if(user.role === 'reseller') {
+            const userProducts = allProducts.filter(p => p.seller_username === user.username);
+            for(const p of userProducts) {
+                await window.dataSdk.delete(p);
+            }
+        }
+
+        const result = await window.dataSdk.delete(user);
+        if (result.isOk) {
+            showToast('🗑️ Cuenta eliminada correctamente');
+        } else {
+            showToast('Error al eliminar cuenta');
+        }
     }
 
     async function handleSetupShop(e) {
@@ -1478,7 +1527,7 @@
                     <strong>📥 Exportar:</strong> Descarga un archivo JSON con toda la información (usuarios, productos, pedidos).
                   </p>
                   <p class="text-sm opacity-90">
-                    <strong>📤 Importar:</strong> Carga un archivo JSON previamente exportado.
+                    <strong>📤 Importar:</strong> Carga un archivo JSON y actualiza en tiempo real.
                   </p>
                 </div>
               </div>
@@ -1616,7 +1665,7 @@
 
             ${userData.role === 'admin' && pendingResellers.length > 0 ? `
               <div class="rounded-xl p-6 shadow-lg mb-8" style="background-color: ${config.card_background};">
-                <h2 class="text-2xl font-bold mb-4">⏳ Solicitudes Pendientes</h2>
+                <h2 class="text-2xl font-bold mb-4">⏳ Solicitudes Pendientes (Borrado al rechazar)</h2>
                 <div class="space-y-3">
                   ${pendingResellers.map(user => `
                     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-4 rounded-lg" style="background-color: rgba(0,0,0,0.2);">
@@ -1630,7 +1679,7 @@
                           ✅ Aprobar
                         </button>
                         <button onclick="approveReseller('${user.__backendId}', false);" class="px-4 py-2 rounded-lg font-semibold transition bg-red-600 text-white">
-                          ❌ Rechazar
+                          ❌ Rechazar (Borrar)
                         </button>
                       </div>
                     </div>
@@ -1671,8 +1720,9 @@
                       ${activeUsers.map(user => {
                         const userProductCount = allProducts.filter(p => p.seller_username === user.username).length;
                         const isOnline = onlineUsers.has(user.username);
+                        const isBanned = user.status === 'banned';
                         return `
-                          <tr class="user-row border-b hover:bg-opacity-50" data-username="${user.username.toLowerCase()}" style="border-color: rgba(255,255,255,0.05);">
+                          <tr class="user-row border-b hover:bg-opacity-50" data-username="${user.username.toLowerCase()}" style="border-color: rgba(255,255,255,0.05); ${isBanned ? 'background-color: rgba(239, 68, 68, 0.1);' : ''}">
                             <td class="py-3 px-4">
                               <button 
                                 onclick="viewUserProfile('${user.__backendId}');"
@@ -1693,9 +1743,9 @@
                             </td>
                             <td class="py-3 px-4">
                               <span class="px-2 py-1 rounded-full text-xs font-semibold ${
-                                user.approved ? 'bg-green-600' : 'bg-yellow-600'
+                                isBanned ? 'bg-red-600' : user.approved ? 'bg-green-600' : 'bg-yellow-600'
                               } text-white">
-                                ${user.approved ? '✅' : '⏳'}
+                                ${isBanned ? '🚫 BAN' : user.approved ? '✅' : '⏳'}
                               </span>
                             </td>
                             <td class="py-3 px-4 text-xs">${user.shop_name || '-'}</td>
@@ -1704,7 +1754,7 @@
                               <span class="text-xl">${isOnline ? '🟢' : '⚫'}</span>
                             </td>
                             <td class="py-3 px-4">
-                              <div class="flex gap-2">
+                              <div class="flex gap-2 items-center">
                                 <select 
                                   onchange="if(this.value) changeUserRole('${user.__backendId}', this.value);" 
                                   class="px-2 py-1 rounded text-xs font-semibold"
@@ -1714,6 +1764,14 @@
                                   <option value="reseller" ${user.role === 'reseller' ? 'disabled' : ''}>🏪 Vendedor</option>
                                   <option value="admin" ${user.role === 'admin' ? 'disabled' : ''}>👑 Admin</option>
                                 </select>
+                                
+                                <button onclick="banUser('${user.__backendId}')" title="${isBanned ? 'Desbanear' : 'Banear'}" class="p-1 rounded hover:bg-white hover:bg-opacity-10">
+                                    ${isBanned ? '✅' : '🚫'}
+                                </button>
+                                
+                                <button onclick="deleteUserAccount('${user.__backendId}')" title="Eliminar Cuenta" class="p-1 rounded hover:bg-red-600 text-red-500 hover:text-white transition">
+                                    🗑️
+                                </button>
                               </div>
                             </td>
                           </tr>
@@ -1970,7 +2028,7 @@
               
               <div class="mb-6 p-4 rounded-lg" style="background-color: rgba(255, 215, 0, 0.1); border: 2px solid rgba(255, 215, 0, 0.3);">
                 <p class="text-center font-bold mb-2">⚠️ ¡Importante!</p>
-                <p class="text-sm text-center opacity-90">Esto importará los datos del archivo JSON. Los datos duplicados serán omitidos.</p>
+                <p class="text-sm text-center opacity-90">Esto importará los datos del archivo JSON en tiempo real.</p>
               </div>
 
               <div class="mb-6 p-4 rounded-lg" style="background-color: rgba(0,0,0,0.2);">
@@ -1979,7 +2037,7 @@
                 <p class="text-sm">📦 Productos: ${importedData.products?.length || 0}</p>
                 <p class="text-sm">🛒 Pedidos: ${importedData.orders?.length || 0}</p>
                 <p class="text-sm">⭐ Reseñas: ${importedData.reviews?.length || 0}</p>
-                <p class="text-xs opacity-70 mt-2">📅 Exportado: ${new Date(importedData.exportDate).toLocaleString()}</p>
+                <p class="text-xs opacity-70 mt-2">📅 Exportado: ${new Date(importedData.exportDate || Date.now()).toLocaleString()}</p>
               </div>
 
               <button id="confirmImportBtn" onclick="confirmImport();" class="w-full py-3 rounded-lg font-bold text-lg transition mb-3" style="background-color: ${config.secondary_button}; color: white;">
@@ -2247,4 +2305,3 @@
   </script>
  </body>
 </html>
-
