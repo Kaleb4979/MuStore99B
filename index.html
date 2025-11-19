@@ -88,7 +88,7 @@
   <style>@view-transition { navigation: auto; }</style>
 
   <script>
-    const DB_KEY = 'mu_marketplace_db_v2'; // Actualizado version DB
+    const DB_KEY = 'mu_marketplace_db_v2'; 
 
     // Inicializar DB en memoria desde LocalStorage o vacío
     let savedData = localStorage.getItem(DB_KEY);
@@ -190,7 +190,23 @@
     let onlineUsers = new Set();
     let userActivityTimeout = null;
 
-    // Data SDK Handler
+    // --- LÓGICA DE NOTIFICACIÓN CON SONIDO ---
+    let audioContextResumed = false;
+    // URL de un sonido de beep simple (Dominio Público)
+    const notificationAudio = new Audio('https://www.soundjay.com/buttons/beep-07.mp3'); 
+
+    function playNotificationSound() {
+        if (!audioContextResumed) {
+            console.log("Audio no pudo iniciar, esperando interacción del usuario.");
+            return;
+        }
+        // Clona y reproduce para evitar conflictos si llegan múltiples alertas rápido
+        const audioClone = notificationAudio.cloneNode(true);
+        audioClone.play().catch(e => console.error("Error al reproducir sonido:", e));
+    }
+    // --- FIN LÓGICA DE NOTIFICACIÓN CON SONIDO ---
+
+    // Data SDK Handler (MODIFICADO PARA DETECTAR NOTIFICACIONES)
     const dataHandler = {
       onDataChanged(data) {
         allProducts = data.filter(item => item.type === 'product') || [];
@@ -198,6 +214,32 @@
         allOrders = data.filter(item => item.type === 'order') || [];
         allReviews = data.filter(item => item.type === 'review') || [];
         const activityRecords = data.filter(item => item.type === 'activity') || [];
+        
+        // --- LÓGICA DE DETECCIÓN DE NUEVOS PEDIDOS CON SONIDO ---
+        if (currentUser) {
+            const newOrderAlert = activityRecords.find(a => 
+                a.message && 
+                !a.dismissed && 
+                (a.username === currentUser.username || currentUser.role === 'admin') 
+            );
+
+            if (newOrderAlert) {
+                showToast(`🔔 ${newOrderAlert.message}`);
+                playNotificationSound();
+                
+                // Marcar como descartada para que no siga sonando/mostrándose en el siguiente render
+                newOrderAlert.dismissed = true;
+                // Usamos window.mockDb.notify directamente para evitar recursión con dataSdk.update
+                const index = window.mockDb.data.findIndex(i => i.__backendId === newOrderAlert.__backendId);
+                 if (index !== -1) {
+                     window.mockDb.data[index].dismissed = true;
+                     localStorage.setItem(DB_KEY, JSON.stringify(window.mockDb.data));
+                 }
+                 // Nota: No se llama render aquí, se llama al final del dataHandler
+            }
+        }
+        // --- FIN LÓGICA DE DETECCIÓN ---
+
         
         // Actualizar usuarios en línea (últimos 5 minutos)
         const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
@@ -346,6 +388,26 @@
       selectedOrder = null;
       render();
     }
+    
+    // Función para resetear completamente la base de datos (añadida en la respuesta anterior)
+    async function resetDatabase() {
+      if (!confirm("⚠️ ¡PELIGRO!\n\n¿Estás seguro de que quieres BORRAR TODA LA BASE DE DATOS?\n\nEsto eliminará usuarios, productos y pedidos. No se puede deshacer.")) {
+        return;
+      }
+      
+      // Borrar datos en memoria
+      window.mockDb.data = [];
+      // Borrar datos en LocalStorage
+      localStorage.removeItem(DB_KEY);
+      
+      showToast('🗑️ Base de datos eliminada. Reiniciando...');
+      
+      // Recargar la página para iniciar de cero
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+    }
+
 
     // Auth Functions
     async function handleLogin(e) {
@@ -627,12 +689,13 @@
         if (!user) return;
 
         if(user.status === 'banned') {
-            // Unban logic if needed, or just inform
+            // Desbanear
             user.status = 'active';
             user.approved = true;
             await window.dataSdk.update(user);
             showToast('Usuario desbaneado (activo)');
         } else {
+            // Banear
             user.status = 'banned';
             user.approved = false;
             await window.dataSdk.update(user);
@@ -791,7 +854,7 @@
       render();
     }
 
-    // Order Functions
+    // Order Functions (MODIFICADO PARA NOTIFICACIÓN)
     async function createOrder() {
       if (cart.length === 0) return;
       if (allOrders.length >= 999) {
@@ -814,6 +877,7 @@
         ordersBySeller[item.seller_username].total += itemPrice * item.quantity;
       });
 
+      let allOk = true;
       for (const sellerUsername in ordersBySeller) {
         const orderInfo = ordersBySeller[sellerUsername];
         const itemsDesc = orderInfo.items.map(item => {
@@ -845,9 +909,25 @@
 
         const result = await window.dataSdk.create(orderData);
         if (!result.isOk) {
-          showToast('Error al crear pedido');
-          return;
+          allOk = false;
+        } else {
+            // --- CÓDIGO AGREGADO PARA LA NOTIFICACIÓN DEL VENDEDOR/ADMIN ---
+            const notificationData = {
+                id: 'notification_' + orderData.id,
+                type: 'activity',
+                username: sellerUsername, 
+                message: `¡NUEVO PEDIDO (${orderData.id.substring(0, 8)}) de ${currentUser.username}!`,
+                dismissed: false, 
+                created_at: new Date().toISOString()
+            };
+            await window.dataSdk.create(notificationData);
+            // --- FIN CÓDIGO AGREGADO ---
         }
+      }
+
+      if (!allOk) {
+          showToast('Error al crear uno o más pedidos');
+          return;
       }
 
       showToast('Pedido(s) creado(s) exitosamente! Contacta al vendedor por Discord');
@@ -1020,7 +1100,7 @@
       return cat ? cat.name : 'Otro';
     }
 
-    // Render Functions
+    // Render Functions (MODIFICADO PARA AUTOPLAY POLICY)
     function render() {
       const app = document.getElementById('app');
       const config = getConfig();
@@ -1028,6 +1108,24 @@
       document.body.style.backgroundColor = config.background_color;
       document.body.style.color = config.text_color;
       document.body.style.fontFamily = `${config.font_family}, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`;
+      
+      // --- CÓDIGO AGREGADO PARA EL AUTOPLAY POLICY ---
+      // Si el contexto de audio aún no se ha reanudado, agregamos un listener de un solo uso
+      // para intentar iniciar el audio en la primera interacción del usuario.
+      if (!audioContextResumed) {
+          document.body.addEventListener('click', () => {
+              if (notificationAudio.paused) {
+                  // Intenta reproducir y parar inmediatamente (para iniciar el contexto de audio)
+                  notificationAudio.play().then(() => {
+                      audioContextResumed = true;
+                      console.log("Contexto de Audio reanudado por interacción.");
+                      notificationAudio.pause();
+                      notificationAudio.currentTime = 0;
+                  }).catch(e => console.warn("No se pudo iniciar el audio:", e));
+              }
+          }, { once: true });
+      }
+      // --- FIN CÓDIGO AUTOPLAY POLICY ---
 
       if (currentView === 'catalog') {
         app.innerHTML = renderCatalog();
@@ -1513,12 +1611,15 @@
             ${userData.role === 'admin' ? `
               <div class="rounded-xl p-6 shadow-lg mb-6" style="background-color: ${config.card_background};">
                 <h2 class="text-2xl font-bold mb-4 text-center">💾 Gestión de Datos</h2>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                   <button onclick="exportData();" class="px-6 py-4 rounded-lg font-bold text-lg transition flex items-center justify-center gap-2" style="background-color: ${config.secondary_button}; color: white;">
                     📥 Exportar Todos los Datos
                   </button>
                   <button onclick="document.getElementById('importFileInput').click();" class="px-6 py-4 rounded-lg font-bold text-lg transition flex items-center justify-center gap-2" style="background-color: ${config.primary_button}; color: white;">
                     📤 Importar Datos
+                  </button>
+                  <button onclick="resetDatabase();" class="px-6 py-4 rounded-lg font-bold text-lg transition flex items-center justify-center gap-2 bg-red-600 text-white hover:bg-red-700">
+                    💣 Resetear DB
                   </button>
                   <input type="file" id="importFileInput" accept=".json" onchange="importData(event);" style="display: none;">
                 </div>
