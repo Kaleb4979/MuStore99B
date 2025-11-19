@@ -193,9 +193,8 @@
     
     // --- LÓGICA DE NOTIFICACIÓN CON SONIDO ---
     let audioContextResumed = false;
-    // URL de un sonido de alarma más confiable (Dominio Público)
-    // SUSTITUCIÓN: Usamos un sonido de notificación de dominio público en formato WAV
-const notificationAudio = new Audio('https://cdn.pixabay.com/download/audio/2021/08/04/audio_3d19163e5e.wav?filename=short-success-sound-alert.wav');
+    // CORRECCIÓN: Usamos una URL directa y pública para evitar el NotSupportedError
+    const notificationAudio = new Audio('https://cdn.pixabay.com/download/audio/2021/08/04/audio_3d19163e5e.wav?filename=short-success-sound-alert.wav'); 
 
     function playNotificationSound() {
         if (!audioContextResumed) {
@@ -250,7 +249,7 @@ const notificationAudio = new Audio('https://cdn.pixabay.com/download/audio/2021
         );
         
         checkPendingReviews();
-        // CORRECCIÓN CLAVE: Validar el carrito contra la nueva lista de productos
+        // CLAVE: Validar el carrito contra la nueva lista de productos para sincronizar eliminación/creación
         validateCart();
         
         render(); // Se llama una sola vez al final del dataHandler
@@ -631,8 +630,7 @@ const notificationAudio = new Audio('https://cdn.pixabay.com/download/audio/2021
       const product = allProducts.find(p => p.__backendId === backendId);
       if (!product) return;
 
-      // CORRECCIÓN CLAVE: Usamos dataSdk.delete, esto dispara el dataHandler
-      // que a su vez llama a validateCart() y render(), actualizando todo
+      // Usamos dataSdk.delete, esto dispara el dataHandler que actualiza todo
       const result = await window.dataSdk.delete(product); 
       if (result.isOk) {
         showToast('Producto eliminado');
@@ -1182,7 +1180,7 @@ const notificationAudio = new Audio('https://cdn.pixabay.com/download/audio/2021
       return cat ? cat.name : 'Otro';
     }
 
-    // Render Functions (CORREGIDO: Lógica Autoplay)
+    // Render Functions (Lógica Autoplay)
     function render() {
       const app = document.getElementById('app');
       const config = getConfig();
@@ -1191,7 +1189,7 @@ const notificationAudio = new Audio('https://cdn.pixabay.com/download/audio/2021
       document.body.style.color = config.text_color;
       document.body.style.fontFamily = `${config.font_family}, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`;
       
-      // --- CÓDIGO CORREGIDO PARA EL AUTOPLAY POLICY ---
+      // --- CÓDIGO PARA EL AUTOPLAY POLICY ---
       if (!audioContextResumed) {
           // Eliminamos cualquier listener previo de un solo uso
           document.body.removeEventListener('click', initAudioContext);
@@ -1836,8 +1834,8 @@ const notificationAudio = new Audio('https://cdn.pixabay.com/download/audio/2021
                         <div>
                           <p class="font-semibold">👤 ${review.buyer_username}</p>
                           <p class="text-sm opacity-70">${new Date(review.created_at).toLocaleDateString()}</p>
-                        </div>
-                        <div class="text-xl">
+                          </div>
+                          <div class="text-xl">
                           ${renderStars(review.rating)}
                         </div>
                       </div>
@@ -2492,4 +2490,3 @@ const notificationAudio = new Audio('https://cdn.pixabay.com/download/audio/2021
   </script>
  </body>
 </html>
-
