@@ -132,7 +132,7 @@
         return { isOk: true };
       }
     };
-
+    
     // Simular Element SDK (Configuración visual)
     window.elementSdk = {
       config: {},
@@ -798,25 +798,27 @@
     }
 
     // Cart Functions
-    // CORRECCIÓN CLAVE: Verifica si los items en el carrito existen en allProducts
+    // CORRECCIÓN CLAVE: Verifica si los items en el carrito existen y actualiza sus propiedades
     function validateCart() {
         if (cart.length === 0) return;
 
-        const originalCartLength = cart.length;
+        let cartModified = false;
         
-        // Filtrar el carrito: solo mantiene items donde hay un producto correspondiente en allProducts
-        cart = cart.filter(cartItem => {
+        // Creamos un nuevo carrito filtrado
+        const newCart = cart.filter(cartItem => {
             const correspondingProduct = allProducts.find(p => p.__backendId === cartItem.__backendId);
             
-            // Si el producto no existe (fue eliminado), o si el stock cambió
+            // 1. Producto eliminado (no existe)
             if (!correspondingProduct) {
                 showToast(`❌ El item "${cartItem.name}" ha sido eliminado del catálogo.`);
+                cartModified = true;
                 return false; 
             }
             
-            // Asegurar que la cantidad en el carrito no exceda el stock actualizado
+            // 2. Sincronizar stock
             if (cartItem.quantity > correspondingProduct.stock) {
                 cartItem.quantity = correspondingProduct.stock;
+                cartModified = true;
                 if (cartItem.quantity === 0) {
                      showToast(`❌ El item "${cartItem.name}" se agotó y se eliminó del carrito.`);
                      return false;
@@ -824,22 +826,31 @@
                 showToast(`⚠️ Stock de "${cartItem.name}" limitado a ${cartItem.quantity}.`);
             }
             
-            // Si todo está bien, lo mantenemos y actualizamos sus propiedades (precio/nombre)
-            // Esto asegura que el carrito siempre tenga la data de precios más reciente
-            cartItem.price = correspondingProduct.price;
-            cartItem.final_price = correspondingProduct.final_price;
-            cartItem.discount = correspondingProduct.discount;
-            cartItem.seller_username = correspondingProduct.seller_username;
-            cartItem.seller_discord = correspondingProduct.seller_discord;
+            // 3. Sincronizar propiedades (precio, nombre, etc.)
+            // Esto es crucial para reflejar si el vendedor subió/bajó el precio o cambió el nombre
+            if (
+                cartItem.price !== correspondingProduct.price ||
+                cartItem.final_price !== correspondingProduct.final_price ||
+                cartItem.name !== correspondingProduct.name
+            ) {
+                cartItem.price = correspondingProduct.price;
+                cartItem.final_price = correspondingProduct.final_price;
+                cartItem.discount = correspondingProduct.discount;
+                cartItem.name = correspondingProduct.name;
+                cartItem.category = correspondingProduct.category;
+                cartItem.image_url = correspondingProduct.image_url;
+                cartItem.seller_username = correspondingProduct.seller_username;
+                cartItem.seller_discord = correspondingProduct.seller_discord;
+                cartModified = true;
+            }
             
             return true;
         });
         
-        // Si el tamaño del carrito cambió, debemos notificar un render
-        if (originalCartLength !== cart.length) {
-           // No llamamos render aquí, ya que el dataHandler lo hace.
-           // Pero si el cambio se hizo sin un evento de dataHandler (ej. al abrir la app), 
-           // sería necesario, pero aquí lo omitimos para no duplicar el render.
+        // Reemplazamos el carrito viejo por el nuevo si hubo modificaciones
+        if (cartModified) {
+           cart = newCart;
+           // El render se llama al final del dataHandler, así que esto se reflejará.
         }
     }
 
@@ -866,8 +877,7 @@
           showToast('No hay más stock disponible');
         }
       } else {
-        // Al agregar, usamos una copia para no alterar allProducts,
-        // pero la validación posterior mantiene su data fresca.
+        // Al agregar, usamos una copia del producto más reciente de allProducts.
         cart.push({ ...product, quantity: 1 });
         showToast('Agregado al carrito');
       }
@@ -884,7 +894,7 @@
         return;
       }
 
-      if (newQuantity <= product.stock) {
+      if (product && newQuantity <= product.stock) { // Comprobación de existencia agregada
         cart[index].quantity = newQuantity;
         render();
       } else {
