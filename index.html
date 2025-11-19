@@ -194,7 +194,8 @@
     // --- LÓGICA DE NOTIFICACIÓN CON SONIDO ---
     let audioContextResumed = false;
     // URL de un sonido de alarma más confiable (Dominio Público)
-    const notificationAudio = new Audio('https://s3.amazonaws.com/iamsteve/mp3/alarm.mp3'); 
+    // SUSTITUCIÓN: Usamos un sonido de notificación de dominio público en formato WAV
+const notificationAudio = new Audio('https://cdn.pixabay.com/download/audio/2021/08/04/audio_3d19163e5e.wav?filename=short-success-sound-alert.wav');
 
     function playNotificationSound() {
         if (!audioContextResumed) {
@@ -2491,3 +2492,4 @@
   </script>
  </body>
 </html>
+
