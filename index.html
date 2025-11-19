@@ -114,14 +114,14 @@
         item.__backendId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
         window.mockDb.data.push(item);
         window.mockDb.notify();
-        return { isOk: true };
+        return { isOk: true, item: item };
       },
       update: async (item) => {
         const index = window.mockDb.data.findIndex(i => i.__backendId === item.__backendId);
         if (index !== -1) {
           window.mockDb.data[index] = item;
           window.mockDb.notify();
-          return { isOk: true };
+          return { isOk: true, item: item };
         }
         return { isOk: false };
       },
@@ -189,24 +189,26 @@
 
     let onlineUsers = new Set();
     let userActivityTimeout = null;
-
-    // --- LÓGICA DE NOTIFICACIÓN CON SONIDO ---
+    
+    // --- LÓGICA DE NOTIFICACIÓN CON SONIDO (CORREGIDA URL) ---
     let audioContextResumed = false;
-    // URL de un sonido de beep simple (Dominio Público)
-    const notificationAudio = new Audio('https://www.soundjay.com/buttons/beep-07.mp3'); 
+    // URL de un sonido de alarma más confiable (Dominio Público)
+    const notificationAudio = new Audio('https://s3.amazonaws.com/iamsteve/mp3/alarm.mp3'); 
 
     function playNotificationSound() {
         if (!audioContextResumed) {
             console.log("Audio no pudo iniciar, esperando interacción del usuario.");
             return;
         }
-        // Clona y reproduce para evitar conflictos si llegan múltiples alertas rápido
+        // Clona y reproduce para evitar conflictos
         const audioClone = notificationAudio.cloneNode(true);
+        audioClone.volume = 0.5; // Bajar un poco el volumen
         audioClone.play().catch(e => console.error("Error al reproducir sonido:", e));
     }
     // --- FIN LÓGICA DE NOTIFICACIÓN CON SONIDO ---
 
-    // Data SDK Handler (MODIFICADO PARA DETECTAR NOTIFICACIONES)
+
+    // Data SDK Handler (CORREGIDO: Lógica de Notificación y render)
     const dataHandler = {
       onDataChanged(data) {
         allProducts = data.filter(item => item.type === 'product') || [];
@@ -217,7 +219,9 @@
         
         // --- LÓGICA DE DETECCIÓN DE NUEVOS PEDIDOS CON SONIDO ---
         if (currentUser) {
+            // Buscamos alertas NO descartadas que sean para el usuario actual o si es admin
             const newOrderAlert = activityRecords.find(a => 
+                a.type === 'activity' &&
                 a.message && 
                 !a.dismissed && 
                 (a.username === currentUser.username || currentUser.role === 'admin') 
@@ -227,15 +231,12 @@
                 showToast(`🔔 ${newOrderAlert.message}`);
                 playNotificationSound();
                 
-                // Marcar como descartada para que no siga sonando/mostrándose en el siguiente render
+                // Marcar como descartada usando dataSdk.update para que el cambio se persista
                 newOrderAlert.dismissed = true;
-                // Usamos window.mockDb.notify directamente para evitar recursión con dataSdk.update
-                const index = window.mockDb.data.findIndex(i => i.__backendId === newOrderAlert.__backendId);
-                 if (index !== -1) {
-                     window.mockDb.data[index].dismissed = true;
-                     localStorage.setItem(DB_KEY, JSON.stringify(window.mockDb.data));
-                 }
-                 // Nota: No se llama render aquí, se llama al final del dataHandler
+                // NOTA IMPORTANTE: Usamos .update() para que el cambio se refleje y no suene
+                // en el siguiente render, pero lo hacemos de forma asíncrona para no bloquear
+                // la notificación actual.
+                window.dataSdk.update(newOrderAlert); 
             }
         }
         // --- FIN LÓGICA DE DETECCIÓN ---
@@ -245,12 +246,12 @@
         const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
         onlineUsers = new Set(
           activityRecords
-            .filter(a => new Date(a.last_activity).getTime() > fiveMinutesAgo)
+            .filter(a => a.type === 'activity' && new Date(a.last_activity).getTime() > fiveMinutesAgo)
             .map(a => a.username)
         );
         
         checkPendingReviews();
-        render();
+        render(); // Se llama una sola vez al final del dataHandler
       }
     };
 
@@ -284,10 +285,10 @@
         o.needs_review === true
       );
 
-      if (pendingOrder) {
+      if (pendingOrder && !showModal) { // Solo mostrar si no hay otro modal abierto
         selectedOrder = pendingOrder;
         showModal = 'review';
-        render();
+        // No llamamos render aquí, ya se llama en dataHandler
       }
     }
 
@@ -389,7 +390,7 @@
       render();
     }
     
-    // Función para resetear completamente la base de datos (añadida en la respuesta anterior)
+    // Función para resetear completamente la base de datos 
     async function resetDatabase() {
       if (!confirm("⚠️ ¡PELIGRO!\n\n¿Estás seguro de que quieres BORRAR TODA LA BASE DE DATOS?\n\nEsto eliminará usuarios, productos y pedidos. No se puede deshacer.")) {
         return;
@@ -546,6 +547,7 @@
       
       if (existingActivity) {
         existingActivity.last_activity = new Date().toISOString();
+        // Usar dataSdk.update para que el cambio se persista y notifique
         await window.dataSdk.update(existingActivity);
       } else {
         const activityData = {
@@ -854,7 +856,7 @@
       render();
     }
 
-    // Order Functions (MODIFICADO PARA NOTIFICACIÓN)
+    // Order Functions (CORREGIDO: Notificación, Stock y Confirmación)
     async function createOrder() {
       if (cart.length === 0) return;
       if (allOrders.length >= 999) {
@@ -913,13 +915,14 @@
         } else {
             // --- CÓDIGO AGREGADO PARA LA NOTIFICACIÓN DEL VENDEDOR/ADMIN ---
             const notificationData = {
-                id: 'notification_' + orderData.id,
+                id: 'notification_' + result.item.__backendId, // Usar el ID real del item creado
                 type: 'activity',
                 username: sellerUsername, 
                 message: `¡NUEVO PEDIDO (${orderData.id.substring(0, 8)}) de ${currentUser.username}!`,
                 dismissed: false, 
                 created_at: new Date().toISOString()
             };
+            // Usar dataSdk.create para generar la notificación (esto dispara el dataHandler)
             await window.dataSdk.create(notificationData);
             // --- FIN CÓDIGO AGREGADO ---
         }
@@ -946,43 +949,47 @@
         order.buyer_confirmed = true;
       }
 
-      if (order.seller_confirmed && order.buyer_confirmed) {
-        order.order_status = 'completed';
-        order.needs_review = true;
-        
-        // Actualizar Stock
-        try {
-          const itemsData = JSON.parse(order.items_data);
-          for (const item of itemsData) {
-            const product = allProducts.find(p => p.__backendId === item.backendId);
-            if (product) {
-              product.stock = Math.max(0, product.stock - item.quantity);
-              await window.dataSdk.update(product);
-            }
-          }
-        } catch (e) {
-          console.error('Error procesando items:', e);
-        }
-      }
-
-      const result = await window.dataSdk.update(order);
+      const result = await window.dataSdk.update(order); // Actualizar el estado de confirmación
       
       if (result.isOk) {
-        if (order.order_status === 'completed') {
-          showToast('¡Pedido completado! Stock actualizado');
-          if (!isSeller) {
-            selectedOrder = order;
-            showModal = 'review';
-            render();
+          // Lógica de finalización
+          if (order.seller_confirmed && order.buyer_confirmed && order.order_status !== 'completed') {
+              order.order_status = 'completed';
+              order.needs_review = true;
+              
+              // Actualizar Stock de forma ASÍNCRONA
+              try {
+                const itemsData = JSON.parse(order.items_data);
+                for (const item of itemsData) {
+                  const product = allProducts.find(p => p.__backendId === item.backendId);
+                  if (product) {
+                    product.stock = Math.max(0, product.stock - item.quantity);
+                    // Actualizamos cada producto por separado
+                    await window.dataSdk.update(product); 
+                  }
+                }
+                
+                // Finalizamos la actualización del pedido a 'completed' (después de actualizar stock)
+                await window.dataSdk.update(order); 
+                
+              } catch (e) {
+                console.error('Error procesando items y stock:', e);
+              }
+
+              showToast('¡Pedido completado! Stock actualizado');
+              if (!isSeller) {
+                  selectedOrder = order;
+                  showModal = 'review';
+              }
+          } else {
+              showToast('Confirmación registrada. Esperando confirmación de ' + (isSeller ? 'comprador' : 'vendedor'));
           }
-        } else {
-          showToast('Confirmación registrada. Esperando confirmación de ' + (isSeller ? 'comprador' : 'vendedor'));
-        }
-        render();
+        // render() se llama automáticamente al final del dataHandler/update
       } else {
         showToast('Error al confirmar pedido');
       }
     }
+
 
     async function handleSubmitReview(e) {
       e.preventDefault();
@@ -1013,6 +1020,7 @@
       const reviewResult = await window.dataSdk.create(reviewData);
       
       if (reviewResult.isOk) {
+        // Actualizar el pedido para marcar que ya se calificó
         selectedOrder.needs_review = false;
         await window.dataSdk.update(selectedOrder);
         
@@ -1100,7 +1108,7 @@
       return cat ? cat.name : 'Otro';
     }
 
-    // Render Functions (MODIFICADO PARA AUTOPLAY POLICY)
+    // Render Functions (CORREGIDO: Lógica Autoplay)
     function render() {
       const app = document.getElementById('app');
       const config = getConfig();
@@ -1109,21 +1117,22 @@
       document.body.style.color = config.text_color;
       document.body.style.fontFamily = `${config.font_family}, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`;
       
-      // --- CÓDIGO AGREGADO PARA EL AUTOPLAY POLICY ---
-      // Si el contexto de audio aún no se ha reanudado, agregamos un listener de un solo uso
-      // para intentar iniciar el audio en la primera interacción del usuario.
+      // --- CÓDIGO CORREGIDO PARA EL AUTOPLAY POLICY ---
       if (!audioContextResumed) {
-          document.body.addEventListener('click', () => {
-              if (notificationAudio.paused) {
-                  // Intenta reproducir y parar inmediatamente (para iniciar el contexto de audio)
-                  notificationAudio.play().then(() => {
-                      audioContextResumed = true;
-                      console.log("Contexto de Audio reanudado por interacción.");
-                      notificationAudio.pause();
-                      notificationAudio.currentTime = 0;
-                  }).catch(e => console.warn("No se pudo iniciar el audio:", e));
-              }
-          }, { once: true });
+          // Eliminamos cualquier listener previo de un solo uso
+          document.body.removeEventListener('click', initAudioContext);
+          // Agregamos el listener de un solo uso
+          document.body.addEventListener('click', initAudioContext, { once: true });
+      }
+
+      function initAudioContext() {
+           // Intentar reproducir y parar inmediatamente (para iniciar el contexto de audio)
+           notificationAudio.play().then(() => {
+                audioContextResumed = true;
+                console.log("Contexto de Audio reanudado por interacción.");
+                notificationAudio.pause();
+                notificationAudio.currentTime = 0;
+           }).catch(e => console.warn("No se pudo iniciar el audio (esperando interacción):", e));
       }
       // --- FIN CÓDIGO AUTOPLAY POLICY ---
 
@@ -1137,12 +1146,15 @@
         app.innerHTML = renderAdmin();
       }
 
-      if (showModal) {
-        const modalContainer = document.getElementById('modalContainer');
-        if (modalContainer) {
-          modalContainer.innerHTML = renderModal();
-        }
+      // Asegurarse de que el modal se renderice DESPUÉS del contenido principal
+      const modalContainer = document.getElementById('modalContainer');
+      if (modalContainer) {
+          modalContainer.innerHTML = showModal ? renderModal() : '';
+      } else {
+          // Si el contenedor no existe (en la primera carga), se creará en el renderCatalog/etc.
+          // En este caso, el renderModal se llama a través de la lógica de innerHTML de arriba.
       }
+
     }
 
     function renderCatalog() {
@@ -1706,7 +1718,7 @@
                             <p class="text-sm opacity-70">Discord: ${order.buyer_discord}</p>
                             <p class="text-sm opacity-70">Fecha: ${new Date(order.created_at).toLocaleDateString()}</p>
                           </div>
-                          ${isPending && userData.role === 'reseller' ? `
+                          ${isPending && (userData.role === 'reseller' || userData.role === 'admin') ? `
                             <button 
                               onclick="confirmOrder('${order.__backendId}', true);" 
                               ${order.seller_confirmed ? 'disabled' : ''}
@@ -2156,7 +2168,7 @@
       if (showModal === 'review' && selectedOrder && selectedOrder.order_status) {
         return `
           <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
-            <div class="rounded-xl shadow-2xl w-full max-w-md p-8" style="background-color: ${config.card_background}; color: ${config.text_color};">
+            <div class="rounded-xl shadow-2xl w-full max-w-md p-8" style="background-color: ${config.card_background}; color: ${config.text_color};" onclick="event.stopPropagation();">
               <h2 class="text-3xl font-bold mb-4 text-center">⭐ Calificar Pedido</h2>
               
               <div class="mb-6 p-4 rounded-lg" style="background-color: rgba(255, 215, 0, 0.1); border: 2px solid rgba(255, 215, 0, 0.3);">
@@ -2204,7 +2216,7 @@
         const isFromLogin = user.__backendId === currentUser?.__backendId;
         return `
           <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
-            <div class="rounded-xl shadow-2xl w-full max-w-md p-8" style="background-color: ${config.card_background}; color: ${config.text_color};">
+            <div class="rounded-xl shadow-2xl w-full max-w-md p-8" style="background-color: ${config.card_background}; color: ${config.text_color};" onclick="event.stopPropagation();">
               <h2 class="text-3xl font-bold mb-4 text-center">🏪 Configurar Tienda</h2>
               
               <div class="mb-6 p-4 rounded-lg" style="background-color: ${isFromLogin ? 'rgba(255, 215, 0, 0.1); border: 2px solid rgba(255, 215, 0, 0.3)' : 'rgba(59, 130, 246, 0.1); border: 2px solid rgba(59, 130, 246, 0.3)'};">
