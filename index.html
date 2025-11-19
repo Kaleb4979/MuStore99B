@@ -1,44 +1,73 @@
 <!doctype html>
 <html lang="es">
- <head>
+<head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Mu Online 99B Marketplace</title>
+  
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet">
+  
   <style>
     body { box-sizing: border-box; margin: 0; padding: 0; height: 100%; font-family: 'Inter', sans-serif; }
     html { height: 100%; }
+    
+    /* Animaciones y Efectos */
     .category-btn { transition: all 0.3s ease; }
     .category-btn:hover { transform: translateY(-2px); }
+    
     .product-card { transition: all 0.3s ease; }
     .product-card:hover { transform: translateY(-5px); box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
-    .loading-spinner { border: 3px solid rgba(255,255,255,0.3); border-top: 3px solid white; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; }
+    
+    .loading-spinner {
+      border: 3px solid rgba(255,255,255,0.3);
+      border-top: 3px solid white;
+      border-radius: 50%;
+      width: 20px; height: 20px;
+      animation: spin 1s linear infinite;
+    }
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    .cart-badge { position: absolute; top: -8px; right: -8px; background-color: #ef4444; color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; }
+    
+    .cart-badge {
+      position: absolute; top: -8px; right: -8px;
+      background-color: #ef4444; color: white;
+      border-radius: 50%; width: 24px; height: 24px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: bold;
+    }
+    
     .modal-backdrop { background-color: rgba(0, 0, 0, 0.7); }
-    .btn-primary { transition: all 0.2s ease; }
-    .btn-primary:hover { transform: scale(1.05); }
+    
     .star { cursor: pointer; transition: all 0.2s ease; }
     .star:hover { transform: scale(1.2); }
+    
     .top-shop-card { transition: all 0.3s ease; }
     .top-shop-card:hover { transform: translateX(5px); }
+
+    /* Scrollbar personalizada */
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.3); }
+    
+    @view-transition { navigation: auto; }
   </style>
-  <style>@view-transition { navigation: auto; }</style>
- </head>
- <body>
+</head>
+<body>
+
   <div id="app" class="min-h-full"></div>
   <div id="modalContainer"></div>
 
   <script>
     // ==========================================
-    // 1. MOTOR DE BASE DE DATOS (Inyectado)
+    // 1. CONFIGURACIÓN Y SDKS INTEGRADOS (Sin archivos externos)
     // ==========================================
     const BIN_ID = "691ddaa6ae596e708f6321c9"; 
     const API_KEY = "$2a$10$6.Y19X/sB3np.3CIJmbJZesuwRVxU77ns.FyAdL2dUc46k1vWFG9S"; 
 
+    // DATA SDK (Base de Datos)
     window.dataSdk = {
       init: async (handler) => {
         window.dataHandler = handler;
@@ -55,7 +84,7 @@
           window.currentData = Array.isArray(json.record) ? json.record : [];
           window.dataHandler.onDataChanged(window.currentData);
         } catch (e) {
-          console.error("Error:", e);
+          console.error("Error conectando BD:", e);
           window.currentData = []; 
           window.dataHandler.onDataChanged(window.currentData);
         }
@@ -87,9 +116,7 @@
       }
     };
 
-    // ==========================================
-    // 2. MOTOR VISUAL (Inyectado)
-    // ==========================================
+    // ELEMENT SDK (Configuración Visual)
     window.elementSdk = {
       config: null,
       init: (opts) => { 
@@ -101,8 +128,9 @@
     };
 
     // ==========================================
-    // 3. TU CÓDIGO COMPLETO ORIGINAL
+    // 2. LÓGICA DE LA APLICACIÓN
     // ==========================================
+    
     const defaultConfig = {
       site_title: "Mu Online 99B Marketplace",
       welcome_message: "Bienvenido a nuestra tienda de items premium",
@@ -116,16 +144,16 @@
       font_size: 16
     };
 
+    // Estado Global
     let currentUser = null;
     let currentView = 'catalog';
     let selectedCategory = 'all';
-    let allProducts = [];
-    let allUsers = [];
-    let allOrders = [];
-    let allReviews = [];
+    let allProducts = [], allUsers = [], allOrders = [], allReviews = [];
     let cart = [];
     let showModal = null;
     let selectedOrder = null;
+    let onlineUsers = new Set();
+    let userActivityTimeout = null;
 
     const CATEGORIES = [
       { id: 'all', name: 'Todos', icon: '🎮' },
@@ -133,606 +161,684 @@
       { id: 'items', name: 'Items', icon: '⚔️' },
       { id: 'jewels', name: 'Joyas', icon: '💎' },
       { id: 'wings', name: 'Alas', icon: '🦅' },
-      { id: 'sets', name: 'Sets', icon: '🛡️' }
+      { id: 'sets', name: 'Sets', icon: '🛡️' } 
     ];
 
-    const ADMIN_CREDENTIALS = {
-      username: 'Kaleb',
-      password: 'Kaleb.2021'
-    };
+    const ADMIN_CREDENTIALS = { username: 'Kaleb', password: 'Kaleb.2021' };
 
-    let onlineUsers = new Set();
-    let userActivityTimeout = null;
-
-    // Data SDK Handler
+    // Manejador de Datos
     const dataHandler = {
       onDataChanged(data) {
-        allProducts = data.filter(item => item.type === 'product') || [];
-        allUsers = data.filter(item => item.type === 'user') || [];
-        allOrders = data.filter(item => item.type === 'order') || [];
-        allReviews = data.filter(item => item.type === 'review') || [];
-        const activityRecords = data.filter(item => item.type === 'activity') || [];
+        if(!Array.isArray(data)) data = [];
+        allProducts = data.filter(i => i.type === 'product');
+        allUsers = data.filter(i => i.type === 'user');
+        allOrders = data.filter(i => i.type === 'order');
+        allReviews = data.filter(i => i.type === 'review');
         
-        // Actualizar usuarios en línea (últimos 5 minutos)
-        const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
-        onlineUsers = new Set(
-          activityRecords
-            .filter(a => new Date(a.last_activity).getTime() > fiveMinutesAgo)
-            .map(a => a.username)
-        );
+        // Actividad de usuarios (Online/Offline)
+        const activity = data.filter(i => i.type === 'activity');
+        const fiveMinAgo = Date.now() - (5*60*1000);
+        onlineUsers = new Set(activity.filter(a => new Date(a.last_activity).getTime() > fiveMinAgo).map(a => a.username));
         
         checkPendingReviews();
         render();
       }
     };
 
-    // Initialize
+    // Inicialización
     async function init() {
-      const initResult = await window.dataSdk.init(dataHandler);
-      if (!initResult.isOk) {
-        console.error('Error initializing Data SDK');
-      }
-
-      if (window.elementSdk) {
-        window.elementSdk.init({
-          defaultConfig,
-          onConfigChange: async (config) => {
-            document.body.style.backgroundColor = config.background_color || defaultConfig.background_color;
-            document.body.style.color = config.text_color || defaultConfig.text_color;
-            const baseSize = config.font_size || defaultConfig.font_size;
-            document.body.style.fontSize = `${baseSize}px`;
-            render();
-          },
-          mapToCapabilities: (config) => ({
-            recolorables: [
-              { get: () => config.background_color, set: (v) => window.elementSdk.setConfig({ background_color: v }) },
-              { get: () => config.card_background, set: (v) => window.elementSdk.setConfig({ card_background: v }) },
-              { get: () => config.text_color, set: (v) => window.elementSdk.setConfig({ text_color: v }) },
-              { get: () => config.primary_button, set: (v) => window.elementSdk.setConfig({ primary_button: v }) },
-              { get: () => config.secondary_button, set: (v) => window.elementSdk.setConfig({ secondary_button: v }) }
-            ],
-            fontEditable: { get: () => config.font_family, set: (v) => window.elementSdk.setConfig({ font_family: v }) },
-            fontSizeable: { get: () => config.font_size, set: (v) => window.elementSdk.setConfig({ font_size: v }) }
-          })
-        });
-      }
+      await window.dataSdk.init(dataHandler);
+      window.elementSdk.init({
+        defaultConfig,
+        onConfigChange: async (config) => {
+          document.body.style.backgroundColor = config.background_color;
+          document.body.style.color = config.text_color;
+          document.body.style.fontFamily = config.font_family;
+          render();
+        }
+      });
       render();
     }
 
-    // Verificar pedidos pendientes de calificar
     function checkPendingReviews() {
       if (!currentUser || currentUser.role !== 'buyer') return;
-      
-      const pendingOrder = allOrders.find(o => 
-        o.buyer_username === currentUser.username && 
-        o.order_status === 'completed' && 
-        o.needs_review === true
-      );
-
-      if (pendingOrder) {
-        selectedOrder = pendingOrder;
-        showModal = 'review';
-        render();
-      }
+      const pending = allOrders.find(o => o.buyer_username === currentUser.username && o.order_status === 'completed' && o.needs_review);
+      if (pending) { selectedOrder = pending; showModal = 'review'; render(); }
     }
 
-    // Export/Import Functions
+    // --- IMPORTAR / EXPORTAR ---
     async function exportData() {
-      const btn = event?.target;
-      if (btn) {
-        btn.disabled = true;
-        btn.innerHTML = '<div class="loading-spinner mx-auto"></div>';
-      }
-
-      const exportData = {
-        products: allProducts,
-        users: allUsers,
-        orders: allOrders,
-        reviews: allReviews,
-        exportDate: new Date().toISOString(),
-        version: '1.0'
-      };
-
-      const dataStr = JSON.stringify(exportData, null, 2);
-      
-      try {
-        const blob = new Blob([dataStr], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `marketplace_backup_${new Date().toISOString().split('T')[0]}.json`;
-        a.style.display = 'none';
-        document.body.appendChild(a);
-        a.click();
-        setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
-        showToast('✅ Descargando archivo JSON...');
-        setTimeout(async () => {
-          try { await navigator.clipboard.writeText(dataStr); showToast('✅ También copiado al portapapeles'); } catch (err) {}
-        }, 500);
-      } catch (error) {
-        showToast('❌ Error al descargar. Intentando copiar...');
+        const d = JSON.stringify({users:allUsers, products:allProducts, orders:allOrders, reviews:allReviews, date:new Date()}, null, 2);
         try {
-          await navigator.clipboard.writeText(dataStr);
-          selectedOrder = { isExport: true, exportedData: dataStr };
-          showModal = 'exportSuccess';
-          render();
-        } catch (clipboardErr) { showToast('❌ Error al exportar datos'); }
-      }
-      if (btn) { btn.disabled = false; btn.innerHTML = '📥 Exportar Todos los Datos'; }
+            await navigator.clipboard.writeText(d);
+            showToast('✅ Datos copiados al portapapeles');
+        } catch(e) {
+            const blob = new Blob([d], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href=url; a.download=`backup_${Date.now()}.json`;
+            a.click();
+        }
     }
 
-    async function importData(event) {
-      const file = event.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        try {
-          const importedData = JSON.parse(e.target.result);
-          if (!importedData.products || !importedData.users) { showToast('❌ Archivo JSON inválido'); return; }
-          showModal = 'importConfirm';
-          selectedOrder = importedData;
-          render();
-        } catch (error) { showToast('❌ Error al leer el archivo JSON'); }
-      };
-      reader.readAsText(file);
-      event.target.value = '';
+    async function importData(e) {
+        const f = e.target.files[0]; if(!f) return;
+        const r = new FileReader();
+        r.onload = async (ev) => {
+            try {
+                selectedOrder = JSON.parse(ev.target.result); 
+                showModal='importConfirm'; 
+                render();
+            } catch(err) { showToast('❌ Archivo inválido'); }
+        };
+        r.readAsText(f);
     }
 
     async function confirmImport() {
-      const importedData = selectedOrder;
-      if (!importedData) return;
-      const btn = document.querySelector('#confirmImportBtn');
-      if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loading-spinner mx-auto"></div>'; }
-      let successCount = 0, errorCount = 0;
-
-      for (const user of importedData.users || []) {
-        if (allUsers.length + successCount >= 999) break;
-        if (!allUsers.find(u => u.username === user.username)) {
-          const userData = { ...user }; delete userData.__backendId;
-          const result = await window.dataSdk.create(userData);
-          if (result.isOk) successCount++; else errorCount++;
-        }
-      }
-      for (const item of [...(importedData.products||[]), ...(importedData.orders||[]), ...(importedData.reviews||[])]) {
-        if (allProducts.length + successCount >= 999) break;
-        const data = { ...item }; delete data.__backendId;
-        const result = await window.dataSdk.create(data);
-        if (result.isOk) successCount++; else errorCount++;
-      }
-
-      showToast(`✅ Importación: ${successCount} ok, ${errorCount} errores`);
-      showModal = null; selectedOrder = null; render();
+        const d = selectedOrder;
+        let count = 0;
+        showToast('⏳ Importando...');
+        for(const u of d.users||[]) if(!allUsers.find(x=>x.username===u.username)) { delete u.__backendId; await window.dataSdk.create(u); count++; }
+        for(const p of d.products||[]) { delete p.__backendId; await window.dataSdk.create(p); count++; }
+        for(const o of d.orders||[]) { delete o.__backendId; await window.dataSdk.create(o); count++; }
+        for(const r of d.reviews||[]) { delete r.__backendId; await window.dataSdk.create(r); count++; }
+        showModal=null; showToast(`✅ ${count} registros importados`); render();
     }
 
-    // Auth Functions
+    // --- AUTENTICACIÓN ---
     async function handleLogin(e) {
       e.preventDefault();
-      const username = document.getElementById('loginUsername').value.trim();
-      const password = document.getElementById('loginPassword').value;
-
-      if (username === ADMIN_CREDENTIALS.username && password === ADMIN_CREDENTIALS.password) {
-        currentUser = { username, role: 'admin', __backendId: 'admin' };
-        showModal = null; currentView = 'admin';
-        showToast('Bienvenido Admin');
-        await updateUserActivity(); render(); return;
+      const u = document.getElementById('loginUsername').value.trim();
+      const p = document.getElementById('loginPassword').value;
+      
+      if (u === ADMIN_CREDENTIALS.username && p === ADMIN_CREDENTIALS.password) {
+        currentUser = { username: u, role: 'admin', __backendId: 'admin' };
+        currentView = 'admin'; showModal = null; showToast('👑 Bienvenido Admin'); updateUserActivity(); render(); return;
       }
-
-      const user = allUsers.find(u => u.username === username && u.password === password);
+      
+      const user = allUsers.find(us => us.username === u && us.password === p);
       if (user) {
-        if (user.status === 'banned') { selectedOrder = user; showModal = 'bannedInfo'; render(); return; }
-        if (user.role === 'reseller' && !user.approved) { showToast('Cuenta no aprobada'); return; }
-        currentUser = { username: user.username, role: user.role };
-        if (user.role === 'reseller' && (!user.shop_name || !user.discord_tag)) {
-          selectedOrder = user; showModal = 'setupShop';
-          showToast('Configura tu tienda'); render(); return;
-        }
-        showModal = null;
-        if (user.role === 'reseller' || user.role === 'admin') currentView = 'admin';
-        showToast(`Bienvenido ${username}`);
-        await updateUserActivity(); checkPendingReviews(); render();
-      } else { showToast('Datos incorrectos'); }
+        if (user.status === 'banned') { selectedOrder=user; showModal='bannedInfo'; render(); return; }
+        if (user.role === 'reseller' && !user.approved) return showToast('⚠️ Cuenta pendiente de aprobación');
+        
+        currentUser = user;
+        if (user.role === 'reseller' && (!user.shop_name || !user.discord_tag)) { selectedOrder=user; showModal='setupShop'; render(); return; }
+        
+        showModal = null; 
+        if (user.role !== 'buyer') currentView = 'admin';
+        showToast(`👋 Hola ${u}`); updateUserActivity(); render();
+      } else { showToast('❌ Datos incorrectos'); }
     }
 
     async function handleRegisterBuyer(e) {
       e.preventDefault();
-      const username = document.getElementById('buyerUsername').value.trim();
-      if (allUsers.find(u => u.username === username)) { showToast('Usuario existe'); return; }
-      const userData = {
-        id: Date.now().toString(), type: 'user', username,
-        password: document.getElementById('buyerPassword').value,
-        discord_tag: document.getElementById('buyerDiscord').value.trim(),
-        profile_picture: '', role: 'buyer', approved: true, status: 'active', created_at: new Date().toISOString()
-      };
-      const result = await window.dataSdk.create(userData);
-      if (result.isOk) { showToast('Registrado'); showModal = 'login'; render(); }
+      const u = document.getElementById('buyerUsername').value.trim();
+      if(allUsers.find(x=>x.username===u)) return showToast('⚠️ Usuario ya existe');
+      
+      await window.dataSdk.create({
+        id:Date.now().toString(), type:'user', username:u, 
+        password:document.getElementById('buyerPassword').value,
+        discord_tag:document.getElementById('buyerDiscord').value,
+        role:'buyer', approved:true, status:'active', created_at:new Date().toISOString()
+      });
+      showToast('✅ Registrado correctamente'); showModal='login'; render();
     }
 
     async function handleRegisterReseller(e) {
       e.preventDefault();
-      const username = document.getElementById('resellerUsername').value.trim();
-      if (allUsers.find(u => u.username === username)) { showToast('Usuario existe'); return; }
-      const userData = {
-        id: Date.now().toString(), type: 'user', username,
-        password: document.getElementById('resellerPassword').value,
-        discord_tag: document.getElementById('resellerDiscord').value.trim(),
-        shop_name: document.getElementById('resellerShop').value.trim(),
-        profile_picture: '', role: 'reseller', approved: false, status: 'pending', created_at: new Date().toISOString()
-      };
-      const result = await window.dataSdk.create(userData);
-      if (result.isOk) { showToast('Solicitud enviada'); showModal = null; render(); }
+      const u = document.getElementById('resellerUsername').value.trim();
+      if(allUsers.find(x=>x.username===u)) return showToast('⚠️ Usuario ya existe');
+      
+      await window.dataSdk.create({
+        id:Date.now().toString(), type:'user', username:u,
+        password:document.getElementById('resellerPassword').value,
+        discord_tag:document.getElementById('resellerDiscord').value,
+        shop_name:document.getElementById('resellerShop').value,
+        role:'reseller', approved:false, status:'pending', created_at:new Date().toISOString()
+      });
+      showToast('✅ Solicitud enviada al admin'); showModal=null; render();
     }
 
     async function updateUserActivity() {
-      if (!currentUser) return;
-      const activityRecords = window.currentData.filter(item => item.type === 'activity');
-      const existing = activityRecords.find(a => a.username === currentUser.username);
-      if (existing) {
-        existing.last_activity = new Date().toISOString();
-        await window.dataSdk.update(existing);
-      } else {
-        await window.dataSdk.create({ id: 'act_' + currentUser.username, type: 'activity', username: currentUser.username, last_activity: new Date().toISOString() });
-      }
-      if (userActivityTimeout) clearTimeout(userActivityTimeout);
-      userActivityTimeout = setTimeout(updateUserActivity, 2 * 60 * 1000);
+        if(!currentUser) return;
+        const act = window.currentData.find(i=>i.type==='activity' && i.username===currentUser.username);
+        if(act) { act.last_activity=new Date().toISOString(); await window.dataSdk.update(act); }
+        else await window.dataSdk.create({id:'act_'+currentUser.username, type:'activity', username:currentUser.username, last_activity:new Date().toISOString()});
+        setTimeout(updateUserActivity, 120000);
     }
 
-    function logout() {
-      if (userActivityTimeout) clearTimeout(userActivityTimeout);
-      currentUser = null; currentView = 'catalog'; cart = [];
-      showToast('Sesión cerrada'); render();
-    }
+    function logout() { currentUser=null; currentView='catalog'; cart=[]; showToast('👋 Sesión cerrada'); render(); }
 
-    // Product Functions
-    async function handleAddProduct(e) {
-      e.preventDefault();
-      if (allProducts.length >= 999) return showToast('Límite alcanzado');
-      const btn = e.target.querySelector('button[type="submit"]');
-      btn.disabled = true; btn.innerHTML = '<div class="loading-spinner mx-auto"></div>';
-
-      let imageUrl = document.getElementById('productImage').value.trim();
-      if (imageUrl && imageUrl.includes('imgur.com/') && !imageUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i)) imageUrl += '.jpg';
-
-      const discount = parseInt(document.getElementById('productDiscount').value) || 0;
-      const originalPrice = parseFloat(document.getElementById('productPrice').value);
-      
-      const productData = {
-        id: Date.now().toString(), type: 'product',
-        name: document.getElementById('productName').value.trim(),
-        category: document.getElementById('productCategory').value,
-        price: originalPrice,
-        final_price: discount > 0 ? originalPrice * (1 - discount / 100) : originalPrice,
-        discount: discount,
-        on_sale: document.getElementById('productOnSale').checked,
-        stock: parseInt(document.getElementById('productStock').value),
-        description: document.getElementById('productDescription').value.trim(),
-        image_url: imageUrl,
-        seller_username: currentUser.username,
-        seller_shop_name: currentUser.shop_name || currentUser.username,
-        seller_discord: currentUser.discord_tag || 'Admin',
-        created_at: new Date().toISOString()
-      };
-
-      const result = await window.dataSdk.create(productData);
-      if (result.isOk) { showToast('Producto agregado'); e.target.reset(); }
-      btn.disabled = false; btn.innerHTML = 'Agregar Producto';
-    }
-
-    async function deleteProduct(backendId) {
-      const p = allProducts.find(x => x.__backendId === backendId);
-      if (p && (await window.dataSdk.delete(p)).isOk) showToast('Eliminado');
-    }
-
-    async function approveReseller(backendId, approve) {
-      const u = allUsers.find(x => x.__backendId === backendId);
-      if (!u) return;
-      u.approved = approve; u.status = approve ? 'approved' : 'rejected';
-      if ((await window.dataSdk.update(u)).isOk) showToast(approve ? 'Aprobado' : 'Rechazado');
-    }
-
-    async function changeUserRole(backendId, newRole) {
-      const u = allUsers.find(x => x.__backendId === backendId);
-      if (!u) return;
-      u.role = newRole;
-      if (newRole === 'reseller' || newRole === 'admin' || newRole === 'buyer') { u.approved = true; u.status = 'active'; }
-      if ((await window.dataSdk.update(u)).isOk) showToast('Rol actualizado');
-    }
-
-    async function banUser(backendId) {
-      const u = allUsers.find(x => x.__backendId === backendId);
-      if (u && u.username !== 'Kaleb') { selectedOrder = u; showModal = 'banReason'; render(); }
-    }
-
-    async function confirmBanUser() {
-      const u = selectedOrder;
-      u.status = 'banned'; u.banned_at = new Date().toISOString();
-      u.ban_reason = document.getElementById('banReason').value;
-      u.ban_motive = document.getElementById('banMotive').value;
-      u.banned_by = currentUser.username;
-      if ((await window.dataSdk.update(u)).isOk) { showToast('Baneado'); showModal = null; render(); }
-    }
-
-    async function unbanUser(backendId) {
-      const u = allUsers.find(x => x.__backendId === backendId);
-      if (u) { u.status = 'active'; u.ban_reason = null; await window.dataSdk.update(u); showToast('Desbaneado'); }
-    }
-
-    async function deleteUser(backendId) {
-      const u = allUsers.find(x => x.__backendId === backendId);
-      if (u && u.username !== 'Kaleb') { selectedOrder = u; showModal = 'confirmDeleteUser'; render(); }
-    }
-
-    async function confirmDeleteUser() {
-      const u = selectedOrder;
-      const prods = allProducts.filter(p => p.seller_username === u.username);
-      for (const p of prods) await window.dataSdk.delete(p);
-      if ((await window.dataSdk.delete(u)).isOk) { showToast('Usuario eliminado'); showModal = null; render(); }
-    }
-
-    async function handleSetupShop(e) {
-      e.preventDefault();
-      const u = selectedOrder;
-      u.role = 'reseller';
-      u.shop_name = document.getElementById('setupShopName').value.trim();
-      u.discord_tag = document.getElementById('setupDiscord').value.trim();
-      u.approved = true; u.status = 'approved';
-      if ((await window.dataSdk.update(u)).isOk) { showToast('Tienda lista'); showModal = null; render(); }
-    }
-
-    // Helpers
-    function filterUsers(term) {
-      const t = term.toLowerCase();
-      document.querySelectorAll('.user-row').forEach(r => {
-        r.style.display = r.getAttribute('data-username').includes(t) ? '' : 'none';
-      });
-    }
-    function viewUserProfile(bid) { selectedOrder = allUsers.find(u => u.__backendId === bid); showModal = 'userProfile'; render(); }
-
-    // Cart
+    // --- CARRITO Y PEDIDOS ---
     function addToCart(bid) {
-      if (!currentUser) { showModal = 'login'; render(); return; }
-      const p = allProducts.find(x => x.__backendId === bid);
-      if (p && p.stock > 0) {
-        const ex = cart.find(x => x.__backendId === bid);
-        if (ex && ex.quantity < p.stock) ex.quantity++;
-        else if (!ex) cart.push({ ...p, quantity: 1 });
-        showToast('Agregado'); render();
-      }
+        if(!currentUser) { showModal='login'; render(); return showToast('⚠️ Inicia sesión primero'); }
+        const p = allProducts.find(x=>x.__backendId===bid);
+        if(!p || p.stock<1) return showToast('❌ Sin stock');
+        
+        const ex = cart.find(x=>x.__backendId===bid);
+        if(ex) { 
+            if(ex.quantity < p.stock) { ex.quantity++; showToast('➕ Cantidad aumentada'); }
+            else showToast('⚠️ Stock máximo alcanzado'); 
+        } else { 
+            cart.push({...p, quantity:1}); showToast('✅ Agregado al carrito'); 
+        }
+        render();
     }
+    
     function updateCartQuantity(idx, change) {
-      const item = cart[idx]; const p = allProducts.find(x => x.__backendId === item.__backendId);
-      if (item.quantity + change > 0 && item.quantity + change <= p.stock) { item.quantity += change; render(); }
-      else if (item.quantity + change < 1) removeFromCart(idx);
+        const item = cart[idx];
+        const p = allProducts.find(x=>x.__backendId===item.__backendId);
+        if(!p) return;
+        
+        const newQty = item.quantity + change;
+        if(newQty > 0 && newQty <= p.stock) { item.quantity = newQty; }
+        else if(newQty <= 0) { removeFromCart(idx); return; }
+        render();
     }
-    function removeFromCart(idx) { cart.splice(idx, 1); render(); }
-    function clearCart() { cart = []; render(); }
 
-    // Orders
+    function removeFromCart(idx) { cart.splice(idx,1); render(); }
+    function clearCart() { cart=[]; render(); }
+    
     async function createOrder() {
-      if (!cart.length) return;
-      const sellers = {};
-      cart.forEach(i => {
-        if (!sellers[i.seller_username]) sellers[i.seller_username] = { items: [], total: 0, discord: i.seller_discord };
-        sellers[i.seller_username].items.push(i);
-        sellers[i.seller_username].total += (i.discount > 0 ? i.final_price : i.price) * i.quantity;
-      });
-
-      for (const s in sellers) {
-        const info = sellers[s];
-        await window.dataSdk.create({
-          id: Date.now().toString() + '_' + s, type: 'order',
-          buyer_username: currentUser.username, buyer_discord: currentUser.discord_tag,
-          seller_username: s, seller_discord: info.discord,
-          items: info.items.map(x => `${x.name} x${x.quantity}`).join(' | '),
-          items_data: JSON.stringify(info.items.map(x => ({ backendId: x.__backendId, quantity: x.quantity, name: x.name }))),
-          total: info.total, order_status: 'pending', seller_confirmed: false, buyer_confirmed: false, created_at: new Date().toISOString()
+        if(cart.length===0) return;
+        showToast('⏳ Procesando pedido...');
+        
+        const sellers = {};
+        cart.forEach(i => {
+            if(!sellers[i.seller_username]) sellers[i.seller_username] = {items:[], total:0, discord:i.seller_discord};
+            sellers[i.seller_username].items.push(i);
+            sellers[i.seller_username].total += (i.discount>0?i.final_price:i.price)*i.quantity;
         });
-      }
-      cart = []; currentView = 'orders'; showToast('Pedido creado'); render();
+
+        for(const s in sellers) {
+            const info = sellers[s];
+            await window.dataSdk.create({
+                id:Date.now().toString()+'_'+s, type:'order',
+                buyer_username:currentUser.username, buyer_discord:currentUser.discord_tag,
+                seller_username:s, seller_discord:info.discord,
+                items: info.items.map(x=>`${x.name} x${x.quantity}`).join(' | '),
+                items_data: JSON.stringify(info.items.map(x=>({backendId:x.__backendId, quantity:x.quantity, name:x.name}))),
+                total: info.total, order_status:'pending', seller_confirmed:false, buyer_confirmed:false, created_at:new Date().toISOString()
+            });
+        }
+        cart=[]; currentView='orders'; showToast('✅ Pedido creado con éxito'); render();
     }
 
     async function confirmOrder(bid, isSeller) {
-      const o = allOrders.find(x => x.__backendId === bid);
-      if (isSeller) o.seller_confirmed = true; else o.buyer_confirmed = true;
-      if (o.seller_confirmed && o.buyer_confirmed) {
-        o.order_status = 'completed'; o.needs_review = true;
-        try { JSON.parse(o.items_data).forEach(async i => {
-          const p = allProducts.find(x => x.__backendId === i.backendId);
-          if (p) { p.stock = Math.max(0, p.stock - i.quantity); await window.dataSdk.update(p); }
-        }); } catch(e){}
-      }
-      await window.dataSdk.update(o); showToast('Actualizado'); render();
+        const o = allOrders.find(x=>x.__backendId===bid);
+        if(isSeller) o.seller_confirmed=true; else o.buyer_confirmed=true;
+        
+        if(o.seller_confirmed && o.buyer_confirmed) {
+            o.order_status='completed'; o.needs_review=true;
+            try {
+                JSON.parse(o.items_data).forEach(async i => {
+                    const p = allProducts.find(x=>x.__backendId===i.backendId);
+                    if(p) { p.stock = Math.max(0, p.stock-i.quantity); await window.dataSdk.update(p); }
+                });
+            } catch(e){}
+            showToast('✅ Pedido completado');
+        } else {
+            showToast('✅ Confirmación registrada');
+        }
+        await window.dataSdk.update(o); render();
     }
 
+    // --- PRODUCTOS Y ADMIN ---
+    async function handleAddProduct(e) {
+        e.preventDefault();
+        const btn = e.target.querySelector('button');
+        btn.disabled = true; btn.textContent = 'Guardando...';
+
+        const p = {
+            id:Date.now().toString(), type:'product',
+            name:document.getElementById('productName').value,
+            category:document.getElementById('productCategory').value,
+            price:parseFloat(document.getElementById('productPrice').value),
+            stock:parseInt(document.getElementById('productStock').value),
+            description:document.getElementById('productDescription').value,
+            image_url:document.getElementById('productImage').value,
+            discount:parseInt(document.getElementById('productDiscount').value)||0,
+            on_sale:document.getElementById('productOnSale').checked,
+            seller_username:currentUser.username, 
+            seller_shop_name:currentUser.shop_name || currentUser.username,
+            seller_discord: currentUser.discord_tag,
+            created_at:new Date().toISOString()
+        };
+        p.final_price = p.discount>0 ? p.price*(1-p.discount/100) : p.price;
+        
+        await window.dataSdk.create(p); 
+        showToast('✅ Producto agregado'); 
+        e.target.reset();
+        btn.disabled = false; btn.textContent = '➕ Agregar Producto';
+    }
+
+    async function deleteProduct(bid) { 
+        if(confirm('¿Borrar producto?')) {
+            await window.dataSdk.delete(allProducts.find(x=>x.__backendId===bid)); 
+            showToast('🗑️ Producto eliminado'); 
+        }
+    }
+
+    // --- GESTIÓN DE USUARIOS ---
+    async function approveReseller(bid, ok) {
+        const u=allUsers.find(x=>x.__backendId===bid); u.approved=ok; u.status=ok?'approved':'rejected';
+        await window.dataSdk.update(u); render();
+    }
+    
+    async function banUser(bid) { selectedOrder=allUsers.find(x=>x.__backendId===bid); showModal='banReason'; render(); }
+    
+    async function confirmBanUser() {
+        selectedOrder.status='banned'; selectedOrder.banned_at=new Date().toISOString();
+        selectedOrder.ban_reason=document.getElementById('banReason').value;
+        selectedOrder.ban_motive=document.getElementById('banMotive').value;
+        selectedOrder.banned_by=currentUser.username;
+        await window.dataSdk.update(selectedOrder); showModal=null; showToast('🚫 Usuario baneado'); render();
+    }
+    
+    async function unbanUser(bid) {
+        const u = allUsers.find(x=>x.__backendId===bid);
+        u.status = u.role==='reseller'?'approved':'active';
+        u.ban_reason=null; u.ban_motive=null;
+        await window.dataSdk.update(u); showToast('✅ Usuario desbaneado');
+    }
+
+    async function deleteUser(bid) { selectedOrder=allUsers.find(x=>x.__backendId===bid); showModal='confirmDeleteUser'; render(); }
+    
+    async function confirmDeleteUser() {
+        const u = selectedOrder;
+        // Borrar sus productos
+        const prods = allProducts.filter(p=>p.seller_username===u.username);
+        for(const p of prods) await window.dataSdk.delete(p);
+        await window.dataSdk.delete(u); 
+        showModal=null; showToast('🗑️ Usuario y datos eliminados'); render();
+    }
+    
+    async function handleSetupShop(e) {
+        e.preventDefault();
+        selectedOrder.shop_name = document.getElementById('setupShopName').value;
+        selectedOrder.discord_tag = document.getElementById('setupDiscord').value;
+        selectedOrder.role = 'reseller'; selectedOrder.approved = true;
+        await window.dataSdk.update(selectedOrder);
+        showModal=null; showToast('✅ Tienda configurada'); render();
+    }
+
+    async function changeUserRole(bid, role) {
+        const u = allUsers.find(x=>x.__backendId===bid);
+        u.role = role; if(role==='reseller') { u.approved=true; u.shop_name=''; }
+        await window.dataSdk.update(u); showToast(`Rol cambiado a ${role}`);
+    }
+
+    // --- RESEÑAS ---
     async function handleSubmitReview(e) {
-      e.preventDefault();
-      const r = document.querySelector('input[name="rating"]:checked')?.value;
-      if (!r) return showToast('Elige estrellas');
-      await window.dataSdk.create({
-        id: Date.now().toString(), type: 'review',
-        buyer_username: currentUser.username, reviewed_seller: selectedOrder.seller_username,
-        rating: parseInt(r), review_text: document.getElementById('reviewText').value,
-        created_at: new Date().toISOString()
-      });
-      selectedOrder.needs_review = false; await window.dataSdk.update(selectedOrder);
-      showModal = null; showToast('Reseña enviada'); render();
+        e.preventDefault();
+        const r = document.querySelector('input[name="rating"]:checked')?.value;
+        if(!r) return showToast('⚠️ Elige una calificación');
+        
+        await window.dataSdk.create({
+            id:Date.now().toString(), type:'review',
+            buyer_username:currentUser.username, reviewed_seller:selectedOrder.seller_username,
+            rating:parseInt(r), review_text:document.getElementById('reviewText').value,
+            created_at:new Date().toISOString()
+        });
+        selectedOrder.needs_review=false; await window.dataSdk.update(selectedOrder);
+        showModal=null; showToast('⭐ Reseña enviada'); render();
     }
 
     function getSellerRating(s) {
-      const r = allReviews.filter(x => x.reviewed_seller === s);
-      return r.length ? { average: (r.reduce((a, b) => a + b.rating, 0) / r.length).toFixed(1), count: r.length } : { average: 0, count: 0 };
+        const r = allReviews.filter(x=>x.reviewed_seller===s);
+        if(!r.length) return {avg:0, cnt:0};
+        return {avg:(r.reduce((a,b)=>a+b.rating,0)/r.length).toFixed(1), cnt:r.length};
     }
-    function getTopShops() {
-      return allUsers.filter(u => u.role === 'reseller' && u.approved)
-        .map(u => ({ ...u, rating: parseFloat(getSellerRating(u.username).average), reviewCount: getSellerRating(u.username).count }))
-        .sort((a, b) => b.rating - a.rating).slice(0, 3);
-    }
-    function renderStars(n) { return '⭐'.repeat(Math.floor(n)) + (n % 1 >= 0.5 ? '✨' : '') + '☆'.repeat(5 - Math.ceil(n)); }
+
+    // --- RENDERIZADO Y UI ---
     function showToast(msg) {
-      const t = document.createElement('div'); t.className = 'fixed bottom-6 right-6 px-6 py-3 rounded-lg shadow-lg font-semibold z-50 text-white bg-blue-600';
-      t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 3000);
+        const t = document.createElement('div');
+        t.className = 'fixed bottom-6 right-6 px-6 py-3 rounded-lg shadow-lg font-semibold z-50 text-white transition-all duration-500 transform translate-y-0 opacity-100';
+        t.style.backgroundColor = getConfig().primary_button;
+        t.textContent = msg; document.body.appendChild(t);
+        setTimeout(()=>{ t.style.opacity='0'; t.style.transform='translateY(20px)'; }, 2500);
+        setTimeout(()=>t.remove(),3000);
     }
+
     function getConfig() { return window.elementSdk.config || defaultConfig; }
-    function getCurrentUserData() { return currentUser ? (currentUser.role === 'admin' && currentUser.__backendId === 'admin' ? currentUser : allUsers.find(u => u.username === currentUser.username)) : null; }
-    function getCategoryIcon(id) { const c = CATEGORIES.find(x => x.id === id); return c ? c.icon : '📦'; }
-    function getCategoryName(id) { const c = CATEGORIES.find(x => x.id === id); return c ? c.name : 'Otro'; }
+    function getCurrentUserData() { return currentUser?.role==='admin' && currentUser.__backendId==='admin' ? currentUser : allUsers.find(u=>u.username===currentUser?.username); }
+    function getCategoryIcon(id) { const c=CATEGORIES.find(x=>x.id===id); return c?c.icon:'📦'; }
+    function getCategoryName(id) { const c=CATEGORIES.find(x=>x.id===id); return c?c.name:'Otro'; }
+    function renderStars(n) { return '⭐'.repeat(Math.floor(n)) + (n%1>=0.5?'✨':'') + '☆'.repeat(5-Math.ceil(n)); }
+    
+    function filterUsers(term) {
+        document.querySelectorAll('.user-row').forEach(r => {
+            r.style.display = r.getAttribute('data-username').includes(term.toLowerCase()) ? '' : 'none';
+        });
+    }
 
-    // RENDERERS
     function render() {
-      const app = document.getElementById('app');
-      const cfg = getConfig();
-      document.body.style.backgroundColor = cfg.background_color;
-      document.body.style.color = cfg.text_color;
-      if (currentView === 'catalog') app.innerHTML = renderCatalog();
-      else if (currentView === 'cart') app.innerHTML = renderCart();
-      else if (currentView === 'orders') app.innerHTML = renderOrders();
-      else if (currentView === 'admin') app.innerHTML = renderAdmin();
-      document.getElementById('modalContainer').innerHTML = showModal ? renderModal() : '';
+        const app = document.getElementById('app');
+        const cfg = getConfig();
+        document.body.style.backgroundColor = cfg.background_color;
+        document.body.style.color = cfg.text_color;
+
+        if(currentView==='catalog') app.innerHTML = renderCatalog(cfg);
+        else if(currentView==='cart') app.innerHTML = renderCart(cfg);
+        else if(currentView==='orders') app.innerHTML = renderOrders(cfg);
+        else if(currentView==='admin') app.innerHTML = renderAdmin(cfg);
+
+        document.getElementById('modalContainer').innerHTML = showModal ? renderModal(cfg) : '';
     }
 
-    function renderCatalog() {
-      const cfg = getConfig();
-      const prods = selectedCategory === 'all' ? allProducts : selectedCategory === 'promotions' ? allProducts.filter(p => p.on_sale) : allProducts.filter(p => p.category === selectedCategory);
-      const tops = getTopShops();
-      return `
-        <div class="min-h-full" style="background-color: ${cfg.background_color}; color: ${cfg.text_color};">
-          <header class="shadow-lg" style="background-color: ${cfg.card_background};">
-            <div class="max-w-7xl mx-auto px-4 py-6 flex flex-col lg:flex-row justify-between items-center gap-4">
-              <div><h1 class="text-3xl font-bold">${cfg.site_title}</h1><p class="opacity-80">${cfg.welcome_message}</p></div>
-              <div class="flex gap-2">
-                ${currentUser ? `
-                  <button onclick="currentView='cart';render()" class="px-4 py-2 rounded bg-blue-600 text-white">🛒 (${cart.reduce((a,b)=>a+b.quantity,0)})</button>
-                  <button onclick="currentView='orders';render()" class="px-4 py-2 rounded bg-purple-600 text-white">📦</button>
-                  ${currentUser.role!=='buyer'?`<button onclick="currentView='admin';render()" class="px-4 py-2 rounded bg-green-600 text-white">${currentUser.role==='admin'?'Admin':'Tienda'}</button>`:''}
-                  <button onclick="logout()" class="px-4 py-2 rounded bg-red-600 text-white">Salir</button>
-                ` : `
-                  <button onclick="showModal='login';render()" class="px-4 py-2 rounded bg-blue-600 text-white">Entrar</button>
-                  <button onclick="showModal='register';render()" class="px-4 py-2 rounded bg-green-600 text-white">Registro</button>
-                `}
-              </div>
-            </div>
-          </header>
-          ${tops.length ? `<div class="max-w-7xl mx-auto py-6 px-4"><h2 class="text-center text-2xl font-bold mb-4">🏆 Top Tiendas</h2><div class="grid grid-cols-3 gap-4">${tops.map((t,i)=>`<div class="p-4 rounded text-center border border-gray-700 bg-black/20"><div class="text-2xl">${i===0?'🥇':i===1?'🥈':'🥉'}</div><div class="font-bold">${t.shop_name}</div><div>${renderStars(t.rating)}</div></div>`).join('')}</div></div>` : ''}
-          <div class="max-w-7xl mx-auto py-6 px-4 flex gap-2 overflow-x-auto justify-center">
-            ${CATEGORIES.map(c=>`<button onclick="selectedCategory='${c.id}';render()" class="px-4 py-2 rounded whitespace-nowrap ${selectedCategory===c.id?'bg-blue-600 text-white':'bg-gray-700'}">${c.icon} ${c.name}</button>`).join('')}
-          </div>
-          <div class="max-w-7xl mx-auto p-4 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            ${prods.map(p=>`
-              <div class="rounded-lg overflow-hidden shadow-lg relative" style="background:${cfg.card_background}">
-                ${p.on_sale?'<span class="absolute top-2 right-2 bg-red-600 text-white text-xs px-2 py-1 rounded">PROMO</span>':''}
-                <div class="h-40 bg-black/20 flex items-center justify-center text-4xl">${p.image_url?`<img src="${p.image_url}" class="w-full h-full object-cover">`:getCategoryIcon(p.category)}</div>
-                <div class="p-4">
-                  <h3 class="font-bold truncate">${p.name}</h3>
-                  <p class="text-xs opacity-70">🏪 ${p.seller_shop_name}</p>
-                  <div class="flex justify-between mt-2 items-center">
-                    <div>${p.discount>0?`<span class="line-through text-xs opacity-50">$${p.price}</span> <span class="font-bold text-green-400">$${p.final_price}</span>`:`<span class="font-bold text-green-400">$${p.price}</span>`}</div>
-                    <button onclick="addToCart('${p.__backendId}')" ${p.stock<1?'disabled':''} class="px-3 py-1 rounded bg-blue-600 text-white text-sm disabled:opacity-50">${p.stock>0?'Agregar':'Agotado'}</button>
-                  </div>
+    function renderCatalog(cfg) {
+        const prods = selectedCategory==='all'?allProducts : selectedCategory==='promotions'?allProducts.filter(p=>p.on_sale) : allProducts.filter(p=>p.category===selectedCategory);
+        const tops = allUsers.filter(u=>u.role==='reseller'&&u.approved).map(u=>({...u, ...getSellerRating(u.username)})).sort((a,b)=>b.avg-a.avg).slice(0,3);
+        const cartCnt = cart.reduce((a,b)=>a+b.quantity,0);
+
+        return `
+            <div class="pb-10">
+                <header class="shadow-lg mb-6" style="background:${cfg.card_background}">
+                    <div class="max-w-7xl mx-auto px-4 py-6 flex flex-col md:flex-row justify-between items-center gap-4">
+                        <div><h1 class="text-3xl font-bold">${cfg.site_title}</h1><p class="opacity-80">${cfg.welcome_message}</p></div>
+                        <div class="flex flex-wrap gap-2 justify-center">
+                            ${currentUser ? `
+                                <button onclick="currentView='cart';render()" class="px-4 py-2 rounded bg-blue-600 text-white relative">🛒 Carrito ${cartCnt>0?`<span class="cart-badge">${cartCnt}</span>`:''}</button>
+                                <button onclick="currentView='orders';render()" class="px-4 py-2 rounded bg-purple-600 text-white">📦 Pedidos</button>
+                                ${currentUser.role!=='buyer'?`<button onclick="currentView='admin';render()" class="px-4 py-2 rounded bg-green-600 text-white">${currentUser.role==='admin'?'⚙️ Admin':'🏪 Mi Tienda'}</button>`:''}
+                                <button onclick="logout()" class="px-4 py-2 rounded bg-red-600 text-white">🚪 Salir</button>
+                            ` : `
+                                <button onclick="showModal='login';render()" class="px-4 py-2 rounded bg-blue-600 text-white">🔐 Entrar</button>
+                                <button onclick="showModal='register';render()" class="px-4 py-2 rounded bg-green-600 text-white">📝 Registro</button>
+                                <button onclick="showModal='registerReseller';render()" class="px-4 py-2 rounded bg-yellow-600 text-white">🏪 Vender</button>
+                            `}
+                        </div>
+                    </div>
+                </header>
+                ${tops.length?`<div class="max-w-7xl mx-auto mb-8 px-4"><h2 class="text-center text-xl font-bold mb-4">🏆 Top Tiendas</h2><div class="grid grid-cols-1 md:grid-cols-3 gap-4">${tops.map((t,i)=>`<div class="top-shop-card p-4 rounded text-center border border-white/10 bg-black/20"><div>${i===0?'🥇':i===1?'🥈':'🥉'}</div><div class="font-bold text-lg">${t.shop_name}</div><div class="text-yellow-400">${renderStars(t.avg)}</div></div>`).join('')}</div></div>`:''}
+                
+                <div class="max-w-7xl mx-auto px-4 flex gap-2 overflow-x-auto justify-center mb-8 pb-2">
+                    ${CATEGORIES.map(c=>`<button onclick="selectedCategory='${c.id}';render()" class="category-btn px-6 py-2 rounded-full whitespace-nowrap shadow-md ${selectedCategory===c.id?'bg-blue-600 text-white ring-2 ring-white':'bg-gray-700 text-gray-300'}">${c.icon} ${c.name}</button>`).join('')}
                 </div>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-      `;
-    }
-
-    function renderCart() {
-      const cfg = getConfig();
-      const total = cart.reduce((a,b)=>a+(b.discount>0?b.final_price:b.price)*b.quantity,0);
-      return `
-        <div class="p-6 max-w-4xl mx-auto text-white">
-          <div class="flex justify-between mb-4"><h2 class="text-2xl font-bold">Carrito</h2><button onclick="currentView='catalog';render()" class="bg-blue-600 px-4 py-2 rounded">Volver</button></div>
-          ${cart.map((i,idx)=>`<div class="flex justify-between p-4 mb-2 rounded items-center" style="background:${cfg.card_background}"><div><div class="font-bold">${i.name}</div><div class="text-sm opacity-70">$${i.discount>0?i.final_price:i.price} x ${i.quantity}</div></div><div class="flex gap-2"><button onclick="updateCartQuantity(${idx},-1)" class="px-2 bg-gray-600 rounded">-</button><button onclick="updateCartQuantity(${idx},1)" class="px-2 bg-gray-600 rounded">+</button><button onclick="removeFromCart(${idx})" class="text-red-500 ml-2">🗑️</button></div></div>`).join('')}
-          ${cart.length?`<div class="mt-4 text-right text-xl font-bold">Total: $${total.toFixed(2)}</div><button onclick="createOrder()" class="w-full py-3 bg-green-600 rounded font-bold mt-4">Confirmar Pedido</button>`:'<p>Carrito vacío</p>'}
-        </div>
-      `;
-    }
-
-    function renderOrders() {
-      const cfg = getConfig();
-      return `
-        <div class="p-6 max-w-4xl mx-auto text-white">
-          <div class="flex justify-between mb-6"><h2 class="text-2xl font-bold">Mis Pedidos</h2><button onclick="currentView='catalog';render()" class="bg-blue-600 px-4 py-2 rounded">Volver</button></div>
-          ${allOrders.filter(o=>o.buyer_username===currentUser.username).map(o=>`
-            <div class="p-4 rounded mb-4" style="background:${cfg.card_background}">
-              <div class="flex justify-between font-bold"><span>#${o.id.slice(-5)}</span><span class="${o.order_status==='completed'?'text-green-400':'text-yellow-400'}">${o.order_status}</span></div>
-              <p class="text-sm opacity-80">${o.items}</p>
-              <p class="mt-1">Total: $${o.total}</p>
-              ${o.order_status==='pending'?`<button onclick="confirmOrder('${o.__backendId}',false)" ${o.buyer_confirmed?'disabled':''} class="mt-2 bg-blue-600 px-3 py-1 rounded text-white text-xs">Confirmar Recibido</button>`:''}
+                
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 px-6 max-w-7xl mx-auto">
+                    ${prods.length===0 ? `<div class="col-span-full text-center py-10 opacity-50">No hay productos en esta categoría</div>` : prods.map(p=>`
+                        <div class="product-card rounded-xl overflow-hidden shadow-lg relative flex flex-col" style="background:${cfg.card_background}">
+                            ${p.on_sale?'<span class="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded shadow-md z-10">🔥 PROMO</span>':''}
+                            <div class="h-48 bg-black/20 flex items-center justify-center text-5xl relative overflow-hidden">
+                                ${p.image_url?`<img src="${p.image_url}" class="w-full h-full object-cover transition-transform duration-500 hover:scale-110" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">`:''}
+                                <span style="${p.image_url?'display:none':''}">${getCategoryIcon(p.category)}</span>
+                            </div>
+                            <div class="p-4 flex-1 flex flex-col">
+                                <div class="flex justify-between items-start">
+                                    <h3 class="font-bold text-lg truncate flex-1" title="${p.name}">${p.name}</h3>
+                                </div>
+                                <p class="text-xs opacity-60 mb-2">🏪 ${p.seller_shop_name}</p>
+                                <p class="text-sm opacity-80 line-clamp-2 mb-4 flex-1">${p.description}</p>
+                                <div class="flex justify-between items-end mt-auto">
+                                    <div>
+                                        ${p.discount>0?`<span class="text-xs line-through opacity-50">$${p.price}</span>`:''}
+                                        <div class="font-bold text-xl text-green-400">$${p.final_price}</div>
+                                    </div>
+                                    <button onclick="addToCart('${p.__backendId}')" ${p.stock<1?'disabled':''} class="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-bold shadow disabled:opacity-50 hover:bg-blue-700 transition">${p.stock>0?'🛒':'❌'}</button>
+                                </div>
+                                <div class="text-xs text-right mt-1 opacity-50">Stock: ${p.stock}</div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
             </div>
-          `).join('')}
-        </div>
-      `;
+        `;
     }
 
-    function renderAdmin() {
-      const cfg = getConfig();
-      const u = getCurrentUserData();
-      const isA = u.role === 'admin';
-      const items = isA ? allProducts : allProducts.filter(p => p.seller_username === u.username);
-      
-      return `
-        <div class="p-6 max-w-6xl mx-auto text-white">
-          <div class="flex justify-between mb-6"><h2 class="text-2xl font-bold">${isA?'Admin Panel':'Mi Tienda'}</h2><div class="flex gap-2"><button onclick="currentView='catalog';render()" class="bg-blue-600 px-4 py-2 rounded">Inicio</button><button onclick="logout()" class="bg-red-600 px-4 py-2 rounded">Salir</button></div></div>
-          ${isA?`<div class="mb-6 grid grid-cols-2 gap-4"><button onclick="exportData()" class="bg-purple-600 p-4 rounded font-bold">📥 Exportar Datos</button><label class="bg-blue-600 p-4 rounded font-bold text-center cursor-pointer">📤 Importar<input type="file" hidden onchange="importData(event)"></label></div>`:''}
-          
-          <div class="grid md:grid-cols-2 gap-6">
-            <div class="p-6 rounded" style="background:${cfg.card_background}">
-              <h3 class="font-bold mb-4">Agregar Producto</h3>
-              <form onsubmit="handleAddProduct(event)" class="space-y-3">
-                <input id="productName" placeholder="Nombre" required class="w-full p-2 rounded bg-black/30 text-white">
-                <select id="productCategory" class="w-full p-2 rounded bg-black/30 text-white">${CATEGORIES.slice(2).map(c=>`<option value="${c.id}">${c.name}</option>`).join('')}</select>
-                <div class="flex gap-2"><input id="productPrice" type="number" placeholder="Precio" required class="w-full p-2 rounded bg-black/30 text-white"><input id="productStock" type="number" placeholder="Stock" required class="w-full p-2 rounded bg-black/30 text-white"></div>
-                <input id="productImage" placeholder="URL Imagen" class="w-full p-2 rounded bg-black/30 text-white">
-                <input id="productDiscount" type="number" placeholder="% Descuento" class="w-full p-2 rounded bg-black/30 text-white">
-                <label class="flex items-center gap-2"><input type="checkbox" id="productOnSale"> Oferta</label>
-                <textarea id="productDescription" placeholder="Descripción" class="w-full p-2 rounded bg-black/30 text-white"></textarea>
-                <button class="w-full py-2 bg-green-600 rounded font-bold">Publicar</button>
-              </form>
+    function renderCart(cfg) {
+        const total = cart.reduce((a,b)=>a+(b.discount>0?b.final_price:b.price)*b.quantity,0);
+        return `
+            <div class="p-6 max-w-4xl mx-auto min-h-screen">
+                <div class="flex justify-between items-center mb-6"><h2 class="text-3xl font-bold">🛒 Mi Carrito</h2><button onclick="currentView='catalog';render()" class="text-blue-400 hover:underline">← Volver</button></div>
+                ${cart.length===0 ? `<div class="text-center py-10 opacity-50 text-xl">Tu carrito está vacío 🕸️</div>` : `
+                    <div class="space-y-4">
+                    ${cart.map((i,idx)=>`
+                        <div class="flex flex-col md:flex-row justify-between p-4 rounded-lg items-center shadow-md" style="background:${cfg.card_background}">
+                            <div class="flex items-center gap-4 w-full md:w-auto">
+                                <div class="text-3xl w-16 h-16 bg-black/20 rounded flex items-center justify-center">${i.image_url?`<img src="${i.image_url}" class="w-full h-full object-cover rounded">`:getCategoryIcon(i.category)}</div>
+                                <div>
+                                    <div class="font-bold text-lg">${i.name}</div>
+                                    <div class="text-sm opacity-70">Vendedor: ${i.seller_shop_name}</div>
+                                    <div class="text-green-400 font-bold">$${i.discount>0?i.final_price:i.price}</div>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-4 mt-4 md:mt-0">
+                                <div class="flex items-center bg-black/30 rounded-lg">
+                                    <button onclick="updateCartQuantity(${idx},-1)" class="px-3 py-1 hover:bg-white/10 rounded-l">-</button>
+                                    <span class="px-3 font-bold">${i.quantity}</span>
+                                    <button onclick="updateCartQuantity(${idx},1)" class="px-3 py-1 hover:bg-white/10 rounded-r">+</button>
+                                </div>
+                                <div class="font-bold w-20 text-right">$${((i.discount>0?i.final_price:i.price)*i.quantity).toFixed(2)}</div>
+                                <button onclick="removeFromCart(${idx})" class="text-red-500 hover:scale-110 transition">🗑️</button>
+                            </div>
+                        </div>
+                    `).join('')}
+                    </div>
+                    <div class="mt-8 p-6 rounded-lg shadow-lg text-right" style="background:${cfg.card_background}">
+                        <div class="text-2xl font-bold mb-4">Total: <span class="text-green-400">$${total.toFixed(2)} USDT</span></div>
+                        <button onclick="createOrder()" class="w-full md:w-auto px-8 py-3 bg-green-600 hover:bg-green-700 rounded-lg text-white font-bold shadow-lg transition">✅ Confirmar Pedido</button>
+                    </div>
+                `}
             </div>
-            <div class="p-6 rounded h-96 overflow-y-auto" style="background:${cfg.card_background}">
-              <h3 class="font-bold mb-4">Mis Items (${items.length})</h3>
-              ${items.map(p=>`<div class="flex justify-between items-center mb-2 p-2 bg-black/20 rounded"><span>${p.name} (${p.stock})</span><button onclick="deleteProduct('${p.__backendId}')" class="text-red-500">🗑️</button></div>`).join('')}
+        `;
+    }
+
+    function renderOrders(cfg) {
+        const myOrders = allOrders.filter(o=>o.buyer_username===currentUser.username);
+        return `
+            <div class="p-6 max-w-4xl mx-auto min-h-screen">
+                <div class="flex justify-between items-center mb-6"><h2 class="text-3xl font-bold">📦 Mis Pedidos</h2><button onclick="currentView='catalog';render()" class="text-blue-400 hover:underline">← Volver</button></div>
+                ${myOrders.length===0 ? `<div class="text-center py-10 opacity-50">No tienes pedidos aún</div>` : myOrders.map(o=>`
+                    <div class="p-6 rounded-lg mb-4 shadow-md border border-white/5" style="background:${cfg.card_background}">
+                        <div class="flex justify-between items-start mb-4 border-b border-white/10 pb-2">
+                            <div>
+                                <span class="font-bold text-lg">#${o.id.slice(-5)}</span>
+                                <span class="text-sm opacity-60 ml-2">${new Date(o.created_at).toLocaleDateString()}</span>
+                            </div>
+                            <span class="px-3 py-1 rounded-full text-xs font-bold ${o.order_status==='completed'?'bg-green-600':'bg-yellow-600'} text-white">${o.order_status==='completed'?'COMPLETADO':'PENDIENTE'}</span>
+                        </div>
+                        <div class="mb-4">
+                            <div class="text-sm opacity-70">Vendedor: <span class="text-white font-bold">${o.seller_username}</span></div>
+                            <div class="text-sm opacity-70">Discord: <span class="text-white font-bold select-all">${o.seller_discord}</span></div>
+                            <div class="mt-2 p-3 bg-black/20 rounded text-sm font-mono">${o.items}</div>
+                        </div>
+                        <div class="flex justify-between items-center mt-4">
+                            <div class="font-bold text-xl text-green-400">$${o.total.toFixed(2)}</div>
+                            ${o.order_status==='pending' ? `
+                                <div class="flex flex-col items-end gap-2">
+                                    <div class="text-xs text-right">
+                                        Vendedor: ${o.seller_confirmed?'✅ Listo':'⏳ Esperando'}<br>
+                                        Tú: ${o.buyer_confirmed?'✅ Listo':'⏳ Esperando'}
+                                    </div>
+                                    <button onclick="confirmOrder('${o.__backendId}',false)" ${o.buyer_confirmed?'disabled':''} class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded text-white font-bold text-sm disabled:opacity-50">✅ Confirmar Recibido</button>
+                                </div>
+                            ` : `<div class="text-green-400 font-bold">✅ Finalizado</div>`}
+                        </div>
+                    </div>
+                `).join('')}
             </div>
-          </div>
-
-          ${isA?`<div class="mt-6 p-6 rounded" style="background:${cfg.card_background}"><h3 class="font-bold mb-4">Usuarios</h3><input oninput="filterUsers(this.value)" placeholder="Buscar..." class="w-full p-2 mb-4 bg-black/30 rounded text-white"><div class="max-h-96 overflow-y-auto">${allUsers.map(usr=>`<div class="user-row flex justify-between items-center mb-2 p-2 border-b border-white/10" data-username="${usr.username.toLowerCase()}"><span>${usr.username} (${usr.role})</span><div class="flex gap-2 text-xs">${usr.role==='reseller'&&!usr.approved?`<button onclick="approveReseller('${usr.__backendId}',true)" class="text-green-400">Aprobar</button>`:''}<button onclick="banUser('${usr.__backendId}')" class="text-orange-400">Ban</button><button onclick="deleteUser('${usr.__backendId}')" class="text-red-500">Del</button><button onclick="viewUserProfile('${usr.__backendId}')" class="text-blue-400">Ver</button></div></div>`).join('')}</div></div>`:''}
-        </div>
-      `;
+        `;
     }
 
-    function renderModal() {
-      const cfg = getConfig();
-      const wrap = (c) => `<div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" onclick="if(event.target===this){showModal=null;render();}"><div class="rounded p-8 max-w-md w-full relative shadow-2xl max-h-[90vh] overflow-y-auto" style="background:${cfg.card_background};color:${cfg.text_color}">${c}</div></div>`;
-      
-      if(showModal==='login') return wrap(`<h2 class="text-2xl font-bold mb-4 text-center">Login</h2><form onsubmit="handleLogin(event)" class="space-y-4"><input id="loginUsername" placeholder="User" class="w-full p-2 rounded bg-black/30 text-white"><input type="password" id="loginPassword" placeholder="Pass" class="w-full p-2 rounded bg-black/30 text-white"><button class="w-full bg-blue-600 p-2 rounded text-white font-bold">Entrar</button><div class="text-center text-sm mt-4"><button type="button" onclick="showModal='register';render()" class="text-blue-400 font-semibold">Crear cuenta Comprador</button><span class="mx-2">|</span><button type="button" onclick="showModal='registerReseller';render()" class="text-yellow-400 font-semibold">Vender</button></div></form>`);
-      
-      if(showModal==='register') return wrap(`<h2 class="text-2xl font-bold mb-4 text-center">Registro</h2><form onsubmit="handleRegisterBuyer(event)" class="space-y-4"><input id="buyerUsername" placeholder="User" class="w-full p-2 rounded bg-black/30 text-white"><input type="password" id="buyerPassword" placeholder="Pass" class="w-full p-2 rounded bg-black/30 text-white"><input id="buyerDiscord" placeholder="Discord" class="w-full p-2 rounded bg-black/30 text-white"><button class="w-full bg-green-600 p-2 rounded text-white font-bold">Registrar</button></form>`);
-      
-      if(showModal==='registerReseller') return wrap(`<h2 class="text-2xl font-bold mb-4 text-center">Vender</h2><form onsubmit="handleRegisterReseller(event)" class="space-y-4"><input id="resellerUsername" placeholder="User" class="w-full p-2 rounded bg-black/30 text-white"><input type="password" id="resellerPassword" placeholder="Pass" class="w-full p-2 rounded bg-black/30 text-white"><input id="resellerShop" placeholder="Tienda" class="w-full p-2 rounded bg-black/30 text-white"><input id="resellerDiscord" placeholder="Discord" class="w-full p-2 rounded bg-black/30 text-white"><button class="w-full bg-yellow-600 p-2 rounded text-white font-bold">Solicitar</button></form>`);
+    function renderAdmin(cfg) {
+        const u = getCurrentUserData();
+        const isA = u.role === 'admin';
+        const items = isA ? allProducts : allProducts.filter(p => p.seller_username === u.username);
+        const myOrders = isA ? allOrders : allOrders.filter(o=>o.seller_username===u.username);
+        
+        return `
+            <div class="p-6 max-w-7xl mx-auto min-h-screen">
+                <div class="flex justify-between items-center mb-8">
+                    <h2 class="text-3xl font-bold flex items-center gap-2">${isA?'⚙️ Panel Admin':'🏪 Gestión de Tienda'}</h2>
+                    <div class="flex gap-2">
+                        <button onclick="currentView='catalog';render()" class="px-4 py-2 bg-gray-700 rounded hover:bg-gray-600">🏠 Inicio</button>
+                        <button onclick="logout()" class="px-4 py-2 bg-red-600 rounded hover:bg-red-700">🚪 Salir</button>
+                    </div>
+                </div>
 
-      if(showModal==='review') return wrap(`<h2 class="text-xl font-bold mb-4">Califica</h2><form onsubmit="handleSubmitReview(event)"><div class="flex justify-center gap-2 text-3xl mb-4">${[1,2,3,4,5].map(n=>`<label class="cursor-pointer"><input type="radio" name="rating" value="${n}" class="hidden"><span onclick="this.parentNode.querySelector('input').checked=true">⭐</span></label>`).join('')}</div><textarea id="reviewText" class="w-full p-2 bg-black/30 text-white rounded mb-4" placeholder="Opinión..."></textarea><button class="w-full bg-green-600 p-2 rounded text-white font-bold">Enviar</button></form>`);
+                ${isA ? `
+                <div class="grid md:grid-cols-4 gap-4 mb-8">
+                    <div class="p-4 rounded bg-blue-600/20 border border-blue-600/50 text-center">
+                        <div class="text-2xl font-bold">${allUsers.length}</div>
+                        <div class="text-sm opacity-70">Usuarios</div>
+                    </div>
+                    <div class="p-4 rounded bg-green-600/20 border border-green-600/50 text-center">
+                        <div class="text-2xl font-bold">${allProducts.length}</div>
+                        <div class="text-sm opacity-70">Productos</div>
+                    </div>
+                    <div class="p-4 rounded bg-yellow-600/20 border border-yellow-600/50 text-center">
+                        <div class="text-2xl font-bold">${allOrders.filter(o=>o.order_status==='pending').length}</div>
+                        <div class="text-sm opacity-70">Pedidos Pendientes</div>
+                    </div>
+                    <div class="p-4 rounded bg-purple-600/20 border border-purple-600/50 text-center">
+                        <div class="flex flex-col gap-2">
+                            <button onclick="exportData()" class="text-xs bg-purple-600 px-2 py-1 rounded hover:bg-purple-700">💾 Exportar JSON</button>
+                            <label class="text-xs bg-blue-600 px-2 py-1 rounded hover:bg-blue-700 cursor-pointer">📂 Importar JSON<input type="file" hidden onchange="importData(event)"></label>
+                        </div>
+                    </div>
+                </div>` : ''}
 
-      if(showModal==='userProfile') {
-        const u=selectedOrder; const online=onlineUsers.has(u.username);
-        return wrap(`<div class="text-center"><div class="text-5xl mb-2">👤</div><h2 class="text-2xl font-bold">${u.username}</h2><p class="${online?'text-green-400':'text-gray-400'}">${online?'En Línea':'Offline'}</p><p>Rol: ${u.role}</p><p>Discord: ${u.discord_tag}</p><button onclick="showModal=null" class="mt-4 px-4 py-2 bg-blue-600 rounded">Cerrar</button></div>`);
-      }
+                <div class="grid lg:grid-cols-2 gap-8">
+                    <div class="space-y-6">
+                        <div class="p-6 rounded-xl shadow-lg" style="background:${cfg.card_background}">
+                            <h3 class="font-bold text-xl mb-4">➕ Publicar Producto</h3>
+                            <div class="mb-4 p-3 bg-yellow-600/20 border border-yellow-600/50 rounded text-sm text-center">💰 Comisión de la plataforma: 10%</div>
+                            <form onsubmit="handleAddProduct(event)" class="space-y-3">
+                                <input id="productName" placeholder="Nombre del Item" required class="w-full p-3 rounded bg-black/30 border border-white/10 focus:border-blue-500 outline-none">
+                                <div class="flex gap-2">
+                                    <select id="productCategory" class="w-1/2 p-3 rounded bg-black/30 border border-white/10 outline-none">
+                                        <option value="items">⚔️ Item</option>
+                                        <option value="jewels">💎 Joya</option>
+                                        <option value="wings">🦅 Alas</option>
+                                        <option value="sets">🛡️ Set</option>
+                                    </select>
+                                    <input id="productPrice" type="number" step="0.01" placeholder="Precio USDT" required class="w-1/2 p-3 rounded bg-black/30 border border-white/10 outline-none">
+                                </div>
+                                <div class="flex gap-2">
+                                    <input id="productStock" type="number" placeholder="Stock" required class="w-1/2 p-3 rounded bg-black/30 border border-white/10 outline-none">
+                                    <input id="productDiscount" type="number" placeholder="% Desc." class="w-1/2 p-3 rounded bg-black/30 border border-white/10 outline-none">
+                                </div>
+                                <input id="productImage" placeholder="URL Imagen (Opcional)" class="w-full p-3 rounded bg-black/30 border border-white/10 outline-none">
+                                <textarea id="productDescription" placeholder="Descripción detallada..." class="w-full p-3 rounded bg-black/30 border border-white/10 outline-none h-20"></textarea>
+                                <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="productOnSale" class="w-5 h-5"> 🔥 Marcar como Oferta Especial</label>
+                                <button class="w-full py-3 bg-green-600 hover:bg-green-700 rounded font-bold text-white shadow-lg transition">➕ Agregar Producto</button>
+                            </form>
+                        </div>
+                    </div>
 
-      if(showModal==='setupShop') return wrap(`<h2 class="text-xl font-bold mb-4">Configura Tienda</h2><form onsubmit="handleSetupShop(event)"><input id="setupShopName" placeholder="Nombre Tienda" class="w-full p-2 rounded bg-black/30 text-white mb-2"><input id="setupDiscord" value="${selectedOrder.discord_tag||''}" placeholder="Discord" class="w-full p-2 rounded bg-black/30 text-white mb-4"><button class="w-full bg-blue-600 p-2 rounded text-white font-bold">Guardar</button></form>`);
+                    <div class="space-y-6">
+                        <div class="p-6 rounded-xl shadow-lg max-h-96 overflow-y-auto" style="background:${cfg.card_background}">
+                            <h3 class="font-bold text-xl mb-4">📦 Inventario (${items.length})</h3>
+                            ${items.map(p=>`
+                                <div class="flex justify-between items-center mb-2 p-3 bg-black/20 rounded hover:bg-black/30 transition">
+                                    <div class="flex items-center gap-3">
+                                        <div class="text-2xl">${getCategoryIcon(p.category)}</div>
+                                        <div>
+                                            <div class="font-bold">${p.name}</div>
+                                            <div class="text-xs opacity-60">Stock: ${p.stock} | $${p.final_price}</div>
+                                        </div>
+                                    </div>
+                                    <button onclick="deleteProduct('${p.__backendId}')" class="text-red-500 hover:bg-red-500/20 p-2 rounded transition">🗑️</button>
+                                </div>
+                            `).join('')}
+                        </div>
 
-      if(showModal==='importConfirm') return wrap(`<h2 class="text-xl font-bold mb-4">Importar</h2><p>Se cargarán ${selectedOrder.products?.length||0} productos y ${selectedOrder.users?.length||0} usuarios.</p><button id="confirmImportBtn" onclick="confirmImport()" class="w-full bg-green-600 p-2 rounded text-white font-bold mt-4">Confirmar</button>`);
+                        <div class="p-6 rounded-xl shadow-lg max-h-96 overflow-y-auto" style="background:${cfg.card_background}">
+                            <h3 class="font-bold text-xl mb-4">📥 Pedidos Entrantes</h3>
+                            ${myOrders.map(o=>`
+                                <div class="mb-3 p-3 bg-black/20 rounded border-l-4 ${o.order_status==='completed'?'border-green-500':'border-yellow-500'}">
+                                    <div class="flex justify-between text-sm font-bold">
+                                        <span>#${o.id.slice(-4)} - ${o.buyer_username}</span>
+                                        <span class="${o.order_status==='completed'?'text-green-400':'text-yellow-400'}">$${o.total}</span>
+                                    </div>
+                                    <div class="text-xs opacity-70 mt-1">${o.items}</div>
+                                    ${o.order_status==='pending' ? `
+                                        <button onclick="confirmOrder('${o.__backendId}',true)" ${o.seller_confirmed?'disabled':''} class="mt-2 w-full py-1 bg-blue-600 rounded text-xs font-bold hover:bg-blue-700 disabled:opacity-50">${o.seller_confirmed?'✅ Esperando comprador':'✅ Confirmar Entrega'}</button>
+                                    `:''}
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
 
-      if(showModal==='exportSuccess') return wrap(`<h2 class="text-xl font-bold mb-4">Exportado</h2><p>Datos copiados al portapapeles.</p><button onclick="showModal=null" class="w-full bg-blue-600 p-2 rounded mt-4">Cerrar</button>`);
-
-      if(showModal==='banReason') return wrap(`<h2 class="text-xl text-red-500 font-bold mb-4">Banear</h2><input id="banReason" placeholder="Razón" class="w-full p-2 rounded bg-black/30 text-white mb-2"><textarea id="banMotive" placeholder="Detalle" class="w-full p-2 rounded bg-black/30 text-white mb-4"></textarea><button onclick="confirmBanUser()" class="w-full bg-red-600 p-2 rounded text-white font-bold">Confirmar</button>`);
-
-      if(showModal==='bannedInfo') return wrap(`<div class="text-center"><h2 class="text-3xl mb-2">🚫</h2><h3 class="text-xl font-bold text-red-500 mb-4">Cuenta Suspendida</h3><div class="bg-red-900/30 p-4 rounded mb-4"><p class="font-bold">${selectedOrder.ban_reason}</p><p class="text-sm mt-2 opacity-80">${selectedOrder.ban_motive}</p></div><button onclick="showModal=null;render()" class="px-4 py-2 bg-gray-600 rounded text-white">Cerrar</button></div>`);
-
-      if(showModal==='confirmDeleteUser') return wrap(`<h2 class="text-xl font-bold text-red-500 mb-4">Eliminar Usuario</h2><p>Se borrarán todos sus datos.</p><button onclick="confirmDeleteUser()" class="w-full bg-red-600 p-2 rounded text-white font-bold mt-4">Eliminar</button>`);
-
-      return '';
+                ${isA ? `
+                <div class="mt-8 p-6 rounded-xl shadow-lg" style="background:${cfg.card_background}">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-bold text-xl">👥 Gestión de Usuarios</h3>
+                        <input oninput="filterUsers(this.value)" placeholder="🔍 Buscar..." class="p-2 rounded bg-black/30 border border-white/10 text-sm w-64">
+                    </div>
+                    <div class="max-h-96 overflow-y-auto">
+                        ${allUsers.map(u=>`
+                            <div class="user-row flex flex-wrap justify-between items-center mb-2 p-3 bg-black/20 rounded hover:bg-black/30 transition" data-username="${u.username.toLowerCase()}">
+                                <div class="flex items-center gap-3 min-w-[200px]">
+                                    <div class="w-2 h-2 rounded-full ${onlineUsers.has(u.username)?'bg-green-500':'bg-gray-500'}"></div>
+                                    <div>
+                                        <div class="font-bold ${u.status==='banned'?'text-red-500 line-through':''}">${u.username}</div>
+                                        <div class="text-xs opacity-60">${u.role} | ${u.discord_tag||'-'}</div>
+                                    </div>
+                                </div>
+                                <div class="flex gap-2 text-xs items-center">
+                                    ${u.role==='reseller' ? (u.approved ? '<span class="text-green-400">✅ Aprobado</span>' : `<button onclick="approveReseller('${u.__backendId}',true)" class="bg-green-600 px-2 py-1 rounded">Aprobar</button>`) : ''}
+                                    <select onchange="changeUserRole('${u.__backendId}',this.value)" class="bg-black/40 rounded p-1">
+                                        <option value="buyer" ${u.role==='buyer'?'selected':''}>Buyer</option>
+                                        <option value="reseller" ${u.role==='reseller'?'selected':''}>Seller</option>
+                                        <option value="admin" ${u.role==='admin'?'selected':''}>Admin</option>
+                                    </select>
+                                    ${u.status==='banned' ? 
+                                        `<button onclick="unbanUser('${u.__backendId}')" class="bg-gray-600 px-2 py-1 rounded">Desbanear</button>` : 
+                                        `<button onclick="banUser('${u.__backendId}')" class="bg-orange-600 px-2 py-1 rounded">Ban</button>`
+                                    }
+                                    <button onclick="deleteUser('${u.__backendId}')" class="bg-red-600 px-2 py-1 rounded">Del</button>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>` : ''}
+            </div>
+        `;
     }
 
+    // --- MODALES ---
+    function renderModal(cfg) {
+        const wrap = (c) => `<div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4 anim-fade-in" onclick="if(event.target===this){showModal=null;render();}"><div class="rounded-xl p-8 max-w-md w-full relative shadow-2xl" style="background:${cfg.card_background}">${c}</div></div>`;
+        
+        if(showModal==='login') return wrap(`
+            <h2 class="text-3xl font-bold mb-6 text-center">🔐 Acceso</h2>
+            <form onsubmit="handleLogin(event)" class="space-y-4">
+                <input id="loginUsername" placeholder="Usuario" class="w-full p-3 rounded bg-black/30 border border-white/10 focus:border-blue-500 outline-none">
+                <input type="password" id="loginPassword" placeholder="Contraseña" class="w-full p-3 rounded bg-black/30 border border-white/10 focus:border-blue-500 outline-none">
+                <button class="w-full bg-blue-600 hover:bg-blue-700 p-3 rounded text-white font-bold shadow-lg transition">Entrar</button>
+                <div class="text-center text-sm mt-4 pt-4 border-t border-white/10">
+                    <p class="opacity-60 mb-2">¿Nuevo aquí?</p>
+                    <div class="flex justify-center gap-4">
+                        <button type="button" onclick="showModal='register';render()" class="text-green-400 hover:underline">Crear Cuenta</button>
+                        <button type="button" onclick="showModal='registerReseller';render()" class="text-yellow-400 hover:underline">Quiero Vender</button>
+                    </div>
+                </div>
+            </form>
+        `);
+        
+        if(showModal==='register') return wrap(`<h2 class="text-2xl font-bold mb-4 text-center">📝 Registro Comprador</h2><form onsubmit="handleRegisterBuyer(event)" class="space-y-4"><input id="buyerUsername" placeholder="Usuario" class="w-full p-3 rounded bg-black/30 border border-white/10"><input type="password" id="buyerPassword" placeholder="Contraseña" class="w-full p-3 rounded bg-black/30 border border-white/10"><input id="buyerDiscord" placeholder="Discord Tag" class="w-full p-3 rounded bg-black/30 border border-white/10"><button class="w-full bg-green-600 p-3 rounded font-bold hover:bg-green-700 transition">Registrar</button></form>`);
+        
+        if(showModal==='registerReseller') return wrap(`<h2 class="text-2xl font-bold mb-4 text-center">🏪 Solicitud Vendedor</h2><form onsubmit="handleRegisterReseller(event)" class="space-y-4"><input id="resellerUsername" placeholder="Usuario" class="w-full p-3 rounded bg-black/30 border border-white/10"><input type="password" id="resellerPassword" placeholder="Contraseña" class="w-full p-3 rounded bg-black/30 border border-white/10"><input id="resellerShop" placeholder="Nombre Tienda" class="w-full p-3 rounded bg-black/30 border border-white/10"><input id="resellerDiscord" placeholder="Discord Tag" class="w-full p-3 rounded bg-black/30 border border-white/10"><div class="bg-yellow-600/20 p-3 rounded text-xs text-center">⚠️ Requiere aprobación del Admin</div><button class="w-full bg-yellow-600 p-3 rounded font-bold hover:bg-yellow-700 transition">Enviar Solicitud</button></form>`);
+
+        if(showModal==='review') return wrap(`<h2 class="text-xl font-bold mb-4 text-center">⭐ Califica tu compra</h2><form onsubmit="handleSubmitReview(event)"><div class="flex justify-center gap-4 text-4xl mb-6">${[1,2,3,4,5].map(n=>`<label class="cursor-pointer hover:scale-125 transition"><input type="radio" name="rating" value="${n}" class="hidden"><span onclick="this.parentNode.querySelector('input').checked=true">⭐</span></label>`).join('')}</div><textarea id="reviewText" class="w-full p-3 bg-black/30 border border-white/10 rounded mb-4 h-24" placeholder="¿Qué tal fue el servicio?"></textarea><button class="w-full bg-green-600 p-3 rounded font-bold hover:bg-green-700">Enviar Calificación</button></form>`);
+        
+        if(showModal==='banReason') return wrap(`<h2 class="text-xl text-red-500 font-bold mb-4">🚫 Banear Usuario</h2><input id="banReason" placeholder="Razón (Ej: Estafa)" class="w-full p-3 rounded bg-black/30 border border-white/10 mb-3"><textarea id="banMotive" placeholder="Detalles adicionales..." class="w-full p-3 rounded bg-black/30 border border-white/10 mb-4 h-24"></textarea><button onclick="confirmBanUser()" class="w-full bg-red-600 p-3 rounded font-bold hover:bg-red-700">Confirmar Baneo</button>`);
+
+        if(showModal==='bannedInfo') return wrap(`<div class="text-center"><div class="text-6xl mb-4">🚫</div><h3 class="text-2xl font-bold text-red-500 mb-4">Cuenta Suspendida</h3><div class="bg-red-900/30 p-4 rounded mb-6 border border-red-500/30"><p class="font-bold text-lg mb-2">${selectedOrder.ban_reason}</p><p class="opacity-80">${selectedOrder.ban_motive}</p></div><button onclick="showModal=null;render()" class="px-6 py-2 bg-gray-600 rounded hover:bg-gray-700">Cerrar</button></div>`);
+        
+        if(showModal==='setupShop') return wrap(`<h2 class="text-xl font-bold mb-4">🏪 Configura tu Tienda</h2><p class="text-sm opacity-70 mb-4">Necesitamos estos datos para que puedas vender.</p><form onsubmit="handleSetupShop(event)"><input id="setupShopName" placeholder="Nombre de tu Tienda" class="w-full p-3 rounded bg-black/30 border border-white/10 mb-3" required><input id="setupDiscord" value="${selectedOrder.discord_tag||''}" placeholder="Discord Tag" class="w-full p-3 rounded bg-black/30 border border-white/10 mb-4" required><button class="w-full bg-blue-600 p-3 rounded font-bold hover:bg-blue-700">Guardar y Empezar</button></form>`);
+        
+        if(showModal==='importConfirm') return wrap(`<h2 class="text-xl font-bold mb-4">📥 Confirmar Importación</h2><p class="mb-4 opacity-80">Se cargarán los datos del archivo. Esto añadirá usuarios y productos nuevos.</p><div class="bg-blue-600/20 p-3 rounded mb-4 text-sm">Productos: ${selectedOrder.products?.length||0}<br>Usuarios: ${selectedOrder.users?.length||0}</div><button onclick="confirmImport()" class="w-full bg-green-600 p-3 rounded font-bold hover:bg-green-700">Confirmar</button>`);
+        
+        if(showModal==='confirmDeleteUser') return wrap(`<h2 class="text-xl font-bold text-red-500 mb-4">⚠️ Eliminar Usuario</h2><p class="mb-4">¿Estás seguro? Se borrarán <strong>todos</strong> sus productos, pedidos y datos. Esta acción no se puede deshacer.</p><button onclick="confirmDeleteUser()" class="w-full bg-red-600 p-3 rounded font-bold hover:bg-red-700">Sí, eliminar todo</button><button onclick="showModal=null;render()" class="w-full mt-2 p-2 opacity-60 hover:opacity-100">Cancelar</button>`);
+
+        return '';
+    }
+
+    // Iniciar App
     init();
   </script>
- </body>
+</body>
 </html>
