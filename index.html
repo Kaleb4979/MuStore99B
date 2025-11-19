@@ -102,7 +102,7 @@
       }
     };
 
-    // Simular Data SDK
+    // Simular Data SDK (CORREGIDO: Lógica de actualización para persistencia)
     window.dataSdk = {
       init: async (handler) => {
         window.mockDb.handler = handler;
@@ -119,7 +119,8 @@
       update: async (item) => {
         const index = window.mockDb.data.findIndex(i => i.__backendId === item.__backendId);
         if (index !== -1) {
-          window.mockDb.data[index] = item;
+          // CLONAR y REEMPLAZAR para asegurar inmutabilidad simulada y persistencia
+          window.mockDb.data[index] = {...item}; 
           window.mockDb.notify();
           return { isOk: true, item: item };
         }
@@ -190,7 +191,7 @@
     let onlineUsers = new Set();
     let userActivityTimeout = null;
     
-    // --- LÓGICA DE NOTIFICACIÓN CON SONIDO (CORREGIDA URL) ---
+    // --- LÓGICA DE NOTIFICACIÓN CON SONIDO ---
     let audioContextResumed = false;
     // URL de un sonido de alarma más confiable (Dominio Público)
     const notificationAudio = new Audio('https://s3.amazonaws.com/iamsteve/mp3/alarm.mp3'); 
@@ -231,12 +232,14 @@
                 showToast(`🔔 ${newOrderAlert.message}`);
                 playNotificationSound();
                 
-                // Marcar como descartada usando dataSdk.update para que el cambio se persista
-                newOrderAlert.dismissed = true;
+                // CORRECCIÓN CLAVE: Marcar como descartada usando dataSdk.update para persistir y notificar
+                // Clonamos el objeto de la alerta para modificarlo sin alterar el array original antes del update.
+                const updatedAlert = {...newOrderAlert, dismissed: true};
+                
                 // NOTA IMPORTANTE: Usamos .update() para que el cambio se refleje y no suene
                 // en el siguiente render, pero lo hacemos de forma asíncrona para no bloquear
                 // la notificación actual.
-                window.dataSdk.update(newOrderAlert); 
+                window.dataSdk.update(updatedAlert); 
             }
         }
         // --- FIN LÓGICA DE DETECCIÓN ---
@@ -546,9 +549,9 @@
       const existingActivity = activityRecords.find(a => a.username === currentUser.username);
       
       if (existingActivity) {
-        existingActivity.last_activity = new Date().toISOString();
-        // Usar dataSdk.update para que el cambio se persista y notifique
-        await window.dataSdk.update(existingActivity);
+        // Clonamos para evitar modificar el objeto en el array antes de la actualización
+        const updatedActivity = {...existingActivity, last_activity: new Date().toISOString()};
+        await window.dataSdk.update(updatedActivity);
       } else {
         const activityData = {
           id: 'activity_' + currentUser.username,
@@ -643,9 +646,8 @@
       if (!user) return;
 
       if (approve) {
-        user.approved = true;
-        user.status = 'approved';
-        const result = await window.dataSdk.update(user);
+        const updatedUser = {...user, approved: true, status: 'approved'};
+        const result = await window.dataSdk.update(updatedUser);
         if (result.isOk) showToast('Vendedor aprobado');
       } else {
         // SI ES RECHAZADO, SE BORRA LA SOLICITUD
@@ -659,25 +661,21 @@
       if (!user) return;
 
       const oldRole = user.role;
-      user.role = newRole;
+      let updatedUser = {...user, role: newRole};
       
       if (newRole === 'reseller') {
-        user.approved = true;
-        user.status = 'approved';
+        updatedUser = {...updatedUser, approved: true, status: 'approved'};
       } else if (newRole === 'admin') {
-        user.approved = true;
-        user.status = 'approved';
+        updatedUser = {...updatedUser, approved: true, status: 'approved'};
         if (oldRole === 'reseller') {
-          user.shop_name = '';
-          user.discord_tag = user.discord_tag || '';
+          updatedUser.shop_name = '';
+          updatedUser.discord_tag = updatedUser.discord_tag || '';
         }
       } else if (newRole === 'buyer') {
-        user.approved = true;
-        user.status = 'active';
-        user.shop_name = '';
+        updatedUser = {...updatedUser, approved: true, status: 'active', shop_name: ''};
       }
 
-      const result = await window.dataSdk.update(user);
+      const result = await window.dataSdk.update(updatedUser);
       if (result.isOk) {
         showToast(`Rol cambiado a ${newRole}`);
       } else {
@@ -689,18 +687,17 @@
     async function banUser(backendId) {
         const user = allUsers.find(u => u.__backendId === backendId);
         if (!user) return;
-
+        
+        let updatedUser;
         if(user.status === 'banned') {
             // Desbanear
-            user.status = 'active';
-            user.approved = true;
-            await window.dataSdk.update(user);
+            updatedUser = {...user, status: 'active', approved: true};
+            await window.dataSdk.update(updatedUser);
             showToast('Usuario desbaneado (activo)');
         } else {
             // Banear
-            user.status = 'banned';
-            user.approved = false;
-            await window.dataSdk.update(user);
+            updatedUser = {...user, status: 'banned', approved: false};
+            await window.dataSdk.update(updatedUser);
             showToast('🚫 Usuario BANEADO exitosamente');
         }
     }
@@ -748,20 +745,23 @@
         return;
       }
 
-      user.role = 'reseller';
-      user.shop_name = shopName;
-      user.discord_tag = discordTag;
-      user.approved = true;
-      user.status = 'approved';
+      const updatedUser = {
+        ...user,
+        role: 'reseller',
+        shop_name: shopName,
+        discord_tag: discordTag,
+        approved: true,
+        status: 'approved'
+      };
 
-      const result = await window.dataSdk.update(user);
+      const result = await window.dataSdk.update(updatedUser);
       if (result.isOk) {
         showToast('Tienda configurada exitosamente');
         showModal = null;
         selectedOrder = null;
         
         if (currentUser && user.__backendId === currentUser.__backendId) {
-          currentUser = user;
+          currentUser = updatedUser;
           currentView = 'admin';
         }
         
@@ -943,42 +943,49 @@
       const order = allOrders.find(o => o.__backendId === backendId);
       if (!order) return;
 
+      // 1. Actualizar la confirmación localmente
+      let updatedOrder = {...order};
+
       if (isSeller) {
-        order.seller_confirmed = true;
+        if (updatedOrder.seller_confirmed) return; // Ya confirmado
+        updatedOrder.seller_confirmed = true;
       } else {
-        order.buyer_confirmed = true;
+        if (updatedOrder.buyer_confirmed) return; // Ya confirmado
+        updatedOrder.buyer_confirmed = true;
       }
 
-      const result = await window.dataSdk.update(order); // Actualizar el estado de confirmación
+      // 2. Persistir el estado de confirmación
+      const result = await window.dataSdk.update(updatedOrder); 
       
       if (result.isOk) {
-          // Lógica de finalización
-          if (order.seller_confirmed && order.buyer_confirmed && order.order_status !== 'completed') {
-              order.order_status = 'completed';
-              order.needs_review = true;
+          // 3. Verificar si ambas partes han confirmado
+          if (result.item.seller_confirmed && result.item.buyer_confirmed && result.item.order_status !== 'completed') {
+              
+              const completedOrder = {...result.item, order_status: 'completed', needs_review: true};
               
               // Actualizar Stock de forma ASÍNCRONA
               try {
-                const itemsData = JSON.parse(order.items_data);
+                const itemsData = JSON.parse(completedOrder.items_data);
                 for (const item of itemsData) {
                   const product = allProducts.find(p => p.__backendId === item.backendId);
                   if (product) {
-                    product.stock = Math.max(0, product.stock - item.quantity);
-                    // Actualizamos cada producto por separado
-                    await window.dataSdk.update(product); 
+                    const updatedProduct = {...product, stock: Math.max(0, product.stock - item.quantity)};
+                    // Actualizamos cada producto por separado (dispara notify())
+                    await window.dataSdk.update(updatedProduct); 
                   }
                 }
                 
-                // Finalizamos la actualización del pedido a 'completed' (después de actualizar stock)
-                await window.dataSdk.update(order); 
+                // 4. Finalizamos la actualización del pedido a 'completed' y needs_review
+                await window.dataSdk.update(completedOrder); 
                 
               } catch (e) {
                 console.error('Error procesando items y stock:', e);
+                showToast('Error al actualizar stock, contactar Admin.');
               }
 
               showToast('¡Pedido completado! Stock actualizado');
               if (!isSeller) {
-                  selectedOrder = order;
+                  selectedOrder = completedOrder;
                   showModal = 'review';
               }
           } else {
@@ -1021,8 +1028,8 @@
       
       if (reviewResult.isOk) {
         // Actualizar el pedido para marcar que ya se calificó
-        selectedOrder.needs_review = false;
-        await window.dataSdk.update(selectedOrder);
+        const updatedOrder = {...selectedOrder, needs_review: false};
+        await window.dataSdk.update(updatedOrder);
         
         showToast('¡Gracias por tu reseña!');
         showModal = null;
@@ -2126,6 +2133,143 @@
                 <button type="button" onclick="showModal = null; render();" class="w-full py-2 rounded-lg font-semibold transition" style="background-color: rgba(255,255,255,0.1); color: ${config.text_color};">
                   Cancelar
                 </button>
+              </form>
+            </div>
+          </div>
+        `;
+      }
+
+      if (showModal === 'importConfirm' && selectedOrder) {
+        const importedData = selectedOrder;
+        return `
+          <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
+            <div class="rounded-xl shadow-2xl w-full max-w-md p-8" style="background-color: ${config.card_background}; color: ${config.text_color};">
+              <h2 class="text-3xl font-bold mb-4 text-center">📤 Confirmar Importación</h2>
+              
+              <div class="mb-6 p-4 rounded-lg" style="background-color: rgba(255, 215, 0, 0.1); border: 2px solid rgba(255, 215, 0, 0.3);">
+                <p class="text-center font-bold mb-2">⚠️ ¡Importante!</p>
+                <p class="text-sm text-center opacity-90">Esto importará los datos del archivo JSON en tiempo real.</p>
+              </div>
+
+              <div class="mb-6 p-4 rounded-lg" style="background-color: rgba(0,0,0,0.2);">
+                <p class="font-semibold mb-2">📄 Resumen del archivo:</p>
+                <p class="text-sm">👥 Usuarios: ${importedData.users?.length || 0}</p>
+                <p class="text-sm">📦 Productos: ${importedData.products?.length || 0}</p>
+                <p class="text-sm">🛒 Pedidos: ${importedData.orders?.length || 0}</p>
+                <p class="text-sm">⭐ Reseñas: ${importedData.reviews?.length || 0}</p>
+                <p class="text-xs opacity-70 mt-2">📅 Exportado: ${new Date(importedData.exportDate || Date.now()).toLocaleString()}</p>
+              </div>
+
+              <button id="confirmImportBtn" onclick="confirmImport();" class="w-full py-3 rounded-lg font-bold text-lg transition mb-3" style="background-color: ${config.secondary_button}; color: white;">
+                ✅ Confirmar Importación
+              </button>
+              
+              <button type="button" onclick="showModal = null; selectedOrder = null; render();" class="w-full py-2 rounded-lg font-semibold transition" style="background-color: rgba(255,255,255,0.1); color: ${config.text_color};">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        `;
+      }
+
+      if (showModal === 'review' && selectedOrder && selectedOrder.order_status) {
+        return `
+          <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
+            <div class="rounded-xl shadow-2xl w-full max-w-md p-8" style="background-color: ${config.card_background}; color: ${config.text_color};" onclick="event.stopPropagation();">
+              <h2 class="text-3xl font-bold mb-4 text-center">⭐ Calificar Pedido</h2>
+              
+              <div class="mb-6 p-4 rounded-lg" style="background-color: rgba(255, 215, 0, 0.1); border: 2px solid rgba(255, 215, 0, 0.3);">
+                <p class="text-center font-bold mb-2">⚠️ ¡Calificación Obligatoria!</p>
+                <p class="text-sm text-center opacity-90">Debes calificar esta tienda para continuar usando el marketplace</p>
+              </div>
+
+              <div class="mb-6 p-4 rounded-lg" style="background-color: rgba(0,0,0,0.2);">
+                <p class="font-semibold mb-1">🏪 Tienda: ${selectedOrder.seller_username}</p>
+                <p class="text-sm opacity-70">💰 Total: $${selectedOrder.total.toFixed(2)} USDT</p>
+                <p class="text-sm opacity-70">📦 Pedido #${selectedOrder.id.substring(0, 8)}</p>
+              </div>
+
+              <form onsubmit="handleSubmitReview(event);">
+                <div class="mb-6">
+                  <label class="block text-sm font-semibold mb-3 text-center">Calificación *</label>
+                  <div class="flex justify-center gap-2">
+                    ${[1, 2, 3, 4, 5].map(star => `
+                      <label class="cursor-pointer">
+                        <input type="radio" name="rating" value="${star}" class="hidden" required>
+                        <span class="star text-4xl hover:scale-110 transition" onclick="this.parentElement.querySelector('input').checked = true;">
+                          ☆
+                        </span>
+                      </label>
+                    `).join('')}
+                  </div>
+                </div>
+
+                <div class="mb-6">
+                  <label class="block text-sm font-semibold mb-2" for="reviewText">Comentario (opcional)</label>
+                  <textarea id="reviewText" rows="4" placeholder="Comparte tu experiencia con esta tienda..." class="w-full px-4 py-3 rounded-lg" style="background-color: rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.1); color: ${config.text_color};"></textarea>
+                </div>
+
+                <button type="submit" class="w-full py-3 rounded-lg font-bold text-lg transition" style="background-color: ${config.secondary_button}; color: white;">
+                  ⭐ Enviar Reseña
+                </button>
+              </form>
+            </div>
+          </div>
+        `;
+      }
+
+      if (showModal === 'setupShop' && selectedOrder && !selectedOrder.order_status) {
+        const user = selectedOrder;
+        const isFromLogin = user.__backendId === currentUser?.__backendId;
+        return `
+          <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
+            <div class="rounded-xl shadow-2xl w-full max-w-md p-8" style="background-color: ${config.card_background}; color: ${config.text_color};" onclick="event.stopPropagation();">
+              <h2 class="text-3xl font-bold mb-4 text-center">🏪 Configurar Tienda</h2>
+              
+              <div class="mb-6 p-4 rounded-lg" style="background-color: ${isFromLogin ? 'rgba(255, 215, 0, 0.1); border: 2px solid rgba(255, 215, 0, 0.3)' : 'rgba(59, 130, 246, 0.1); border: 2px solid rgba(59, 130, 246, 0.3)'};">
+                <p class="text-center font-bold mb-2">${isFromLogin ? '⚠️ Configuración Obligatoria' : '📋 Información Requerida'}</p>
+                <p class="text-sm text-center opacity-90">${isFromLogin ? 'Debes configurar tu tienda para poder acceder al marketplace' : `El usuario <span class="font-bold">${user.username}</span> necesita configurar su tienda para ser vendedor`}</p>
+              </div>
+
+              <form onsubmit="handleSetupShop(event);">
+                <div class="mb-4">
+                  <label class="block text-sm font-semibold mb-2" for="setupShopName">Nombre de la Tienda *</label>
+                  <input 
+                    type="text" 
+                    id="setupShopName" 
+                    placeholder="Mi Tienda Épica"
+                    required 
+                    class="w-full px-4 py-3 rounded-lg" 
+                    style="background-color: rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.1); color: ${config.text_color};">
+                </div>
+
+                <div class="mb-6">
+                  <label class="block text-sm font-semibold mb-2" for="setupDiscord">Discord Tag *</label>
+                  <input 
+                    type="text" 
+                    id="setupDiscord" 
+                    placeholder="Usuario#1234"
+                    value="${user.discord_tag || ''}"
+                    required 
+                    class="w-full px-4 py-3 rounded-lg" 
+                    style="background-color: rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.1); color: ${config.text_color};">
+                </div>
+
+                <div class="mb-6 p-4 rounded-lg" style="background-color: rgba(16, 185, 129, 0.1);">
+                  <p class="text-sm opacity-80">
+                    ✅ Una vez configurada la tienda, ${isFromLogin ? 'podrás' : 'el usuario podrá'} agregar productos y vender
+                  </p>
+                </div>
+
+                <button type="submit" class="w-full py-3 rounded-lg font-bold text-lg transition mb-3" style="background-color: ${config.secondary_button}; color: white;">
+                  🏪 Crear Tienda
+                </button>
+                
+                ${!isFromLogin ? `
+                  <button type="button" onclick="showModal = null; selectedOrder = null; render();" class="w-full py-2 rounded-lg font-semibold transition" style="background-color: rgba(255,255,255,0.1); color: ${config.text_color};">
+                    Cancelar
+                  </button>
+                ` : ''}
               </form>
             </div>
           </div>
