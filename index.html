@@ -209,7 +209,7 @@
     // --- FIN LÓGICA DE NOTIFICACIÓN CON SONIDO ---
 
 
-    // Data SDK Handler (CORREGIDO: Lógica de Notificación y render)
+    // Data SDK Handler (Lógica de Notificación y render)
     const dataHandler = {
       onDataChanged(data) {
         allProducts = data.filter(item => item.type === 'product') || [];
@@ -232,13 +232,8 @@
                 showToast(`🔔 ${newOrderAlert.message}`);
                 playNotificationSound();
                 
-                // CORRECCIÓN CLAVE: Marcar como descartada usando dataSdk.update para persistir y notificar
-                // Clonamos el objeto de la alerta para modificarlo sin alterar el array original antes del update.
+                // Marcar como descartada usando dataSdk.update para persistir y notificar
                 const updatedAlert = {...newOrderAlert, dismissed: true};
-                
-                // NOTA IMPORTANTE: Usamos .update() para que el cambio se refleje y no suene
-                // en el siguiente render, pero lo hacemos de forma asíncrona para no bloquear
-                // la notificación actual.
                 window.dataSdk.update(updatedAlert); 
             }
         }
@@ -254,6 +249,9 @@
         );
         
         checkPendingReviews();
+        // CORRECCIÓN CLAVE: Validar el carrito contra la nueva lista de productos
+        validateCart();
+        
         render(); // Se llama una sola vez al final del dataHandler
       }
     };
@@ -632,7 +630,9 @@
       const product = allProducts.find(p => p.__backendId === backendId);
       if (!product) return;
 
-      const result = await window.dataSdk.delete(product);
+      // CORRECCIÓN CLAVE: Usamos dataSdk.delete, esto dispara el dataHandler
+      // que a su vez llama a validateCart() y render(), actualizando todo
+      const result = await window.dataSdk.delete(product); 
       if (result.isOk) {
         showToast('Producto eliminado');
       } else {
@@ -798,6 +798,51 @@
     }
 
     // Cart Functions
+    // CORRECCIÓN CLAVE: Verifica si los items en el carrito existen en allProducts
+    function validateCart() {
+        if (cart.length === 0) return;
+
+        const originalCartLength = cart.length;
+        
+        // Filtrar el carrito: solo mantiene items donde hay un producto correspondiente en allProducts
+        cart = cart.filter(cartItem => {
+            const correspondingProduct = allProducts.find(p => p.__backendId === cartItem.__backendId);
+            
+            // Si el producto no existe (fue eliminado), o si el stock cambió
+            if (!correspondingProduct) {
+                showToast(`❌ El item "${cartItem.name}" ha sido eliminado del catálogo.`);
+                return false; 
+            }
+            
+            // Asegurar que la cantidad en el carrito no exceda el stock actualizado
+            if (cartItem.quantity > correspondingProduct.stock) {
+                cartItem.quantity = correspondingProduct.stock;
+                if (cartItem.quantity === 0) {
+                     showToast(`❌ El item "${cartItem.name}" se agotó y se eliminó del carrito.`);
+                     return false;
+                }
+                showToast(`⚠️ Stock de "${cartItem.name}" limitado a ${cartItem.quantity}.`);
+            }
+            
+            // Si todo está bien, lo mantenemos y actualizamos sus propiedades (precio/nombre)
+            // Esto asegura que el carrito siempre tenga la data de precios más reciente
+            cartItem.price = correspondingProduct.price;
+            cartItem.final_price = correspondingProduct.final_price;
+            cartItem.discount = correspondingProduct.discount;
+            cartItem.seller_username = correspondingProduct.seller_username;
+            cartItem.seller_discord = correspondingProduct.seller_discord;
+            
+            return true;
+        });
+        
+        // Si el tamaño del carrito cambió, debemos notificar un render
+        if (originalCartLength !== cart.length) {
+           // No llamamos render aquí, ya que el dataHandler lo hace.
+           // Pero si el cambio se hizo sin un evento de dataHandler (ej. al abrir la app), 
+           // sería necesario, pero aquí lo omitimos para no duplicar el render.
+        }
+    }
+
     function addToCart(backendId) {
       if (!currentUser) {
         showToast('Inicia sesión para agregar al carrito');
@@ -821,6 +866,8 @@
           showToast('No hay más stock disponible');
         }
       } else {
+        // Al agregar, usamos una copia para no alterar allProducts,
+        // pero la validación posterior mantiene su data fresca.
         cart.push({ ...product, quantity: 1 });
         showToast('Agregado al carrito');
       }
@@ -863,6 +910,15 @@
         showToast('Límite de pedidos alcanzado');
         return;
       }
+      
+      // Vuelva a validar el carrito antes de crear la orden
+      validateCart(); 
+      if (cart.length === 0) {
+          showToast('El carrito se vació debido a cambios de stock/eliminación de items.');
+          render();
+          return;
+      }
+
 
       const ordersBySeller = {};
       cart.forEach(item => {
@@ -922,7 +978,7 @@
                 dismissed: false, 
                 created_at: new Date().toISOString()
             };
-            // Usar dataSdk.create para generar la notificación (esto dispara el dataHandler)
+            // Esto dispara el dataHandler en el lado del VENDEDOR/ADMIN
             await window.dataSdk.create(notificationData);
             // --- FIN CÓDIGO AGREGADO ---
         }
@@ -970,7 +1026,7 @@
                   const product = allProducts.find(p => p.__backendId === item.backendId);
                   if (product) {
                     const updatedProduct = {...product, stock: Math.max(0, product.stock - item.quantity)};
-                    // Actualizamos cada producto por separado (dispara notify())
+                    // Actualizamos cada producto por separado (dispara notify() y render() en tiempo real)
                     await window.dataSdk.update(updatedProduct); 
                   }
                 }
@@ -2133,143 +2189,6 @@
                 <button type="button" onclick="showModal = null; render();" class="w-full py-2 rounded-lg font-semibold transition" style="background-color: rgba(255,255,255,0.1); color: ${config.text_color};">
                   Cancelar
                 </button>
-              </form>
-            </div>
-          </div>
-        `;
-      }
-
-      if (showModal === 'importConfirm' && selectedOrder) {
-        const importedData = selectedOrder;
-        return `
-          <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
-            <div class="rounded-xl shadow-2xl w-full max-w-md p-8" style="background-color: ${config.card_background}; color: ${config.text_color};">
-              <h2 class="text-3xl font-bold mb-4 text-center">📤 Confirmar Importación</h2>
-              
-              <div class="mb-6 p-4 rounded-lg" style="background-color: rgba(255, 215, 0, 0.1); border: 2px solid rgba(255, 215, 0, 0.3);">
-                <p class="text-center font-bold mb-2">⚠️ ¡Importante!</p>
-                <p class="text-sm text-center opacity-90">Esto importará los datos del archivo JSON en tiempo real.</p>
-              </div>
-
-              <div class="mb-6 p-4 rounded-lg" style="background-color: rgba(0,0,0,0.2);">
-                <p class="font-semibold mb-2">📄 Resumen del archivo:</p>
-                <p class="text-sm">👥 Usuarios: ${importedData.users?.length || 0}</p>
-                <p class="text-sm">📦 Productos: ${importedData.products?.length || 0}</p>
-                <p class="text-sm">🛒 Pedidos: ${importedData.orders?.length || 0}</p>
-                <p class="text-sm">⭐ Reseñas: ${importedData.reviews?.length || 0}</p>
-                <p class="text-xs opacity-70 mt-2">📅 Exportado: ${new Date(importedData.exportDate || Date.now()).toLocaleString()}</p>
-              </div>
-
-              <button id="confirmImportBtn" onclick="confirmImport();" class="w-full py-3 rounded-lg font-bold text-lg transition mb-3" style="background-color: ${config.secondary_button}; color: white;">
-                ✅ Confirmar Importación
-              </button>
-              
-              <button type="button" onclick="showModal = null; selectedOrder = null; render();" class="w-full py-2 rounded-lg font-semibold transition" style="background-color: rgba(255,255,255,0.1); color: ${config.text_color};">
-                Cancelar
-              </button>
-            </div>
-          </div>
-        `;
-      }
-
-      if (showModal === 'review' && selectedOrder && selectedOrder.order_status) {
-        return `
-          <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
-            <div class="rounded-xl shadow-2xl w-full max-w-md p-8" style="background-color: ${config.card_background}; color: ${config.text_color};" onclick="event.stopPropagation();">
-              <h2 class="text-3xl font-bold mb-4 text-center">⭐ Calificar Pedido</h2>
-              
-              <div class="mb-6 p-4 rounded-lg" style="background-color: rgba(255, 215, 0, 0.1); border: 2px solid rgba(255, 215, 0, 0.3);">
-                <p class="text-center font-bold mb-2">⚠️ ¡Calificación Obligatoria!</p>
-                <p class="text-sm text-center opacity-90">Debes calificar esta tienda para continuar usando el marketplace</p>
-              </div>
-
-              <div class="mb-6 p-4 rounded-lg" style="background-color: rgba(0,0,0,0.2);">
-                <p class="font-semibold mb-1">🏪 Tienda: ${selectedOrder.seller_username}</p>
-                <p class="text-sm opacity-70">💰 Total: $${selectedOrder.total.toFixed(2)} USDT</p>
-                <p class="text-sm opacity-70">📦 Pedido #${selectedOrder.id.substring(0, 8)}</p>
-              </div>
-
-              <form onsubmit="handleSubmitReview(event);">
-                <div class="mb-6">
-                  <label class="block text-sm font-semibold mb-3 text-center">Calificación *</label>
-                  <div class="flex justify-center gap-2">
-                    ${[1, 2, 3, 4, 5].map(star => `
-                      <label class="cursor-pointer">
-                        <input type="radio" name="rating" value="${star}" class="hidden" required>
-                        <span class="star text-4xl hover:scale-110 transition" onclick="this.parentElement.querySelector('input').checked = true;">
-                          ☆
-                        </span>
-                      </label>
-                    `).join('')}
-                  </div>
-                </div>
-
-                <div class="mb-6">
-                  <label class="block text-sm font-semibold mb-2" for="reviewText">Comentario (opcional)</label>
-                  <textarea id="reviewText" rows="4" placeholder="Comparte tu experiencia con esta tienda..." class="w-full px-4 py-3 rounded-lg" style="background-color: rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.1); color: ${config.text_color};"></textarea>
-                </div>
-
-                <button type="submit" class="w-full py-3 rounded-lg font-bold text-lg transition" style="background-color: ${config.secondary_button}; color: white;">
-                  ⭐ Enviar Reseña
-                </button>
-              </form>
-            </div>
-          </div>
-        `;
-      }
-
-      if (showModal === 'setupShop' && selectedOrder && !selectedOrder.order_status) {
-        const user = selectedOrder;
-        const isFromLogin = user.__backendId === currentUser?.__backendId;
-        return `
-          <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
-            <div class="rounded-xl shadow-2xl w-full max-w-md p-8" style="background-color: ${config.card_background}; color: ${config.text_color};" onclick="event.stopPropagation();">
-              <h2 class="text-3xl font-bold mb-4 text-center">🏪 Configurar Tienda</h2>
-              
-              <div class="mb-6 p-4 rounded-lg" style="background-color: ${isFromLogin ? 'rgba(255, 215, 0, 0.1); border: 2px solid rgba(255, 215, 0, 0.3)' : 'rgba(59, 130, 246, 0.1); border: 2px solid rgba(59, 130, 246, 0.3)'};">
-                <p class="text-center font-bold mb-2">${isFromLogin ? '⚠️ Configuración Obligatoria' : '📋 Información Requerida'}</p>
-                <p class="text-sm text-center opacity-90">${isFromLogin ? 'Debes configurar tu tienda para poder acceder al marketplace' : `El usuario <span class="font-bold">${user.username}</span> necesita configurar su tienda para ser vendedor`}</p>
-              </div>
-
-              <form onsubmit="handleSetupShop(event);">
-                <div class="mb-4">
-                  <label class="block text-sm font-semibold mb-2" for="setupShopName">Nombre de la Tienda *</label>
-                  <input 
-                    type="text" 
-                    id="setupShopName" 
-                    placeholder="Mi Tienda Épica"
-                    required 
-                    class="w-full px-4 py-3 rounded-lg" 
-                    style="background-color: rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.1); color: ${config.text_color};">
-                </div>
-
-                <div class="mb-6">
-                  <label class="block text-sm font-semibold mb-2" for="setupDiscord">Discord Tag *</label>
-                  <input 
-                    type="text" 
-                    id="setupDiscord" 
-                    placeholder="Usuario#1234"
-                    value="${user.discord_tag || ''}"
-                    required 
-                    class="w-full px-4 py-3 rounded-lg" 
-                    style="background-color: rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.1); color: ${config.text_color};">
-                </div>
-
-                <div class="mb-6 p-4 rounded-lg" style="background-color: rgba(16, 185, 129, 0.1);">
-                  <p class="text-sm opacity-80">
-                    ✅ Una vez configurada la tienda, ${isFromLogin ? 'podrás' : 'el usuario podrá'} agregar productos y vender
-                  </p>
-                </div>
-
-                <button type="submit" class="w-full py-3 rounded-lg font-bold text-lg transition mb-3" style="background-color: ${config.secondary_button}; color: white;">
-                  🏪 Crear Tienda
-                </button>
-                
-                ${!isFromLogin ? `
-                  <button type="button" onclick="showModal = null; selectedOrder = null; render();" class="w-full py-2 rounded-lg font-semibold transition" style="background-color: rgba(255,255,255,0.1); color: ${config.text_color};">
-                    Cancelar
-                  </button>
-                ` : ''}
               </form>
             </div>
           </div>
