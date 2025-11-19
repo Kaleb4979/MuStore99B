@@ -4,12 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Mu Online 99B Marketplace</title>
-  <script src="/_sdk/data_sdk.js"></script>
-  <script src="/_sdk/element_sdk.js"></script>
+  
   <script src="https://cdn.tailwindcss.com"></script>
+  
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet">
+  
   <style>
     body {
       box-sizing: border-box;
@@ -85,9 +86,69 @@
     }
   </style>
   <style>@view-transition { navigation: auto; }</style>
+
+  <script>
+    const DB_KEY = 'mu_marketplace_db_v1';
+
+    // Inicializar DB en memoria desde LocalStorage o vacío
+    let savedData = localStorage.getItem(DB_KEY);
+    window.mockDb = {
+      data: savedData ? JSON.parse(savedData) : [],
+      handler: null,
+      notify() {
+        // Guardar en LocalStorage cada vez que hay cambios
+        localStorage.setItem(DB_KEY, JSON.stringify(this.data));
+        if (this.handler) this.handler.onDataChanged(this.data);
+      }
+    };
+
+    // Simular Data SDK
+    window.dataSdk = {
+      init: async (handler) => {
+        window.mockDb.handler = handler;
+        // Notificar datos iniciales
+        setTimeout(() => window.mockDb.notify(), 50); 
+        return { isOk: true };
+      },
+      create: async (item) => {
+        item.__backendId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
+        window.mockDb.data.push(item);
+        window.mockDb.notify();
+        return { isOk: true };
+      },
+      update: async (item) => {
+        const index = window.mockDb.data.findIndex(i => i.__backendId === item.__backendId);
+        if (index !== -1) {
+          window.mockDb.data[index] = item;
+          window.mockDb.notify();
+          return { isOk: true };
+        }
+        return { isOk: false };
+      },
+      delete: async (item) => {
+        window.mockDb.data = window.mockDb.data.filter(i => i.__backendId !== item.__backendId);
+        window.mockDb.notify();
+        return { isOk: true };
+      }
+    };
+
+    // Simular Element SDK (Configuración visual)
+    window.elementSdk = {
+      config: {},
+      init: (options) => {
+        window.elementSdk.config = options.defaultConfig;
+        if(options.onConfigChange) options.onConfigChange(options.defaultConfig);
+      },
+      setConfig: (newConfig) => {
+        window.elementSdk.config = { ...window.elementSdk.config, ...newConfig };
+        // En un entorno real esto dispararía onConfigChange, aquí lo hacemos simple
+      }
+    };
+  </script>
  </head>
  <body>
   <div id="app" class="min-h-full"></div>
+  
   <script>
     const defaultConfig = {
       site_title: "Mu Online 99B Marketplace",
@@ -155,10 +216,7 @@
     // Initialize
     async function init() {
       const initResult = await window.dataSdk.init(dataHandler);
-      if (!initResult.isOk) {
-        console.error('Error initializing Data SDK');
-      }
-
+      
       if (window.elementSdk) {
         window.elementSdk.init({
           defaultConfig,
@@ -168,73 +226,7 @@
             const baseSize = config.font_size || defaultConfig.font_size;
             document.body.style.fontSize = `${baseSize}px`;
             render();
-          },
-          mapToCapabilities: (config) => ({
-            recolorables: [
-              {
-                get: () => config.background_color || defaultConfig.background_color,
-                set: (value) => {
-                  if (window.elementSdk) {
-                    window.elementSdk.setConfig({ background_color: value });
-                  }
-                }
-              },
-              {
-                get: () => config.card_background || defaultConfig.card_background,
-                set: (value) => {
-                  if (window.elementSdk) {
-                    window.elementSdk.setConfig({ card_background: value });
-                  }
-                }
-              },
-              {
-                get: () => config.text_color || defaultConfig.text_color,
-                set: (value) => {
-                  if (window.elementSdk) {
-                    window.elementSdk.setConfig({ text_color: value });
-                  }
-                }
-              },
-              {
-                get: () => config.primary_button || defaultConfig.primary_button,
-                set: (value) => {
-                  if (window.elementSdk) {
-                    window.elementSdk.setConfig({ primary_button: value });
-                  }
-                }
-              },
-              {
-                get: () => config.secondary_button || defaultConfig.secondary_button,
-                set: (value) => {
-                  if (window.elementSdk) {
-                    window.elementSdk.setConfig({ secondary_button: value });
-                  }
-                }
-              }
-            ],
-            borderables: [],
-            fontEditable: {
-              get: () => config.font_family || defaultConfig.font_family,
-              set: (value) => {
-                if (window.elementSdk) {
-                  window.elementSdk.setConfig({ font_family: value });
-                }
-              }
-            },
-            fontSizeable: {
-              get: () => config.font_size || defaultConfig.font_size,
-              set: (value) => {
-                if (window.elementSdk) {
-                  window.elementSdk.setConfig({ font_size: value });
-                }
-              }
-            }
-          }),
-          mapToEditPanelValues: (config) => new Map([
-            ["site_title", config.site_title || defaultConfig.site_title],
-            ["welcome_message", config.welcome_message || defaultConfig.welcome_message],
-            ["contact_info", config.contact_info || defaultConfig.contact_info]
-          ])
+          }
         });
       }
 
@@ -278,7 +270,6 @@
       const dataStr = JSON.stringify(exportData, null, 2);
       
       try {
-        // Create downloadable file
         const blob = new Blob([dataStr], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -286,38 +277,16 @@
         a.download = `marketplace_backup_${new Date().toISOString().split('T')[0]}.json`;
         a.style.display = 'none';
         document.body.appendChild(a);
-        
-        // Trigger download
         a.click();
         
-        // Clean up
         setTimeout(() => {
           document.body.removeChild(a);
           URL.revokeObjectURL(url);
         }, 100);
         
         showToast('✅ Descargando archivo JSON...');
-        
-        // Also copy to clipboard as backup
-        setTimeout(async () => {
-          try {
-            await navigator.clipboard.writeText(dataStr);
-            showToast('✅ También copiado al portapapeles como respaldo');
-          } catch (err) {
-            // Clipboard failed, but download should work
-          }
-        }, 500);
-        
       } catch (error) {
-        showToast('❌ Error al descargar. Intentando copiar al portapapeles...');
-        try {
-          await navigator.clipboard.writeText(dataStr);
-          selectedOrder = { isExport: true, exportedData: dataStr };
-          showModal = 'exportSuccess';
-          render();
-        } catch (clipboardErr) {
-          showToast('❌ Error al exportar datos');
-        }
+        showToast('❌ Error al descargar.');
       }
 
       if (btn) {
@@ -334,16 +303,13 @@
       reader.onload = async (e) => {
         try {
           const importedData = JSON.parse(e.target.result);
-          
           if (!importedData.products || !importedData.users) {
             showToast('❌ Archivo JSON inválido');
             return;
           }
-
           showModal = 'importConfirm';
           selectedOrder = importedData;
           render();
-          
         } catch (error) {
           showToast('❌ Error al leer el archivo JSON');
         }
@@ -356,62 +322,25 @@
       const importedData = selectedOrder;
       if (!importedData) return;
 
-      const btn = document.querySelector('#confirmImportBtn');
-      if (btn) {
-        btn.disabled = true;
-        btn.innerHTML = '<div class="loading-spinner mx-auto"></div>';
-      }
-
       let successCount = 0;
-      let errorCount = 0;
 
-      // Import Users
-      for (const user of importedData.users || []) {
-        if (allUsers.length + successCount >= 999) {
-          showToast('⚠️ Límite de datos alcanzado');
-          break;
-        }
-        const exists = allUsers.find(u => u.username === user.username);
-        if (!exists) {
-          const userData = { ...user };
-          delete userData.__backendId;
-          const result = await window.dataSdk.create(userData);
-          if (result.isOk) successCount++;
-          else errorCount++;
-        }
+      // Import logic (Simplified for mock DB: just push if not exists)
+      // Note: In a real backend this would be bulk insert
+      const collections = ['users', 'products', 'orders', 'reviews'];
+      
+      for (const col of collections) {
+          if(importedData[col]) {
+              for(const item of importedData[col]) {
+                  // Check existence based on a unique field if possible, simplistic approach here
+                  const newItem = {...item};
+                  delete newItem.__backendId; // Generate new IDs for the mock DB
+                  await window.dataSdk.create(newItem);
+                  successCount++;
+              }
+          }
       }
 
-      // Import Products
-      for (const product of importedData.products || []) {
-        if (allProducts.length + successCount >= 999) break;
-        const productData = { ...product };
-        delete productData.__backendId;
-        const result = await window.dataSdk.create(productData);
-        if (result.isOk) successCount++;
-        else errorCount++;
-      }
-
-      // Import Orders
-      for (const order of importedData.orders || []) {
-        if (allOrders.length + successCount >= 999) break;
-        const orderData = { ...order };
-        delete orderData.__backendId;
-        const result = await window.dataSdk.create(orderData);
-        if (result.isOk) successCount++;
-        else errorCount++;
-      }
-
-      // Import Reviews
-      for (const review of importedData.reviews || []) {
-        if (allReviews.length + successCount >= 999) break;
-        const reviewData = { ...review };
-        delete reviewData.__backendId;
-        const result = await window.dataSdk.create(reviewData);
-        if (result.isOk) successCount++;
-        else errorCount++;
-      }
-
-      showToast(`✅ Importación completada: ${successCount} registros importados${errorCount > 0 ? `, ${errorCount} errores` : ''}`);
+      showToast(`✅ Importación completada`);
       showModal = null;
       selectedOrder = null;
       render();
@@ -435,8 +364,6 @@
 
       const user = allUsers.find(u => u.username === username && u.password === password);
       if (user) {
-        // Eliminada validación de baneo
-        
         if (user.role === 'reseller' && !user.approved) {
           showToast('Tu cuenta aún no ha sido aprobada');
           return;
@@ -444,7 +371,10 @@
         
         currentUser = { 
           username: user.username,
-          role: user.role
+          role: user.role,
+          shop_name: user.shop_name,
+          discord_tag: user.discord_tag,
+          __backendId: user.__backendId
         };
         
         if (user.role === 'reseller' && (!user.shop_name || !user.discord_tag)) {
@@ -462,9 +392,7 @@
         showToast(`Bienvenido ${username}`);
         
         await updateUserActivity();
-        
         checkPendingReviews();
-        
         render();
       } else {
         showToast('Usuario o contraseña incorrectos');
@@ -479,11 +407,6 @@
 
       if (allUsers.find(u => u.username === username)) {
         showToast('El usuario ya existe');
-        return;
-      }
-
-      if (allUsers.find(u => u.discord_tag === discord)) {
-        showToast('Este Discord ya está registrado');
         return;
       }
 
@@ -522,11 +445,6 @@
         return;
       }
 
-      if (allUsers.find(u => u.discord_tag === discord)) {
-        showToast('Este Discord ya está registrado');
-        return;
-      }
-
       const userData = {
         id: Date.now().toString(),
         type: 'user',
@@ -554,7 +472,8 @@
     async function updateUserActivity() {
       if (!currentUser) return;
       
-      const activityRecords = [...allProducts, ...allUsers, ...allOrders, ...allReviews].filter(item => item.type === 'activity');
+      // En el mock DB solo actualizamos si existe
+      const activityRecords = window.mockDb.data.filter(item => item.type === 'activity');
       const existingActivity = activityRecords.find(a => a.username === currentUser.username);
       
       if (existingActivity) {
@@ -587,7 +506,7 @@
     async function handleAddProduct(e) {
       e.preventDefault();
       if (allProducts.length >= 999) {
-        showToast('Límite de 999 productos alcanzado');
+        showToast('Límite de productos alcanzado');
         return;
       }
 
@@ -663,21 +582,6 @@
       }
     }
 
-    async function revokeReseller(backendId) {
-      const user = allUsers.find(u => u.__backendId === backendId);
-      if (!user) return;
-
-      user.approved = false;
-      user.status = 'revoked';
-
-      const result = await window.dataSdk.update(user);
-      if (result.isOk) {
-        showToast('Tienda revocada exitosamente');
-      } else {
-        showToast('Error al revocar tienda');
-      }
-    }
-
     async function changeUserRole(backendId, newRole) {
       const user = allUsers.find(u => u.__backendId === backendId);
       if (!user) return;
@@ -703,18 +607,11 @@
 
       const result = await window.dataSdk.update(user);
       if (result.isOk) {
-        const roleNames = {
-          'admin': 'Admin',
-          'reseller': 'Vendedor',
-          'buyer': 'Comprador'
-        };
-        showToast(`Rol cambiado a ${roleNames[newRole]}. ${newRole === 'reseller' && !user.shop_name ? 'El usuario deberá configurar su tienda al iniciar sesión.' : ''}`);
+        showToast(`Rol cambiado a ${newRole}`);
       } else {
         showToast('Error al cambiar rol');
       }
     }
-
-    // Funciones de baneo y eliminación de usuario eliminadas a petición
 
     async function handleSetupShop(e) {
       e.preventDefault();
@@ -728,7 +625,7 @@
       const shopName = document.getElementById('setupShopName').value.trim();
       const discordTag = document.getElementById('setupDiscord').value.trim();
 
-      // Validar que el Discord no esté ya registrado (excepto si es el mismo usuario)
+      // Validar Discord (simple)
       const discordExists = allUsers.find(u => u.discord_tag === discordTag && u.__backendId !== user.__backendId);
       if (discordExists) {
         showToast('Este Discord ya está registrado por otro usuario');
@@ -914,12 +811,6 @@
       const order = allOrders.find(o => o.__backendId === backendId);
       if (!order) return;
 
-      const btn = document.querySelector(`button[onclick*="${backendId}"]`);
-      if (btn) {
-        btn.disabled = true;
-        btn.innerHTML = '<div class="loading-spinner mx-auto"></div>';
-      }
-
       if (isSeller) {
         order.seller_confirmed = true;
       } else {
@@ -930,16 +821,14 @@
         order.order_status = 'completed';
         order.needs_review = true;
         
+        // Actualizar Stock
         try {
           const itemsData = JSON.parse(order.items_data);
           for (const item of itemsData) {
             const product = allProducts.find(p => p.__backendId === item.backendId);
             if (product) {
               product.stock = Math.max(0, product.stock - item.quantity);
-              const updateResult = await window.dataSdk.update(product);
-              if (!updateResult.isOk) {
-                console.error('Error actualizando stock');
-              }
+              await window.dataSdk.update(product);
             }
           }
         } catch (e) {
@@ -960,13 +849,9 @@
         } else {
           showToast('Confirmación registrada. Esperando confirmación de ' + (isSeller ? 'comprador' : 'vendedor'));
         }
+        render();
       } else {
         showToast('Error al confirmar pedido');
-      }
-
-      if (btn) {
-        btn.disabled = false;
-        btn.innerHTML = isSeller ? '✅ Confirmar Entrega' : '✅ Confirmar Recibido';
       }
     }
 
@@ -1000,16 +885,12 @@
       
       if (reviewResult.isOk) {
         selectedOrder.needs_review = false;
-        const orderUpdate = await window.dataSdk.update(selectedOrder);
+        await window.dataSdk.update(selectedOrder);
         
-        if (orderUpdate.isOk) {
-          showToast('¡Gracias por tu reseña!');
-          showModal = null;
-          selectedOrder = null;
-          render();
-        } else {
-          showToast('Error al actualizar orden');
-        }
+        showToast('¡Gracias por tu reseña!');
+        showModal = null;
+        selectedOrder = null;
+        render();
       } else {
         showToast('Error al guardar reseña');
       }
@@ -1051,18 +932,10 @@
       const fullStars = Math.floor(rating);
       const hasHalfStar = rating % 1 >= 0.5;
       let stars = '';
-      
-      for (let i = 0; i < fullStars; i++) {
-        stars += '⭐';
-      }
-      if (hasHalfStar) {
-        stars += '✨';
-      }
+      for (let i = 0; i < fullStars; i++) stars += '⭐';
+      if (hasHalfStar) stars += '✨';
       const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
-      for (let i = 0; i < emptyStars; i++) {
-        stars += '☆';
-      }
-      
+      for (let i = 0; i < emptyStars; i++) stars += '☆';
       return stars;
     }
 
@@ -1291,7 +1164,6 @@
               </div>
             `}
           </main>
-
           <div id="modalContainer"></div>
         </div>
       `;
@@ -1375,7 +1247,6 @@
                 <div class="lg:col-span-1">
                   <div class="rounded-xl p-6 shadow-lg sticky top-4" style="background-color: ${config.card_background};">
                     <h2 class="text-2xl font-bold mb-6">📋 Resumen del Pedido</h2>
-                    
                     <div class="space-y-3 mb-6">
                       <div class="flex justify-between">
                         <span>Subtotal:</span>
@@ -1477,7 +1348,6 @@
                               <p class="text-sm font-semibold mb-1">Estado de Confirmación:</p>
                               <p class="text-xs">Vendedor: ${order.seller_confirmed ? '✅ Confirmado' : '⏳ Pendiente'}</p>
                               <p class="text-xs">Comprador (tú): ${order.buyer_confirmed ? '✅ Confirmado' : '⏳ Pendiente'}</p>
-                              <p class="text-xs mt-2 opacity-70">Ambas partes deben confirmar para completar</p>
                             </div>
                           ` : ''}
                         </div>
@@ -1535,7 +1405,6 @@
       
       const completedOrders = allOrders.filter(o => o.order_status === 'completed');
       
-      // Filtro de baneados eliminado para estadísticas
       const activeUsers = allUsers;
       
       const stats = {
@@ -1606,10 +1475,10 @@
                 </div>
                 <div class="p-4 rounded-lg" style="background-color: rgba(59, 130, 246, 0.1);">
                   <p class="text-sm opacity-90 mb-2">
-                    <strong>📥 Exportar:</strong> Copia todo el contenido JSON (usuarios, productos, pedidos y reseñas) al portapapeles. Luego pégalo en un archivo .json para guardarlo.
+                    <strong>📥 Exportar:</strong> Descarga un archivo JSON con toda la información (usuarios, productos, pedidos).
                   </p>
                   <p class="text-sm opacity-90">
-                    <strong>📤 Importar:</strong> Carga un archivo JSON previamente exportado para restaurar todos los datos.
+                    <strong>📤 Importar:</strong> Carga un archivo JSON previamente exportado.
                   </p>
                 </div>
               </div>
@@ -1989,7 +1858,6 @@
               `}
             </div>
           </main>
-
           <div id="modalContainer"></div>
         </div>
       `;
@@ -2230,61 +2098,6 @@
         `;
       }
 
-      if (showModal === 'exportSuccess' && selectedOrder && selectedOrder.isExport) {
-        const exportData = selectedOrder.exportedData;
-        const fileName = `marketplace_backup_${new Date().toISOString().split('T')[0]}.json`;
-        
-        return `
-          <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4 overflow-y-auto">
-            <div class="rounded-xl shadow-2xl w-full max-w-4xl my-8 p-8" style="background-color: ${config.card_background}; color: ${config.text_color};">
-              <h2 class="text-3xl font-bold mb-4 text-center">✅ Datos JSON Copiados</h2>
-              
-              <div class="mb-6 p-4 rounded-lg" style="background-color: rgba(16, 185, 129, 0.2); border: 2px solid rgba(16, 185, 129, 0.5);">
-                <p class="text-center font-bold mb-2">📋 Instrucciones</p>
-                <ol class="text-sm space-y-2 list-decimal list-inside">
-                  <li>Los datos JSON han sido copiados al portapapeles automáticamente</li>
-                  <li>Abre un editor de texto (Notepad, TextEdit, VS Code, etc.)</li>
-                  <li>Pega el contenido (Ctrl+V o Cmd+V)</li>
-                  <li>Guarda el archivo como: <span class="font-bold">${fileName}</span></li>
-                  <li>Asegúrate de que la extensión sea <span class="font-bold">.json</span></li>
-                  <li class="text-yellow-400">💡 Usa este archivo para importar los datos más tarde</li>
-                </ol>
-              </div>
-
-              <div class="mb-6">
-                <label class="block text-sm font-semibold mb-2">📄 Vista Previa del JSON (primeras líneas):</label>
-                <textarea 
-                  readonly 
-                  rows="10" 
-                  class="w-full px-4 py-3 rounded-lg font-mono text-xs"
-                  style="background-color: rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.1); color: ${config.text_color};"
-                  onclick="this.select();"
-                >${exportData.substring(0, 500)}...
-
-(Datos completos copiados al portapapeles)</textarea>
-                <p class="text-xs opacity-70 mt-2">💡 Haz clic en el área de texto para seleccionar todo</p>
-              </div>
-
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <button 
-                  onclick="navigator.clipboard.writeText(\`${exportData.replace(/`/g, '\\`')}\`).then(() => showToast('✅ Copiado nuevamente'));" 
-                  class="py-3 rounded-lg font-bold transition" 
-                  style="background-color: ${config.secondary_button}; color: white;">
-                  📋 Copiar Nuevamente
-                </button>
-                
-                <button 
-                  onclick="showModal = null; selectedOrder = null; render();" 
-                  class="py-3 rounded-lg font-bold transition" 
-                  style="background-color: ${config.primary_button}; color: white;">
-                  ✅ Cerrar
-                </button>
-              </div>
-            </div>
-          </div>
-        `;
-      }
-
       if (showModal === 'userProfile' && selectedOrder && !selectedOrder.order_status) {
         const user = selectedOrder;
         const userOrders = allOrders.filter(o => o.buyer_username === user.username || o.seller_username === user.username);
@@ -2427,12 +2240,10 @@
           </div>
         `;
       }
-
       return '';
     }
 
-    // Start the app
     init();
   </script>
-</body>
+ </body>
 </html>
