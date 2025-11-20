@@ -1,153 +1,4 @@
-<!doctype html>
-<html lang="es">
- <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mu Online 99B Marketplace - V30 (Chat Realtime Supabase)</title>
- 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  
-  <script src="https://cdn.tailwindcss.com"></script>
- 
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet">
- 
-  <style>
-    /* Configuración Base */
-    body {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      height: 100%;
-      font-family: 'Inter', sans-serif;
-    }
-    html {
-      height: 100%;
-    }
-
-    /* Animaciones de Botones y Tarjetas */
-    .category-btn {
-      transition: all 0.3s ease;
-    }
-    .category-btn:hover {
-      transform: translateY(-2px);
-    }
-
-    .product-card {
-      transition: all 0.3s ease;
-    }
-    .product-card:hover {
-      transform: translateY(-5px);
-      box-shadow: 0 10px 25px rgba(0,0,0,0.3);
-    }
-
-    .shop-badge {
-        cursor: pointer;
-        transition: all 0.2s ease;
-    }
-    .shop-badge:hover {
-      transform: scale(1.05);
-      background-color: #4f46e5; /* Indigo-600 */
-    }
-
-    /* Spinner de Carga */
-    .loading-spinner {
-      border: 3px solid rgba(255,255,255,0.3);
-      border-top: 3px solid white;
-      border-radius: 50%;
-      width: 20px;
-      height: 20px;
-      animation: spin 1s linear infinite;
-    }
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-
-    /* Notificación en el Carrito */
-    .cart-badge {
-      position: absolute;
-      top: -8px;
-      right: -8px;
-      background-color: #ef4444;
-      color: white;
-      border-radius: 50%;
-      width: 24px;
-      height: 24px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 12px;
-      font-weight: bold;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-    }
-
-    /* Fondo Oscuro para Modales */
-    .modal-backdrop {
-      background-color: rgba(0, 0, 0, 0.85);
-      backdrop-filter: blur(5px);
-    }
-
-    /* Estilos para el Ranking (Oro, Plata, Bronce) */
-    .rank-1 {
-      border: 2px solid #FFD700;
-      box-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
-      background: linear-gradient(145deg, rgba(255,215,0,0.1), rgba(0,0,0,0.4));
-    }
-    .rank-2 {
-      border: 2px solid #C0C0C0;
-      box-shadow: 0 0 15px rgba(192, 192, 192, 0.2);
-      background: linear-gradient(145deg, rgba(192,192,192,0.1), rgba(0,0,0,0.4));
-    }
-    .rank-3 {
-      border: 2px solid #CD7F32;
-      box-shadow: 0 0 10px rgba(205, 127, 50, 0.2);
-      background: linear-gradient(145deg, rgba(205,127,50,0.1), rgba(0,0,0,0.4));
-    }
-
-    /* Animación Bounce In */
-    @keyframes bounceIn {
-        0% { transform: scale(0.8); opacity: 0; }
-        60% { transform: scale(1.05); opacity: 1; }
-        100% { transform: scale(1); }
-    }
-    .animate-bounce-in {
-        animation: bounceIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    }
-    
-    /* Transiciones de Vista Suaves */
-    @view-transition { navigation: auto; }
-    
-    /* Estilos del Chat */
-    .chat-messages {
-        height: 350px; /* Altura Fija */
-        overflow-y: auto;
-        display: flex;
-        flex-direction: column;
-    }
-    .message-bubble {
-        max-width: 80%;
-        padding: 8px 12px;
-        border-radius: 18px;
-        margin-bottom: 8px;
-        word-wrap: break-word;
-    }
-    .message-self {
-        background-color: #3b82f6; /* Blue-500 */
-        color: white;
-        align-self: flex-end;
-        border-bottom-right-radius: 2px;
-    }
-    .message-other {
-        background-color: #1e293b; /* Slate-800 */
-        color: #f1f5f9;
-        align-self: flex-start;
-        border-bottom-left-radius: 2px;
-    }
-  </style>
-
-  <script>
+<script>
     // ---------------------------------------------------------
     // 1. CONFIGURACIÓN CRÍTICA (REEMPLAZAR ESTAS LÍNEAS)
     // ---------------------------------------------------------
@@ -474,7 +325,7 @@
     let selectedOrder = null; 
     let chatTargetOrder = null; 
     let chatMessages = [];
-    // let chatChannel = null; // <--- ERROR DE SINTAXIS CORREGIDO: Declarado en la línea 193
+    // chatChannel ya está declarado arriba con 'let'. No se debe repetir aquí.
     let inactivityTimeout;
     const TIMEOUT_LIMIT = 5 * 60 * 1000; 
     const CATEGORIES = [
@@ -1725,7 +1576,7 @@
                       <div class="p-4 relative">
                         <div class="flex justify-center -mt-8 mb-3 relative z-20">
                             <button onclick="filterByShop('${product.seller_shop_name}')" class="shop-badge bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg border border-blue-400 tracking-wide">
-                              🏪 ${product.seller_shop_name}
+                                🏪 ${product.seller_shop_name}
                             </button>
                         </div>
 
@@ -2248,3 +2099,62 @@
                                             </td>
                                             <td class="p-4 text-center">
                                                 ${u.role === 'reseller' ? `<span class="font-bold text-
+                                                    ${sellerSalesMap[u.username] || 0}
+                                                </span>` : 'N/A'}
+                                            </td>
+                                            <td class="p-4 text-xs font-mono truncate max-w-xs">${u.discord_tag || 'N/A'}</td>
+                                            <td class="p-4 text-right flex justify-end gap-2">
+                                                <button onclick="openManageUserModal('${u.username}')" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-xs font-bold transition">
+                                                    ⚙️ Administrar
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                ` : ''}
+
+                
+            </div>
+        </div>
+      `;
+    }
+
+    // --- MODAL DE GESTIÓN DE USUARIO (ADMIN) ---
+    function renderManageUserModal() {
+        if (!managedUser) return '';
+        
+        const userOrders = allOrders.filter(o => o.buyer_username === managedUser.username).length;
+        const userSales = allOrders.filter(o => o.seller_username === managedUser.username && o.order_status === 'completed').length;
+        const userProducts = allProducts.filter(p => p.seller_username === managedUser.username).length;
+        const isBanned = managedUser.status === 'banned';
+        const isPending = managedUser.status === 'pending';
+        const isReseller = managedUser.role === 'reseller';
+
+        return `
+            <div class="fixed inset-0 modal-backdrop flex items-center justify-center p-4 z-50">
+                <div class="bg-slate-800 rounded-xl shadow-2xl p-6 w-full max-w-lg animate-bounce-in border border-slate-700">
+                    <div class="flex justify-between items-start border-b border-slate-700 pb-3 mb-4">
+                        <h3 class="text-2xl font-bold text-white flex flex-col">
+                            👤 Gestión de Usuario: ${managedUser.username}
+                            <span class="text-sm opacity-60 font-normal">Rol: ${managedUser.role.toUpperCase()}</span>
+                        </h3>
+                        <button onclick="showModal=null; managedUser=null; render();" class="text-red-500 hover:text-red-400 text-3xl font-light leading-none">×</button>
+                    </div>
+
+                    <div class="space-y-3 mb-6 text-sm">
+                        <div class="p-3 rounded bg-slate-700/50 border border-slate-600">
+                            <span class="font-bold text-slate-300">Estado:</span> 
+                            <span class="px-2 py-0.5 rounded text-xs font-bold ${isBanned?'bg-red-900/30 text-red-400':isPending?'bg-yellow-900/30 text-yellow-400':'bg-green-900/30 text-green-400'}">
+                                ${managedUser.status.toUpperCase()}
+                            </span>
+                        </div>
+                        <p class="p-3 rounded bg-slate-700/50 border border-slate-600">
+                            <span class="font-bold text-slate-300">Discord:</span> ${managedUser.discord_tag || 'N/A'}
+                        </p>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-3 text-center mb-6">
+                        <div class="p-3 rounded bg
