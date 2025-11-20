@@ -3,7 +3,7 @@
  <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mu Online 99B Marketplace - V18 FINAL (FIX SYNC ADMIN)</title>
+  <title>Mu Online 99B Marketplace - V19 FINAL (FIX LECTURA DB CRÍTICA)</title>
   
   <script src="https://cdn.tailwindcss.com"></script>
   
@@ -147,12 +147,13 @@
 
   <script>
     // Nombre de la llave para guardar en el navegador
-    const DB_KEY = 'mu_marketplace_db_v18_final'; 
+    const DB_KEY = 'mu_marketplace_db_v19_final'; 
     
-    // Inicializar DB desde LocalStorage al cargar
+    // Inicializar DB desde LocalStorage al cargar (LECTURA CRÍTICA AQUÍ)
     let savedData = localStorage.getItem(DB_KEY);
     window.mockDb = {
-      data: savedData ? JSON.parse(savedData) : [],
+      // **CORRECCIÓN CRÍTICA:** Cargar datos inmediatamente al definir mockDb
+      data: savedData ? JSON.parse(savedData) : [], 
       handler: null,
       notify() {
         // Guardar datos
@@ -178,7 +179,7 @@
     window.dataSdk = {
       init: async (handler) => {
         window.mockDb.handler = handler;
-        // Simular un pequeño retraso de red
+        // Simular un pequeño retraso de red, pero los datos YA están cargados
         setTimeout(() => window.mockDb.notify(), 50); 
         return { isOk: true };
       },
@@ -239,7 +240,7 @@
     };
 
     // Clave de sesión
-    const SESSION_KEY = 'mu_session_user_v18_final';
+    const SESSION_KEY = 'mu_session_user_v19_final';
     
     // Variables de Timeout para Auto-Logout
     let inactivityTimeout;
@@ -302,9 +303,6 @@
         allOrders = data.filter(item => item.type === 'order') || [];
         allReviews = data.filter(item => item.type === 'review') || [];
         const activityRecords = data.filter(item => item.type === 'activity') || [];
-        
-        // Console log discreto para debug:
-        // console.log(`Data updated. Users: ${allUsers.length}, Products: ${allProducts.length}`);
         
         // Notificaciones en tiempo real
         if (currentUser) {
@@ -1184,7 +1182,7 @@
           <header class="shadow-lg sticky top-0 z-40 bg-slate-800 border-b border-slate-700 p-4">
             <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
                 <div class="text-center md:text-left">
-                  <h1 class="text-2xl font-bold text-blue-400 tracking-tight">MU MARKET <span class="text-white text-xs bg-blue-600 px-1 rounded">V18</span></h1>
+                  <h1 class="text-2xl font-bold text-blue-400 tracking-tight">MU MARKET <span class="text-white text-xs bg-blue-600 px-1 rounded">V19</span></h1>
                   <p class="text-xs mt-1 opacity-60">${config.contact_info}</p>
                 </div>
                 <div class="flex flex-wrap gap-2 justify-center items-center">
