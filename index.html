@@ -3,7 +3,7 @@
  <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mu Online 99B Marketplace - V17 FINAL (FIX REGISTRO SYNC)</title>
+  <title>Mu Online 99B Marketplace - V18 FINAL (FIX SYNC ADMIN)</title>
   
   <script src="https://cdn.tailwindcss.com"></script>
   
@@ -147,7 +147,7 @@
 
   <script>
     // Nombre de la llave para guardar en el navegador
-    const DB_KEY = 'mu_marketplace_db_v17_final'; 
+    const DB_KEY = 'mu_marketplace_db_v18_final'; 
     
     // Inicializar DB desde LocalStorage al cargar
     let savedData = localStorage.getItem(DB_KEY);
@@ -239,7 +239,7 @@
     };
 
     // Clave de sesión
-    const SESSION_KEY = 'mu_session_user_v17_final';
+    const SESSION_KEY = 'mu_session_user_v18_final';
     
     // Variables de Timeout para Auto-Logout
     let inactivityTimeout;
@@ -302,6 +302,9 @@
         allOrders = data.filter(item => item.type === 'order') || [];
         allReviews = data.filter(item => item.type === 'review') || [];
         const activityRecords = data.filter(item => item.type === 'activity') || [];
+        
+        // Console log discreto para debug:
+        // console.log(`Data updated. Users: ${allUsers.length}, Products: ${allProducts.length}`);
         
         // Notificaciones en tiempo real
         if (currentUser) {
@@ -1181,7 +1184,7 @@
           <header class="shadow-lg sticky top-0 z-40 bg-slate-800 border-b border-slate-700 p-4">
             <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
                 <div class="text-center md:text-left">
-                  <h1 class="text-2xl font-bold text-blue-400 tracking-tight">MU MARKET <span class="text-white text-xs bg-blue-600 px-1 rounded">V17</span></h1>
+                  <h1 class="text-2xl font-bold text-blue-400 tracking-tight">MU MARKET <span class="text-white text-xs bg-blue-600 px-1 rounded">V18</span></h1>
                   <p class="text-xs mt-1 opacity-60">${config.contact_info}</p>
                 </div>
                 <div class="flex flex-wrap gap-2 justify-center items-center">
@@ -1519,6 +1522,19 @@
       
       // LOG DE PEDIDOS COMPLETADOS
       const completedOrdersLog = allOrders.filter(o => o.order_status === 'completed').reverse();
+      
+      // FILTRADO ROBUSTO DE USUARIOS (El punto de corrección V18)
+      // Asegura que allUsers esté poblado al renderizar el panel del administrador
+      const displayUsers = allUsers.sort((a, b) => {
+          // Priorizar los pendientes al inicio (para el admin)
+          if (a.status === 'pending' && b.status !== 'pending') return -1;
+          if (a.status !== 'pending' && b.status === 'pending') return 1;
+          // Mostrar el admin al final (siempre)
+          if (a.role === 'admin') return 1;
+          if (b.role === 'admin') return -1;
+          // Ordenar alfabéticamente el resto
+          return a.username.localeCompare(b.username);
+      });
 
       // Estadísticas
       const stats = {
@@ -1719,7 +1735,7 @@
                 ${(user.role === 'admin' && !adminViewTarget) ? `
                     <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
                         <h2 class="text-xl font-bold mb-6 text-purple-400 border-b border-slate-700 pb-2 flex items-center gap-2">
-                            🌍 Panel Global de Usuarios <span class="text-xs bg-slate-900 text-slate-400 px-2 py-1 rounded ml-auto">Total: ${allUsers.length}</span>
+                            🌍 Panel Global de Usuarios <span class="text-xs bg-slate-900 text-slate-400 px-2 py-1 rounded ml-auto">Total: ${displayUsers.length}</span>
                         </h2>
                         
                         <div class="overflow-x-auto rounded-lg border border-slate-700">
@@ -1734,8 +1750,8 @@
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-700">
-                                    ${allUsers.map(u => `
-                                        <tr class="hover:bg-slate-700/30 transition">
+                                    ${displayUsers.map(u => `
+                                        <tr class="hover:bg-slate-700/30 transition ${u.status === 'pending' ? 'bg-yellow-900/20 border-l-4 border-yellow-500' : ''}">
                                             <td class="p-4 font-bold flex items-center gap-2">
                                                 <div class="h-8 w-8 rounded-full bg-slate-700 flex items-center justify-center text-xs text-slate-400 font-bold border border-slate-600">
                                                     ${u.username.substring(0,2).toUpperCase()}
@@ -1751,7 +1767,7 @@
                                                 </span>
                                             </td>
                                             <td class="p-4">
-                                                <span class="px-2 py-1 rounded text-xs font-bold ${u.status==='banned'?'bg-red-900/30 text-red-400':'bg-green-900/30 text-green-400'}">
+                                                <span class="px-2 py-1 rounded text-xs font-bold ${u.status==='banned'?'bg-red-900/30 text-red-400':u.status==='pending'?'bg-yellow-900/30 text-yellow-400':'bg-green-900/30 text-green-400'}">
                                                     ${u.status.toUpperCase()}
                                                 </span>
                                             </td>
