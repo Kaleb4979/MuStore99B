@@ -1,16 +1,16 @@
 <!doctype html>
 <html lang="es">
- <head>
+<head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Mu Online 99B Marketplace</title>
-  
+  
   <script src="https://cdn.tailwindcss.com"></script>
-  
+  
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet">
-  
+  
   <style>
     body {
       box-sizing: border-box;
@@ -156,10 +156,17 @@
       }
     };
   </script>
- </head>
- <body>
-  <div id="app" class="min-h-full"></div>
-  
+</head>
+<body>
+  <div id="app" class="min-h-full">
+        <div id="loading-initial" class="flex items-center justify-center min-h-screen" style="background-color: #0f172a; color: #f1f5f9;">
+      <div class="text-center">
+        <div class="loading-spinner mx-auto mb-4"></div>
+        <p>Cargando datos del Marketplace...</p>
+      </div>
+    </div>
+  </div>
+  
   <script>
     const defaultConfig = {
       site_title: "Mu Online 99B Marketplace",
@@ -206,54 +213,70 @@
     // Data SDK Handler
     const dataHandler = {
       onDataChanged(data) {
-        allProducts = data.filter(item => item.type === 'product') || [];
-        allUsers = data.filter(item => item.type === 'user') || [];
-        allOrders = data.filter(item => item.type === 'order') || [];
-        allReviews = data.filter(item => item.type === 'review') || [];
-        const activityRecords = data.filter(item => item.type === 'activity') || [];
-        
-        // Actualizar usuarios en línea (últimos 5 minutos)
-        const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
-        onlineUsers = new Set(
-          activityRecords
-            .filter(a => new Date(a.last_activity).getTime() > fiveMinutesAgo)
-            .map(a => a.username)
-        );
-        
-        checkPendingReviews();
-        render(); // <--- Esta llamada a render es la importante después de la carga asíncrona.
+        try {
+          allProducts = data.filter(item => item.type === 'product') || [];
+          allUsers = data.filter(item => item.type === 'user') || [];
+          allOrders = data.filter(item => item.type === 'order') || [];
+          allReviews = data.filter(item => item.type === 'review') || [];
+          const activityRecords = data.filter(item => item.type === 'activity') || [];
+          
+          // Actualizar usuarios en línea (últimos 5 minutos)
+          const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+          onlineUsers = new Set(
+            activityRecords
+              .filter(a => new Date(a.last_activity).getTime() > fiveMinutesAgo)
+              .map(a => a.username)
+          );
+          
+          checkPendingReviews();
+          render();
+        } catch (error) {
+          console.error("Error en onDataChanged:", error);
+          document.getElementById('app').innerHTML = `<div class="text-center p-20 text-red-500" style="background-color: #0f172a; color: #f1f5f9;">
+                                                                                <h1 class="text-2xl font-bold">❌ Error Crítico al Procesar Datos</h1>
+                                                                                <p class="mt-4">Revise la consola del navegador para detalles. El error es: ${error.message}</p>
+                                                                              </div>`;
+        }
       }
     };
 
     // Initialize
     async function init() {
-      const initResult = await window.dataSdk.init(dataHandler);
-      
-      if (window.elementSdk) {
-        window.elementSdk.init({
-          defaultConfig,
-          onConfigChange: async (config) => {
-            document.body.style.backgroundColor = config.background_color || defaultConfig.background_color;
-            document.body.style.color = config.text_color || defaultConfig.text_color;
-            const baseSize = config.font_size || defaultConfig.font_size;
-            document.body.style.fontSize = `${baseSize}px`;
-            render();
-          }
-        });
+      try {
+        const initResult = await window.dataSdk.init(dataHandler);
+        
+        if (!initResult.isOk) {
+          throw new Error("Data SDK no pudo inicializarse.");
+        }
+        
+        if (window.elementSdk) {
+          window.elementSdk.init({
+            defaultConfig,
+            onConfigChange: async (config) => {
+              document.body.style.backgroundColor = config.background_color || defaultConfig.background_color;
+              document.body.style.color = config.text_color || defaultConfig.text_color;
+              const baseSize = config.font_size || defaultConfig.font_size;
+              document.body.style.fontSize = `${baseSize}px`;
+              render();
+            }
+          });
+        }
+        
+      } catch (error) {
+        console.error("Error en la inicialización (init):", error);
+        const app = document.getElementById('app');
+        app.innerHTML = `<div class="text-center p-20 text-red-500" style="background-color: ${defaultConfig.background_color}; color: ${defaultConfig.text_color};">
+                          <h1 class="text-2xl font-bold">❌ Error al Inicializar el Sistema</h1>
+                          <p class="mt-4">El sistema falló al arrancar. Por favor, revisa la consola del navegador (F12) para ver el error exacto y compártelo.</p>
+                          <p class="text-sm mt-2">Error: ${error.message}</p>
+                        </div>`;
       }
-      
-      // === CORRECCIÓN APLICADA AQUÍ: ===
-      // La llamada a render() ha sido ELIMINADA de aquí.
-      // Ahora, render() solo se llama DENTRO de dataHandler.onDataChanged,
-      // asegurando que el DOM se dibuje solo después de que mockDb.notify() haya
-      // poblado las variables globales (allProducts, allUsers, etc.).
-      // Esto evita el fallo asíncrono que causaba la pantalla en blanco.
     }
 
     // Verificar pedidos pendientes de calificar
     function checkPendingReviews() {
       if (!currentUser || currentUser.role !== 'buyer' || isReviewModalOpen) return;
-      
+      
       const pendingOrder = allOrders.find(o => 
         o.buyer_username === currentUser.username && 
         o.order_status === 'completed' && 
@@ -264,7 +287,6 @@
         selectedOrder = pendingOrder;
         showModal = 'review';
         isReviewModalOpen = true; // Establecer bandera
-        render();
       }
     }
 
@@ -286,7 +308,7 @@
       };
 
       const dataStr = JSON.stringify(exportData, null, 2);
-      
+      
       try {
         const blob = new Blob([dataStr], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
@@ -296,12 +318,12 @@
         a.style.display = 'none';
         document.body.appendChild(a);
         a.click();
-        
+        
         setTimeout(() => {
           document.body.removeChild(a);
           URL.revokeObjectURL(url);
         }, 100);
-        
+        
         showToast('✅ Descargando archivo JSON...');
       } catch (error) {
         showToast('❌ Error al descargar.');
@@ -349,10 +371,10 @@
       // Import logic (Iterate via DataSDK to trigger Updates)
       // ATENCIÓN: Esta implementación es para LocalStorage mock, NO para JSONBin.
       // Para evitar duplicados en LocalStorage, limpiamos y re-insertamos.
-      
+      
       const newFullData = [];
       const collections = ['users', 'products', 'orders', 'reviews', 'activity'];
-      
+      
       for (const col of collections) {
           if(importedData[col]) {
               for(const item of importedData[col]) {
@@ -362,7 +384,7 @@
               }
           }
       }
-      
+      
       // Reemplazar la data en memoria y notificar
       window.mockDb.data = newFullData;
       window.mockDb.notify();
@@ -401,7 +423,7 @@
           showToast('Tu cuenta aún no ha sido aprobada');
           return;
         }
-        
+        
         currentUser = { 
           username: user.username,
           role: user.role,
@@ -409,7 +431,7 @@
           discord_tag: user.discord_tag,
           __backendId: user.__backendId
         };
-        
+        
         if (user.role === 'reseller' && (!user.shop_name || !user.discord_tag)) {
           selectedOrder = user;
           showModal = 'setupShop';
@@ -417,13 +439,13 @@
           render();
           return;
         }
-        
+        
         showModal = null;
         if (user.role === 'reseller' || user.role === 'admin') {
           currentView = 'admin';
         }
         showToast(`Bienvenido ${username}`);
-        
+        
         await updateUserActivity();
         checkPendingReviews();
         render();
@@ -504,10 +526,10 @@
 
     async function updateUserActivity() {
       if (!currentUser) return;
-      
+      
       const activityRecords = window.mockDb.data.filter(item => item.type === 'activity');
       const existingActivity = activityRecords.find(a => a.username === currentUser.username);
-      
+      
       if (existingActivity) {
         existingActivity.last_activity = new Date().toISOString();
         await window.dataSdk.update(existingActivity);
@@ -520,7 +542,7 @@
         };
         await window.dataSdk.create(activityData);
       }
-      
+      
       if (userActivityTimeout) clearTimeout(userActivityTimeout);
       userActivityTimeout = setTimeout(updateUserActivity, 2 * 60 * 1000);
     }
@@ -548,7 +570,7 @@
       btn.innerHTML = '<div class="loading-spinner mx-auto"></div>';
 
       let imageUrl = document.getElementById('productImage').value.trim();
-      
+      
       if (imageUrl && imageUrl.includes('imgur.com/') && !imageUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
         imageUrl = imageUrl + '.jpg';
       }
@@ -557,7 +579,7 @@
       const onSale = document.getElementById('productOnSale').checked;
       const originalPrice = parseFloat(document.getElementById('productPrice').value);
       const finalPrice = discount > 0 ? originalPrice * (1 - discount / 100) : originalPrice;
-      
+      
       const userData = getCurrentUserData();
 
       const productData = {
@@ -625,7 +647,7 @@
 
       const oldRole = user.role;
       user.role = newRole;
-      
+      
       if (newRole === 'reseller') {
         user.approved = true;
         user.status = 'approved';
@@ -671,7 +693,7 @@
 
     async function deleteUserAccount(backendId) {
         if(!confirm("⚠️ ¿Estás seguro de ELIMINAR DEFINITIVAMENTE esta cuenta y todos sus datos?")) return;
-        
+        
         const user = allUsers.find(u => u.__backendId === backendId);
         if (!user) return;
 
@@ -723,12 +745,12 @@
         showToast('Tienda configurada exitosamente');
         showModal = null;
         selectedOrder = null;
-        
+        
         if (currentUser && user.__backendId === currentUser.__backendId) {
           currentUser = user;
           currentView = 'admin';
         }
-        
+        
         render();
       } else {
         showToast('Error al configurar tienda');
@@ -741,7 +763,7 @@
     function filterUsers(searchTerm) {
       const rows = document.querySelectorAll('.user-row');
       const term = searchTerm.toLowerCase().trim();
-      
+      
       rows.forEach(row => {
         const username = row.getAttribute('data-username');
         if (username.includes(term)) {
@@ -755,7 +777,7 @@
     function viewUserProfile(backendId) {
       const user = allUsers.find(u => u.__backendId === backendId);
       if (!user) return;
-      
+      
       selectedOrder = user;
       showModal = 'userProfile';
       render();
@@ -907,7 +929,7 @@
       if (order.seller_confirmed && order.buyer_confirmed && order.order_status !== 'completed') {
         order.order_status = 'completed';
         order.needs_review = true;
-        
+        
         // Actualizar Stock
         try {
           const itemsData = JSON.parse(order.items_data);
@@ -928,7 +950,7 @@
       }
 
       const result = await window.dataSdk.update(order);
-      
+      
       if (result.isOk) {
         if (order.order_status === 'completed') {
           showToast('¡Pedido completado! Stock actualizado');
@@ -976,12 +998,12 @@
       };
 
       const reviewResult = await window.dataSdk.create(reviewData);
-      
+      
       if (reviewResult.isOk) {
         // Marcar orden como revisada
         selectedOrder.needs_review = false;
         await window.dataSdk.update(selectedOrder);
-        
+        
         showToast('¡Gracias por tu reseña!');
         showModal = null;
         selectedOrder = null;
@@ -1000,7 +1022,7 @@
     function getSellerRating(sellerUsername) {
       const sellerReviews = allReviews.filter(r => r.reviewed_seller === sellerUsername);
       if (sellerReviews.length === 0) return { average: 0.0, count: 0 };
-      
+      
       const sum = sellerReviews.reduce((acc, r) => acc + r.rating, 0);
       return {
         average: (sum / sellerReviews.length).toFixed(1),
@@ -1077,16 +1099,25 @@
       document.body.style.color = config.text_color;
       document.body.style.fontFamily = `${config.font_family}, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`;
 
-      if (currentView === 'catalog') {
-        app.innerHTML = renderCatalog();
-      } else if (currentView === 'cart') {
-        app.innerHTML = renderCart();
-      } else if (currentView === 'orders') {
-        app.innerHTML = renderOrders();
-      } else if (currentView === 'admin') {
-        app.innerHTML = renderAdmin();
+      try {
+        if (currentView === 'catalog') {
+          app.innerHTML = renderCatalog();
+        } else if (currentView === 'cart') {
+          app.innerHTML = renderCart();
+        } else if (currentView === 'orders') {
+          app.innerHTML = renderOrders();
+        } else if (currentView === 'admin') {
+          app.innerHTML = renderAdmin();
+        }
+      } catch (error) {
+        console.error("Error en la función render:", error);
+        app.innerHTML = `<div class="text-center p-20 text-red-500" style="background-color: ${config.background_color}; color: ${config.text_color};">
+                          <h1 class="text-2xl font-bold">❌ Error en el Renderizado de la Vista</h1>
+                          <p class="mt-4">La vista falló al dibujarse. El error es: ${error.message}</p>
+                        </div>`;
+        return; // Detener la ejecución del render de modal si la vista principal falló
       }
-
+      
       // Asegurar que el modal se renderice en el DOM
       let modalContainer = document.getElementById('modalContainer');
       if (!modalContainer) {
@@ -1099,6 +1130,7 @@
         modalContainer.innerHTML = renderModal();
       } else {
         modalContainer.innerHTML = '';
+        isReviewModalOpen = false; // Asegurar que la bandera se desactive al cerrar el modal
       }
     }
 
@@ -1210,7 +1242,7 @@
                         </span>
                       </div>
                     ` : ''}
-                    
+                    
                     <div class="px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600">
                       <p class="text-xs font-semibold text-white flex items-center justify-between">
                         <span>🏪 ${product.seller_shop_name || product.seller_username}</span>
@@ -1228,7 +1260,7 @@
                     <div class="p-4">
                       <h3 class="text-xl font-bold mb-2">${product.name}</h3>
                       <p class="text-sm opacity-70 mb-3 line-clamp-2">${product.description}</p>
-                      
+                      
                       <div class="flex items-center gap-2 mb-3">
                         <span class="px-3 py-1 rounded-full text-xs font-semibold" style="background-color: ${config.primary_button}; color: white;">
                           ${getCategoryIcon(product.category)} ${getCategoryName(product.category)}
@@ -1312,7 +1344,7 @@
                             <img src="${item.image_url}" alt="${item.name}" class="w-full h-full object-cover rounded-lg" onerror="this.style.display='none'; this.parentElement.innerHTML='${getCategoryIcon(item.category)}';">
                           ` : getCategoryIcon(item.category)}
                         </div>
-                        
+                        
                         <div class="flex-1">
                           <h3 class="text-xl font-bold mb-1">${item.name}</h3>
                           <p class="text-sm opacity-70 mb-2">Vendedor: ${item.seller_username}</p>
@@ -1331,7 +1363,7 @@
                           <button onclick="removeFromCart(${index});" class="text-red-500 hover:text-red-700 font-bold">
                             ❌
                           </button>
-                          
+                          
                           <div class="flex items-center gap-2">
                             <button onclick="updateCartQuantity(${index}, -1);" class="w-8 h-8 rounded-lg font-bold transition" style="background-color: ${config.primary_button}; color: white;">
                               -
@@ -1370,7 +1402,7 @@
                     <button onclick="createOrder();" class="w-full py-4 rounded-lg font-bold text-lg transition mb-3" style="background-color: ${config.secondary_button}; color: white;">
                       ✅ Confirmar Pedido
                     </button>
-                    
+                    
                     <button onclick="clearCart();" class="w-full py-2 rounded-lg font-semibold transition bg-red-600 text-white">
                       🗑️ Vaciar Carrito
                     </button>
@@ -1430,7 +1462,7 @@
                               ${isCompleted ? '✅ Completado' : '⏳ Pendiente'}
                             </span>
                           </div>
-                          
+                          
                           <div class="space-y-2 mb-4">
                             <p class="text-sm"><span class="font-semibold">Vendedor:</span> ${order.seller_username}</p>
                             <p class="text-sm"><span class="font-semibold">Discord:</span> ${order.seller_discord}</p>
@@ -1493,9 +1525,9 @@
       const userProducts = userData.role === 'admin' 
         ? allProducts 
         : allProducts.filter(p => p.seller_username === userData.username);
-      
+      
       const pendingResellers = allUsers.filter(u => u.role === 'reseller' && !u.approved);
-      
+      
       const myOrders = userData.role === 'admin'
         ? allOrders
         : allOrders.filter(o => o.seller_username === userData.username);
@@ -1505,11 +1537,11 @@
         : allReviews.filter(r => r.reviewed_seller === userData.username);
 
       const rating = userData.role === 'admin' ? null : getSellerRating(userData.username);
-      
+      
       const completedOrders = allOrders.filter(o => o.order_status === 'completed');
-      
+      
       const activeUsers = allUsers;
-      
+      
       const stats = {
         total: userProducts.length,
         items: userProducts.filter(p => p.category === 'items').length,
@@ -1612,7 +1644,6 @@
             <div class="grid grid-cols-2 md:grid-cols-${userData.role === 'admin' ? '5' : '4'} gap-4 mb-8">
               <div class="rounded-xl p-6 text-center shadow-lg" style="background-color: ${config.card_background};">
                 <p class="text-4xl font-bold" style="color: ${config.primary_button};">${stats.total}</p>
-                <p class="mt-2 opacity-70">Total Productos</p>
                 <p class="mt-2 opacity-70">Total Productos</p>
               </div>
               ${currentUser.role === 'admin' ? `
@@ -1747,7 +1778,7 @@
             ${userData.role === 'admin' ? `
               <div class="rounded-xl p-6 shadow-lg mb-8" style="background-color: ${config.card_background};">
                 <h2 class="text-2xl font-bold mb-4">👥 Gestión de Usuarios Activos</h2>
-                
+                
                 <div class="mb-6">
                   <input 
                     type="text" 
@@ -1820,11 +1851,11 @@
                                   <option value="reseller" ${user.role === 'reseller' ? 'disabled' : ''}>🏪 Vendedor</option>
                                   <option value="admin" ${user.role === 'admin' ? 'disabled' : ''}>👑 Admin</option>
                                 </select>
-                                
+                                
                                 <button onclick="banUser('${user.__backendId}')" title="${isBanned ? 'Desbanear' : 'Banear'}" class="p-1 rounded hover:bg-white hover:bg-opacity-10">
                                     ${isBanned ? '✅' : '🚫'}
                                 </button>
-                                
+                                
                                 <button onclick="deleteUserAccount('${user.__backendId}')" title="Eliminar Cuenta" class="p-1 rounded hover:bg-red-600 text-red-500 hover:text-white transition">
                                     🗑️
                                 </button>
@@ -1841,7 +1872,7 @@
 
             <div class="rounded-xl p-6 shadow-lg" style="background-color: ${config.card_background};">
               <h2 class="text-2xl font-bold mb-6">➕ Agregar Producto</h2>
-              
+              
               <div class="mb-6 p-4 rounded-lg" style="background-color: rgba(255, 215, 0, 0.1); border: 2px solid rgba(255, 215, 0, 0.3);">
                 <p class="text-center font-bold mb-2">💰 Recordatorio de Comisión</p>
                 <p class="text-sm text-center opacity-90">La plataforma cobra un <span class="font-bold text-xl" style="color: ${config.secondary_button};">10%</span> de todas tus ventas completadas</p>
@@ -1852,7 +1883,7 @@
                   <label class="block text-sm font-semibold mb-2" for="productName">Nombre del Producto</label>
                   <input type="text" id="productName" required class="w-full px-4 py-2 rounded-lg" style="background-color: rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.1); color: ${config.text_color};">
                 </div>
-                
+                
                 <div>
                   <label class="block text-sm font-semibold mb-2" for="productCategory">Categoría</label>
                   <select id="productCategory" required class="w-full px-4 py-2 rounded-lg" style="background-color: rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.1); color: ${config.text_color};">
@@ -1862,40 +1893,40 @@
                     <option value="sets">🛡️ Sets</option>
                   </select>
                 </div>
-                
+                
                 <div>
                   <label class="block text-sm font-semibold mb-2" for="productPrice">Precio (USDT)</label>
                   <input type="number" id="productPrice" step="0.01" min="0" required class="w-full px-4 py-2 rounded-lg" style="background-color: rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.1); color: ${config.text_color};">
                 </div>
-                
+                
                 <div>
                   <label class="block text-sm font-semibold mb-2" for="productStock">Stock</label>
                   <input type="number" id="productStock" min="0" required class="w-full px-4 py-2 rounded-lg" style="background-color: rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.1); color: ${config.text_color};">
                 </div>
-                
+                
                 <div>
                   <label class="block text-sm font-semibold mb-2" for="productDiscount">Descuento (%) - Opcional</label>
                   <input type="number" id="productDiscount" min="0" max="100" value="0" class="w-full px-4 py-2 rounded-lg" style="background-color: rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.1); color: ${config.text_color};">
                   <p class="text-xs opacity-60 mt-1">0 = Sin descuento</p>
                 </div>
-                
+                
                 <div class="md:col-span-2">
                   <label class="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" id="productOnSale" class="w-5 h-5 rounded">
                     <span class="font-semibold">🔥 Marcar como Promoción (aparecerá en categoría Promociones)</span>
                   </label>
                 </div>
-                
+                
                 <div class="md:col-span-2">
                   <label class="block text-sm font-semibold mb-2" for="productDescription">Descripción</label>
                   <textarea id="productDescription" rows="3" required class="w-full px-4 py-2 rounded-lg" style="background-color: rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.1); color: ${config.text_color};"></textarea>
                 </div>
-                
+                
                 <div class="md:col-span-2">
                   <label class="block text-sm font-semibold mb-2" for="productImage">URL de Imagen (opcional)</label>
                   <input type="url" id="productImage" placeholder="https://..." class="w-full px-4 py-2 rounded-lg" style="background-color: rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.1); color: ${config.text_color};">
                 </div>
-                
+                
                 <div class="md:col-span-2">
                   <button type="submit" class="w-full py-3 rounded-lg font-bold text-lg transition" style="background-color: ${config.secondary_button}; color: white;">
                     ➕ Agregar Producto
@@ -2081,7 +2112,7 @@
           <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" onclick="if(event.target === this) { showModal = null; selectedOrder = null; render(); }">
             <div class="rounded-xl shadow-2xl w-full max-w-md p-8" style="background-color: ${config.card_background}; color: ${config.text_color};" onclick="event.stopPropagation();">
               <h2 class="text-3xl font-bold mb-4 text-center">📤 Confirmar Importación</h2>
-              
+              
               <div class="mb-6 p-4 rounded-lg" style="background-color: rgba(255, 215, 0, 0.1); border: 2px solid rgba(255, 215, 0, 0.3);">
                 <p class="text-center font-bold mb-2">⚠️ ¡Importante!</p>
                 <p class="text-sm text-center opacity-90">Esto importará los datos del archivo JSON en tiempo real.</p>
@@ -2099,7 +2130,7 @@
               <button id="confirmImportBtn" onclick="confirmImport();" class="w-full py-3 rounded-lg font-bold text-lg transition mb-3" style="background-color: ${config.secondary_button}; color: white;">
                 ✅ Confirmar Importación
               </button>
-              
+              
               <button type="button" onclick="showModal = null; selectedOrder = null; render();" class="w-full py-2 rounded-lg font-semibold transition" style="background-color: rgba(255,255,255,0.1); color: ${config.text_color};">
                 Cancelar
               </button>
@@ -2113,7 +2144,7 @@
           <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
             <div class="rounded-xl shadow-2xl w-full max-w-md p-8" style="background-color: ${config.card_background}; color: ${config.text_color};" onclick="event.stopPropagation();">
               <h2 class="text-3xl font-bold mb-4 text-center">⭐ Calificar Pedido</h2>
-              
+              
               <div class="mb-6 p-4 rounded-lg" style="background-color: rgba(255, 215, 0, 0.1); border: 2px solid rgba(255, 215, 0, 0.3);">
                 <p class="text-center font-bold mb-2">⚠️ ¡Calificación Obligatoria!</p>
                 <p class="text-sm text-center opacity-90">Debes calificar esta tienda para continuar usando el marketplace</p>
@@ -2157,7 +2188,7 @@
           <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" onclick="if(event.target === this && isFromLogin) { showModal = null; render(); } else if (event.target === this) { logout(); showToast('Cierre de sesión forzado por configuración incompleta.'); }">
             <div class="rounded-xl shadow-2xl w-full max-w-md p-8" style="background-color: ${config.card_background}; color: ${config.text_color};" onclick="event.stopPropagation();">
               <h2 class="text-3xl font-bold mb-4 text-center">🏪 Configurar Tienda</h2>
-              
+              
               <div class="mb-6 p-4 rounded-lg" style="background-color: ${isFromLogin ? 'rgba(255, 215, 0, 0.1); border: 2px solid rgba(255, 215, 0, 0.3)' : 'rgba(59, 130, 246, 0.1); border: 2px solid rgba(59, 130, 246, 0.3)'};">
                 <p class="text-center font-bold mb-2">${isFromLogin ? '⚠️ Configuración Obligatoria' : '📋 Información Requerida'}</p>
                 <p class="text-sm text-center opacity-90">${isFromLogin ? 'Debes configurar tu tienda para poder acceder al marketplace' : `El usuario <span class="font-bold">${user.username}</span> necesita configurar su tienda para ser vendedor`}</p>
@@ -2196,47 +2227,5 @@
                 <button type="submit" class="w-full py-3 rounded-lg font-bold text-lg transition mb-3" style="background-color: ${config.secondary_button}; color: white;">
                   🏪 Crear Tienda
                 </button>
-                
+                
                 ${!isFromLogin ? `
-                  <button type="button" onclick="showModal = null; selectedOrder = null; render();" class="w-full py-2 rounded-lg font-semibold transition" style="background-color: rgba(255,255,255,0.1); color: ${config.text_color};">
-                    Cancelar
-                  </button>
-                ` : ''}
-              </form>
-            </div>
-          </div>
-        `;
-      }
-
-      if (showModal === 'userProfile' && selectedOrder && !selectedOrder.order_status) {
-        const user = selectedOrder;
-        const userOrders = allOrders.filter(o => o.buyer_username === user.username || o.seller_username === user.username);
-        const completedOrders = userOrders.filter(o => o.order_status === 'completed');
-        const userProducts = allProducts.filter(p => p.seller_username === user.username);
-        const userReviews = allReviews.filter(r => r.reviewed_seller === user.username);
-        const rating = getSellerRating(user.username);
-        const isOnline = onlineUsers.has(user.username);
-
-        return `
-          <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4 overflow-y-auto" onclick="if(event.target === this) { showModal = null; selectedOrder = null; render(); }">
-            <div class="rounded-xl shadow-2xl w-full max-w-4xl my-8 p-8" style="background-color: ${config.card_background}; color: ${config.text_color};" onclick="event.stopPropagation();">
-              
-              <div class="flex justify-between items-start mb-6">
-                <div class="flex items-center gap-4">
-                  ${user.profile_picture ? `
-                    <img src="${user.profile_picture}" alt="${user.username}" class="w-24 h-24 rounded-full object-cover border-4 border-blue-500 shadow-lg" onerror="this.style.display='none'; this.parentElement.querySelector('.fallback-icon').style.display='flex';">
-                    <div class="fallback-icon w-24 h-24 rounded-full items-center justify-center text-5xl border-4 border-blue-500 shadow-lg hidden" style="background-color: rgba(59, 130, 246, 0.2);">
-                      👤
-                    </div>
-                  ` : `
-                    <div class="w-24 h-24 rounded-full flex items-center justify-center text-5xl border-4 border-blue-500 shadow-lg" style="background-color: rgba(59, 130, 246, 0.2);">
-                      👤
-                    </div>
-                  `}
-                  <div>
-                    <h2 class="text-3xl font-bold mb-2">
-                      ${user.username}
-                      <span class="text-xl ml-2">${isOnline ? '🟢 En Línea' : '⚫ Desconectado'}</span>
-                    </h2>
-                    <p class="text-lg font-semibold mb-2">
-                      Rol: ${user.role === 'admin'
