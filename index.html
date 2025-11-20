@@ -3,7 +3,7 @@
  <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mu Online 99B Marketplace - V12 FINAL EXTENDED</title>
+  <title>Mu Online 99B Marketplace - V13 FINAL EXTENDED (LOGS + DATA)</title>
   
   <script src="https://cdn.tailwindcss.com"></script>
   
@@ -131,13 +131,23 @@
       }
     }
     
+    /* Animación Bounce In para reseñas */
+    @keyframes bounceIn {
+        0% { transform: scale(0.8); opacity: 0; }
+        60% { transform: scale(1.05); opacity: 1; }
+        100% { transform: scale(1); }
+    }
+    .animate-bounce-in {
+        animation: bounceIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    
     /* Transiciones de Vista Suaves */
     @view-transition { navigation: auto; }
   </style>
 
   <script>
     // Nombre de la llave para guardar en el navegador
-    const DB_KEY = 'mu_marketplace_db_v12_full'; 
+    const DB_KEY = 'mu_marketplace_db_v13_final'; 
     
     // Inicializar DB desde LocalStorage al cargar
     let savedData = localStorage.getItem(DB_KEY);
@@ -229,7 +239,7 @@
     };
 
     // Clave de sesión
-    const SESSION_KEY = 'mu_session_user_v12_full';
+    const SESSION_KEY = 'mu_session_user_v13_final';
     
     // Variables de Timeout para Auto-Logout
     let inactivityTimeout;
@@ -257,7 +267,7 @@
     let cart = [];
     
     // Control de Modales
-    let showModal = null; // 'login', 'register', 'editProduct', etc.
+    let showModal = null; // 'login', 'register', 'editProduct', 'dataTools', etc.
     let selectedOrder = null; // Para reseñas o detalles
 
     // Categorías del Mu Online
@@ -383,7 +393,7 @@
         o.needs_review === true
       );
 
-      if (pendingOrder && (!selectedOrder || selectedOrder.__backendId !== pendingOrder.__backendId)) { 
+      if (pendingOrder) { 
         selectedOrder = pendingOrder;
         showModal = 'review';
       }
@@ -947,7 +957,7 @@
                 }
                 await window.dataSdk.update(completedOrder); 
                 
-                // Si soy el comprador, abrir reseña
+                // Si soy el comprador, abrir reseña INMEDIATAMENTE
                 if (currentUser.role === 'buyer') {
                     selectedOrder = completedOrder;
                     showModal = 'review';
@@ -994,6 +1004,48 @@
       showModal = null;
       selectedOrder = null;
       render();
+    }
+    
+    // FUNCIONES DE IMPORTAR/EXPORTAR
+    function downloadBackup() {
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(window.mockDb.data));
+        const downloadAnchorNode = document.createElement('a');
+        downloadAnchorNode.setAttribute("href", dataStr);
+        downloadAnchorNode.setAttribute("download", "mu_marketplace_backup_" + Date.now() + ".json");
+        document.body.appendChild(downloadAnchorNode);
+        downloadAnchorNode.click();
+        downloadAnchorNode.remove();
+        showToast('📦 Backup descargado');
+    }
+
+    function triggerUpload() {
+        document.getElementById('fileInput').click();
+    }
+
+    function handleFileUpload(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const json = JSON.parse(e.target.result);
+                if (Array.isArray(json)) {
+                    if(confirm("⚠️ Esto reemplazará TODOS los datos actuales por los del archivo. ¿Continuar?")) {
+                        window.mockDb.data = json;
+                        window.mockDb.notify();
+                        showModal = null;
+                        showToast('✅ Datos restaurados exitosamente. Recargando...');
+                        setTimeout(() => window.location.reload(), 1500);
+                    }
+                } else {
+                    showToast('❌ Archivo JSON inválido');
+                }
+            } catch (err) {
+                showToast('❌ Error al leer el archivo');
+            }
+        };
+        reader.readAsText(file);
     }
 
     // UTILIDADES DE RENDERIZADO
@@ -1075,15 +1127,51 @@
       const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
       const topShops = getTopShops(); 
 
+      // Lógica para mostrar reseñas de la tienda seleccionada
+      let shopReviewsHTML = '';
+      if (selectedShopFilter) {
+          const shopOwner = allUsers.find(u => u.shop_name === selectedShopFilter);
+          const reviews = shopOwner ? allReviews.filter(r => r.reviewed_seller === shopOwner.username).reverse() : [];
+          
+          if (reviews.length > 0) {
+            shopReviewsHTML = `
+                <div class="max-w-7xl mx-auto px-4 py-8 border-t border-slate-700 mt-8">
+                    <h3 class="text-2xl font-bold text-yellow-400 mb-6">⭐ Opiniones de los Clientes (${reviews.length})</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        ${reviews.map(r => `
+                            <div class="bg-slate-800 p-4 rounded-lg border border-slate-700 shadow-md">
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="font-bold text-white">${r.buyer_username}</span>
+                                    <div class="text-yellow-400">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</div>
+                                </div>
+                                <p class="text-slate-300 text-sm italic">"${r.review_text}"</p>
+                                <p class="text-xs text-slate-500 mt-2 text-right">${new Date(r.created_at).toLocaleDateString()}</p>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+          } else {
+              shopReviewsHTML = `
+                <div class="max-w-7xl mx-auto px-4 py-8 border-t border-slate-700 mt-8 text-center opacity-50">
+                    <p>Esta tienda aún no tiene reseñas.</p>
+                </div>
+              `;
+          }
+      }
+
       return `
         <div class="min-h-full pb-20">
           <header class="shadow-lg sticky top-0 z-40 bg-slate-800 border-b border-slate-700 p-4">
             <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
                 <div class="text-center md:text-left">
-                  <h1 class="text-2xl font-bold text-blue-400 tracking-tight">MU MARKET <span class="text-white text-xs bg-blue-600 px-1 rounded">V12</span></h1>
+                  <h1 class="text-2xl font-bold text-blue-400 tracking-tight">MU MARKET <span class="text-white text-xs bg-blue-600 px-1 rounded">V13</span></h1>
                   <p class="text-xs mt-1 opacity-60">${config.contact_info}</p>
                 </div>
-                <div class="flex flex-wrap gap-2 justify-center">
+                <div class="flex flex-wrap gap-2 justify-center items-center">
+                  <button onclick="showModal='dataTools';render()" class="px-3 py-2 rounded-lg font-bold bg-slate-700 hover:bg-slate-600 text-slate-300 border border-slate-500 text-sm">
+                    💾 DATA
+                  </button>
                   ${currentUser ? `
                     <button onclick="currentView='cart'; render();" class="relative px-4 py-2 rounded-lg font-bold transition bg-slate-700 hover:bg-slate-600 text-sm border border-slate-600">
                       🛒 Carrito ${cartCount > 0 ? `<span class="cart-badge">${cartCount}</span>` : ''}
@@ -1230,6 +1318,9 @@
               </div>
             `}
           </main>
+          
+          ${shopReviewsHTML}
+          
         </div>
       `;
     }
@@ -1394,6 +1485,9 @@
       const myOrders = allOrders.filter(o => o.seller_username === viewingAs);
       const pending = myOrders.filter(o => o.order_status === 'pending');
       
+      // LOG DE PEDIDOS COMPLETADOS (NUEVO REQUERIMIENTO)
+      const completedOrdersLog = allOrders.filter(o => o.order_status === 'completed').reverse();
+
       // Estadísticas
       const stats = {
           total: myProducts.length,
@@ -1416,9 +1510,14 @@
                             </button>
                         ` : ''}
                     </div>
-                    <button onclick="currentView='catalog';render()" class="bg-blue-600 px-6 py-2 rounded font-bold shadow hover:bg-blue-500 transition">
-                        🏠 Volver al Inicio
-                    </button>
+                    <div class="flex gap-2">
+                        <button onclick="showModal='dataTools';render()" class="bg-slate-700 px-6 py-2 rounded font-bold shadow hover:bg-slate-600 transition border border-slate-500">
+                            💾 DATA TOOLS
+                        </button>
+                        <button onclick="currentView='catalog';render()" class="bg-blue-600 px-6 py-2 rounded font-bold shadow hover:bg-blue-500 transition">
+                            🏠 Volver al Inicio
+                        </button>
+                    </div>
                 </div>
 
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
@@ -1434,11 +1533,45 @@
                         <div class="text-3xl font-bold text-yellow-400">${pending.length}</div>
                         <div class="text-xs opacity-70 font-bold uppercase tracking-wide">Pedidos Pendientes</div>
                     </div>
-                     <div class="bg-slate-800 p-6 rounded-xl border-t-4 border-blue-500 shadow-lg">
+                      <div class="bg-slate-800 p-6 rounded-xl border-t-4 border-blue-500 shadow-lg">
                         <div class="text-xs opacity-70 font-bold uppercase tracking-wide mb-1">Discord Tienda</div>
                         <div class="text-sm font-bold font-mono text-blue-300 truncate bg-slate-900/50 p-1 rounded">${viewingUser.discord_tag}</div>
                     </div>
                 </div>
+                
+                ${(user.role === 'admin' && !adminViewTarget) ? `
+                    <div class="bg-slate-800 p-6 rounded-xl mb-8 border border-slate-700 shadow-lg">
+                        <h2 class="text-xl font-bold mb-6 text-green-400 border-b border-slate-700 pb-2 flex items-center gap-2">
+                            📜 LOG HISTÓRICO DE PEDIDOS
+                        </h2>
+                        <div class="overflow-x-auto rounded-lg border border-slate-700 max-h-64 overflow-y-auto">
+                            <table class="w-full text-sm text-left text-slate-300">
+                                <thead class="bg-slate-900 text-white uppercase font-bold text-xs sticky top-0 z-10">
+                                    <tr>
+                                        <th class="p-3">Fecha</th>
+                                        <th class="p-3">Tienda/Vendedor</th>
+                                        <th class="p-3">Comprador</th>
+                                        <th class="p-3">Items</th>
+                                        <th class="p-3 text-right">Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-700">
+                                    ${completedOrdersLog.length === 0 ? `
+                                        <tr><td colspan="5" class="p-4 text-center opacity-50">No hay registro de pedidos completados.</td></tr>
+                                    ` : completedOrdersLog.map(o => `
+                                        <tr class="hover:bg-slate-700/30 transition font-mono">
+                                            <td class="p-3 text-xs text-slate-500">${new Date(o.created_at).toLocaleDateString()}</td>
+                                            <td class="p-3 font-bold text-blue-300">${o.seller_username}</td>
+                                            <td class="p-3 text-white">${o.buyer_username}</td>
+                                            <td class="p-3 text-xs truncate max-w-xs">${o.items}</td>
+                                            <td class="p-3 text-right font-bold text-green-400">$${o.total.toFixed(2)}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                ` : ''}
 
                 <div class="bg-slate-800 p-6 rounded-xl mb-8 border border-slate-700 shadow-lg">
                     <h2 class="text-xl font-bold mb-4 text-yellow-400 border-b border-slate-700 pb-2 flex items-center gap-2">
@@ -1631,6 +1764,30 @@
         const close = `onclick="showModal=null;selectedProductToEdit=null;render()"`;
         const box = "bg-slate-800 p-8 rounded-xl shadow-2xl max-w-md w-full border border-slate-600 relative transform transition-all scale-100";
         
+        // MODAL: DATA TOOLS (IMPORT/EXPORT)
+        if(showModal === 'dataTools') {
+            return `
+            <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" ${close}>
+                <div class="${box}" onclick="event.stopPropagation()">
+                    <h2 class="text-2xl font-bold text-center mb-4 text-white">🛠️ Gestión de Datos</h2>
+                    <p class="text-center text-slate-400 text-sm mb-6">Guarda una copia de seguridad o restaura datos anteriores.</p>
+                    
+                    <div class="grid gap-4">
+                        <button onclick="downloadBackup()" class="bg-blue-600 hover:bg-blue-500 py-4 rounded-lg font-bold text-white shadow-lg transition flex items-center justify-center gap-3">
+                            ⬇️ EXPORTAR (Descargar Backup)
+                        </button>
+                        
+                        <div class="border-t border-slate-600 my-2"></div>
+                        
+                        <button onclick="triggerUpload()" class="bg-green-600 hover:bg-green-500 py-4 rounded-lg font-bold text-white shadow-lg transition flex items-center justify-center gap-3">
+                            ⬆️ IMPORTAR (Restaurar Backup)
+                        </button>
+                        <input type="file" id="fileInput" accept=".json" class="hidden" onchange="handleFileUpload(event)">
+                    </div>
+                </div>
+            </div>`;
+        }
+
         // MODAL: EDITAR PRODUCTO
         if(showModal === 'editProduct' && selectedProductToEdit) {
             const p = selectedProductToEdit;
@@ -1760,13 +1917,13 @@
             </div>`;
         }
 
-        // MODAL: RESEÑA
+        // MODAL: RESEÑA (OBLIGATORIO - SIN BOTÓN CERRAR)
         if(showModal === 'review') {
             return `
             <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4 animate-bounce-in">
                 <div class="${box} border-2 border-yellow-500">
                     <h2 class="text-2xl font-bold text-center text-yellow-400 mb-2">⭐ ¡Pedido Completado!</h2>
-                    <p class="text-center text-slate-400 mb-6">Tu compra a <b>${selectedOrder?.seller_username}</b> ha finalizado correctamente. ¡Califícalo!</p>
+                    <p class="text-center text-slate-400 mb-6">Tu compra a <b>${selectedOrder?.seller_username}</b> ha finalizado correctamente.<br><span class="text-red-400 text-xs font-bold uppercase">Es obligatorio calificar para continuar.</span></p>
                     <form onsubmit="handleSubmitReview(event)">
                         <div class="flex justify-center gap-3 mb-6">
                             ${[1,2,3,4,5].map(n => `
@@ -1831,5 +1988,3 @@
   </script>
  </body>
 </html>
-
-
