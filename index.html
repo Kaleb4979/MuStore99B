@@ -3,7 +3,7 @@
  <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mu Online 99B Marketplace - V9 Stock Live</title>
+  <title>Mu Online 99B Marketplace - V10 Perfect</title>
   
   <script src="https://cdn.tailwindcss.com"></script>
   
@@ -144,7 +144,7 @@
 
   <script>
     // --- CONFIGURACIÓN DE BASE DE DATOS EN TIEMPO REAL ---
-    const DB_KEY = 'mu_marketplace_db_v9_stock'; 
+    const DB_KEY = 'mu_marketplace_db_v10_fix'; 
     
     // Inicializar DB desde LocalStorage
     let savedData = localStorage.getItem(DB_KEY);
@@ -233,7 +233,7 @@
     };
 
     // --- GESTIÓN DE SESIÓN Y TIMEOUT ---
-    const SESSION_KEY = 'mu_session_user_v9_stock';
+    const SESSION_KEY = 'mu_session_user_v10_fix';
     let inactivityTimeout;
     const TIMEOUT_LIMIT = 5 * 60 * 1000; // 5 minutos exactos
 
@@ -413,7 +413,7 @@
           username: user.username,
           role: user.role,
           shop_name: user.shop_name,
-          discord_tag: user.discord_tag,
+          discord_tag: user.discord_tag || 'No Informado', // Protección contra undefined
           __backendId: user.__backendId
         };
         localStorage.setItem(SESSION_KEY, JSON.stringify(currentUser));
@@ -456,7 +456,7 @@
         type: 'user',
         username,
         password,
-        discord_tag: discord,
+        discord_tag: discord || 'No Informado', // Asegurar valor
         profile_picture: '',
         role: 'buyer',
         approved: true,
@@ -491,7 +491,7 @@
         type: 'user',
         username,
         password,
-        discord_tag: discord,
+        discord_tag: discord || 'No Informado',
         shop_name: shopName,
         profile_picture: '',
         role: 'reseller',
@@ -587,7 +587,7 @@
         image_url: imageUrl,
         seller_username: currentUser.username,
         seller_shop_name: currentUser.shop_name || currentUser.username,
-        seller_discord: currentUser.discord_tag || 'Admin',
+        seller_discord: currentUser.discord_tag || 'No Informado',
         created_at: new Date().toISOString()
       };
 
@@ -694,7 +694,7 @@
         ...user,
         role: 'reseller',
         shop_name: shopName,
-        discord_tag: discordTag,
+        discord_tag: discordTag || 'No Informado',
         approved: true,
         status: 'approved'
       };
@@ -857,13 +857,16 @@
           quantity: item.quantity
         })));
 
+        // PROTECCIÓN: Si el usuario es antiguo y no tiene discord, poner 'No Informado'
+        const buyerDiscord = currentUser.discord_tag || 'No Informado';
+
         const orderData = {
           id: Date.now().toString() + '_' + sellerUsername,
           type: 'order',
           buyer_username: currentUser.username,
-          buyer_discord: currentUser.discord_tag,
+          buyer_discord: buyerDiscord, 
           seller_username: sellerUsername,
-          seller_discord: orderInfo.discord,
+          seller_discord: orderInfo.discord || 'No Informado',
           items: itemsDesc,
           items_data: itemsData,
           total: orderInfo.total,
@@ -925,12 +928,20 @@
                 for (const item of itemsData) {
                   const product = allProducts.find(p => p.__backendId === item.backendId);
                   if (product) {
-                    // RESTA DE STOCK EN TIEMPO REAL
                     const updatedProduct = {...product, stock: Math.max(0, product.stock - item.quantity)};
                     await window.dataSdk.update(updatedProduct); 
                   }
                 }
                 await window.dataSdk.update(completedOrder); 
+                
+                // --- AQUÍ ESTÁ LA MAGIA DE LA RESEÑA ---
+                // Si quien confirma es el comprador (o si el pedido se completa), forzamos la reseña
+                if (currentUser.role === 'buyer') {
+                    selectedOrder = completedOrder;
+                    showModal = 'review';
+                    render();
+                }
+
               } catch (e) {
                 console.error(e);
               }
@@ -1086,7 +1097,6 @@
     function renderCatalog() {
       const config = getConfig();
       
-      // LOGICA DE FILTRADO POR TIENDA O CATEGORIA
       let filteredProducts = allProducts;
       
       if (selectedShopFilter) {
@@ -1158,15 +1168,18 @@
                     <h3 class="font-bold text-xl mb-1 shop-badge px-2 py-1 rounded inline-block" onclick="filterByShop('${shop.shop_name}')">${shop.shop_name}</h3>
                     <p class="text-sm opacity-70 mb-3">👤 ${shop.username}</p>
                     
-                    <div class="flex justify-center gap-4 mb-3">
+                    <div class="flex justify-center items-center gap-6 mb-3 bg-slate-800/50 rounded-lg p-2 border border-slate-700">
                         <div class="text-center">
                           <p class="text-2xl font-bold text-green-400">${shop.salesCount}</p>
-                          <p class="text-xs opacity-70">Ventas</p>
+                          <p class="text-xs opacity-70 uppercase tracking-wide">Ventas</p>
                         </div>
-                        <div class="text-center">
-                          <p class="text-2xl font-bold text-yellow-400">${shop.rating}</p>
-                          <p class="text-xs opacity-70">${shop.reviewCount} Reseñas</p>
+                        <div class="h-8 w-px bg-slate-600"></div> <div class="text-center">
+                          <p class="text-2xl font-bold text-yellow-400">${shop.reviewCount}</p>
+                          <p class="text-xs opacity-70 uppercase tracking-wide">Reseñas</p>
                         </div>
+                    </div>
+                    <div class="text-yellow-400 text-sm font-bold">
+                        ${shop.rating} ⭐ Promedio
                     </div>
                   </div>
                 `).join('')}
@@ -1319,7 +1332,7 @@
                     <div>
                         <p class="text-xs uppercase text-slate-500 font-bold">Datos Vendedor</p>
                         <p class="text-sm text-white">👤 ${o.seller_username}</p>
-                        <p class="text-sm text-purple-400">📱 Discord: ${o.seller_discord}</p>
+                        <p class="text-sm text-purple-400">📱 Discord: ${o.seller_discord || 'No Informado'}</p>
                     </div>
                      <div>
                         <p class="text-xs uppercase text-slate-500 font-bold">Items</p>
@@ -1418,7 +1431,7 @@
                                 <p class="text-sm font-bold text-white mb-1">${o.buyer_username}</p>
                                 <div class="flex items-center gap-2 text-purple-300 bg-purple-900/30 p-2 rounded border border-purple-500/30">
                                     <span>📱</span>
-                                    <span class="font-mono text-sm font-bold select-all">Discord: ${o.buyer_discord}</span>
+                                    <span class="font-mono text-sm font-bold select-all">Discord: ${o.buyer_discord || 'No Informado'}</span>
                                 </div>
                             </div>
 
