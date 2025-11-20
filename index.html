@@ -3,7 +3,7 @@
  <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mu Online 99B Marketplace - V11 Ultimate</title>
+  <title>Mu Online 99B Marketplace - V11 Ultimate Full</title>
   
   <script src="https://cdn.tailwindcss.com"></script>
   
@@ -19,8 +19,10 @@
     /* ANIMACIONES Y UI */
     .category-btn { transition: all 0.3s ease; }
     .category-btn:hover { transform: translateY(-2px); }
+    
     .product-card { transition: all 0.3s ease; }
     .product-card:hover { transform: translateY(-5px); box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
+    
     .shop-badge { cursor: pointer; transition: all 0.2s ease; }
     .shop-badge:hover { transform: scale(1.05); background-color: #4f46e5; }
     
@@ -55,8 +57,9 @@
   <style>@view-transition { navigation: auto; }</style>
 
   <script>
-    // --- CONFIGURACIÓN DB ---
-    const DB_KEY = 'mu_marketplace_db_v11_ultimate'; 
+    // --- CONFIGURACIÓN DB (PERSISTENCIA) ---
+    const DB_KEY = 'mu_marketplace_db_v11_full'; 
+    
     let savedData = localStorage.getItem(DB_KEY);
     window.mockDb = {
       data: savedData ? JSON.parse(savedData) : [],
@@ -66,6 +69,8 @@
         if (this.handler) this.handler.onDataChanged(this.data);
       }
     };
+    
+    // Sincronización entre pestañas
     window.addEventListener('storage', (event) => {
         if (event.key === DB_KEY) {
             window.mockDb.data = JSON.parse(event.newValue);
@@ -115,6 +120,7 @@
   <div id="app" class="min-h-full"></div>
   
   <script>
+    // --- CONFIGURACIÓN GLOBAL ---
     const defaultConfig = {
       site_title: "Mu Online 99B Marketplace",
       background_color: "#0f172a", card_background: "#1e293b", text_color: "#f1f5f9",
@@ -122,19 +128,19 @@
       contact_info: "Contacto: Discord/WhatsApp"
     };
 
-    const SESSION_KEY = 'mu_session_user_v11_ultimate';
+    const SESSION_KEY = 'mu_session_user_v11_full';
     let inactivityTimeout;
     const TIMEOUT_LIMIT = 5 * 60 * 1000; 
 
-    // --- ESTADO ---
+    // --- ESTADO DE LA APP ---
     let currentUser = null;
     let currentView = 'catalog';
     let selectedCategory = 'all';
     let selectedShopFilter = null;
     
-    // Variables para Admin/Gestión
-    let adminViewTarget = null; // Si no es null, el admin está viendo la tienda de este usuario
-    let selectedProductToEdit = null; // Para el modal de edición
+    // Variables del Panel Admin V11
+    let adminViewTarget = null; // Usuario al que el admin está "gestionando"
+    let selectedProductToEdit = null; // Producto seleccionado para editar
 
     let allProducts = [], allUsers = [], allOrders = [], allReviews = [], cart = [];
     let showModal = null, selectedOrder = null;
@@ -149,10 +155,10 @@
     const ADMIN_CREDENTIALS = {
       username: 'Kaleb',
       password: 'Kaleb.2021',
-      discord_tag: 'KalebAdmin#9999' // Discord del Admin fijo
+      discord_tag: 'KalebAdmin#9999'
     };
 
-    // --- DATA HANDLER ---
+    // --- MANEJADOR DE DATOS (CORE) ---
     const dataHandler = {
       onDataChanged(data) {
         allProducts = data.filter(item => item.type === 'product') || [];
@@ -161,6 +167,7 @@
         allReviews = data.filter(item => item.type === 'review') || [];
         const activityRecords = data.filter(item => item.type === 'activity') || [];
         
+        // Notificaciones en vivo
         if (currentUser) {
             const newAlert = activityRecords.find(a => 
                 a.type === 'activity' && a.message && !a.dismissed && 
@@ -172,6 +179,7 @@
             }
         }
         
+        // Cálculo usuarios online
         const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
         onlineUsers = new Set(activityRecords.filter(a => a.type === 'activity' && new Date(a.last_activity).getTime() > fiveMinutesAgo).map(a => a.username));
         
@@ -205,6 +213,7 @@
         }
     }
 
+    // Si hay una reseña pendiente, forzar modal
     function checkPendingReviews() {
       if (!currentUser || currentUser.role !== 'buyer') return;
       const pendingOrder = allOrders.find(o => o.buyer_username === currentUser.username && o.order_status === 'completed' && o.needs_review === true);
@@ -213,7 +222,7 @@
       }
     }
 
-    // --- AUTH ---
+    // --- AUTENTICACIÓN ---
     async function handleLogin(e) {
       e.preventDefault();
       const username = document.getElementById('loginUsername').value.trim();
@@ -226,7 +235,7 @@
         };
         localStorage.setItem(SESSION_KEY, JSON.stringify(currentUser));
         showModal = null; currentView = 'admin';
-        showToast('Bienvenido Admin (Discord Guardado)');
+        showToast('Bienvenido Admin');
         await updateUserActivity(); render(); return;
       }
 
@@ -237,7 +246,7 @@
         
         currentUser = { 
           username: user.username, role: user.role, shop_name: user.shop_name,
-          discord_tag: user.discord_tag || 'No Informado', // Fallback
+          discord_tag: user.discord_tag || 'No Informado', // Protección
           __backendId: user.__backendId
         };
         localStorage.setItem(SESSION_KEY, JSON.stringify(currentUser));
@@ -263,7 +272,7 @@
       const userData = {
         id: Date.now().toString(), type: 'user', username, 
         password: document.getElementById('buyerPassword').value,
-        discord_tag: discord || 'No Informado', // GUARDADO CRÍTICO
+        discord_tag: discord || 'No Informado',
         role: 'buyer', approved: true, status: 'active', created_at: new Date().toISOString()
       };
 
@@ -281,7 +290,7 @@
       const userData = {
         id: Date.now().toString(), type: 'user', username,
         password: document.getElementById('resellerPassword').value,
-        discord_tag: discord || 'No Informado', // GUARDADO CRÍTICO
+        discord_tag: discord || 'No Informado',
         shop_name: document.getElementById('resellerShop').value.trim(),
         role: 'reseller', approved: false, status: 'pending', created_at: new Date().toISOString()
       };
@@ -310,11 +319,11 @@
       showToast(auto ? '💤 Logout por inactividad' : 'Sesión cerrada'); render();
     }
 
-    // --- GESTIÓN DE PRODUCTOS (CRUD + EDITAR) ---
+    // --- GESTIÓN DE PRODUCTOS Y MODO DIOS ---
     async function handleAddProduct(e) {
       e.preventDefault();
       
-      // Definir quién es el "dueño" del producto (si es Admin en modo gestión, el dueño es el target)
+      // CLAVE V11: Si adminViewTarget existe, el producto es para ESA tienda
       const ownerUsername = adminViewTarget ? adminViewTarget : currentUser.username;
       const ownerData = allUsers.find(u => u.username === ownerUsername) || currentUser;
       
@@ -350,7 +359,7 @@
       btn.disabled = false; btn.innerHTML = 'Publicar Ahora';
     }
 
-    // NUEVA FUNCIÓN: ABRIR MODAL EDICIÓN
+    // Abrir Modal Edición
     function openEditModal(backendId) {
         const product = allProducts.find(p => p.__backendId === backendId);
         if (!product) return;
@@ -359,7 +368,7 @@
         render();
     }
 
-    // NUEVA FUNCIÓN: GUARDAR EDICIÓN
+    // Guardar Edición
     async function handleUpdateProduct(e) {
         e.preventDefault();
         if (!selectedProductToEdit) return;
@@ -394,7 +403,7 @@
       if (product) { await window.dataSdk.delete(product); showToast('Producto eliminado'); }
     }
 
-    // --- GESTIÓN USUARIOS ADMIN ---
+    // --- GESTIÓN ADMIN USUARIOS ---
     async function approveUser(id) { const u = allUsers.find(x=>x.__backendId===id); if(u) await window.dataSdk.update({...u, status:'active', approved:true}); }
     async function banUser(id) { 
         const u = allUsers.find(x=>x.__backendId===id); 
@@ -409,21 +418,20 @@
         }
     }
     
-    // --- FUNCIONES ADMIN: ENTRAR EN TIENDA ---
+    // MODO DIOS: Entrar/Salir de tienda
     function enterShopManagement(targetUsername) {
         adminViewTarget = targetUsername;
         showToast(`👁️ Gestionando tienda de: ${targetUsername}`);
         render();
     }
-    
     function exitShopManagement() {
         adminViewTarget = null;
         showToast('🔙 Volviendo a vista global');
         render();
     }
 
-    // --- CARRITO Y PEDIDOS ---
-    function validateCart() { /* Lógica de validación stock igual a V10 */ 
+    // --- LÓGICA CARRITO Y PEDIDOS ---
+    function validateCart() {
         if (cart.length === 0) return;
         let mod = false;
         const newCart = cart.filter(c => {
@@ -437,6 +445,7 @@
         });
         if(mod) cart = newCart;
     }
+    
     function addToCart(id) {
         if(!currentUser) { showModal='login'; render(); return; }
         const p = allProducts.find(x=>x.__backendId===id);
@@ -445,13 +454,13 @@
         if(ex) { if(ex.quantity<p.stock) ex.quantity++; } else cart.push({...p, quantity:1});
         showToast('Agregado al carrito'); render();
     }
+    
     function removeFromCart(i) { cart.splice(i,1); render(); }
     
     async function createOrder() {
         if(cart.length===0) return;
         validateCart(); if(cart.length===0) return;
         
-        // Agrupar por vendedor
         const orders = {};
         cart.forEach(i => {
             if(!orders[i.seller_username]) orders[i.seller_username] = { seller: i.seller_username, items:[], total:0, discord: i.seller_discord };
@@ -466,8 +475,10 @@
             
             const order = {
                 id: Date.now()+'_'+k, type:'order', 
-                buyer_username: currentUser.username, buyer_discord: currentUser.discord_tag || 'No Informado',
-                seller_username: o.seller, seller_discord: o.discord,
+                buyer_username: currentUser.username, 
+                buyer_discord: currentUser.discord_tag || 'No Informado',
+                seller_username: o.seller, 
+                seller_discord: o.discord || 'No Informado',
                 items: desc, items_data: data, total: o.total,
                 order_status: 'pending', seller_confirmed:false, buyer_confirmed:false, needs_review:false,
                 created_at: new Date().toISOString()
@@ -486,32 +497,58 @@
         const res = await window.dataSdk.update(up);
         if(res.isOk && res.item.seller_confirmed && res.item.buyer_confirmed && res.item.order_status!=='completed') {
             const final = {...res.item, order_status:'completed', needs_review:true};
-            const items = JSON.parse(final.items_data);
-            for(const i of items) {
-                const p = allProducts.find(x=>x.__backendId===i.backendId);
-                if(p) await window.dataSdk.update({...p, stock: Math.max(0, p.stock-i.quantity)});
-            }
+            
+            // Resta de Stock Automática
+            try {
+                const items = JSON.parse(final.items_data);
+                for(const i of items) {
+                    const p = allProducts.find(x=>x.__backendId===i.backendId);
+                    if(p) await window.dataSdk.update({...p, stock: Math.max(0, p.stock-i.quantity)});
+                }
+            } catch(e) { console.error(e); }
+
             await window.dataSdk.update(final);
+            
             if(currentUser.role==='buyer') { selectedOrder=final; showModal='review'; }
             showToast('¡Pedido Completado!');
         }
         render();
     }
 
-    // --- RENDER ---
+    // --- HELPERS ESTADÍSTICAS ---
+    function getTopShops() {
+      const resellers = allUsers.filter(u => u.role === 'reseller' && u.approved);
+      return resellers.map(s => {
+        const revs = allReviews.filter(r => r.reviewed_seller === s.username);
+        const avg = revs.length ? (revs.reduce((a,b)=>a+b.rating,0)/revs.length).toFixed(1) : 0;
+        const sales = allOrders.filter(o => o.seller_username === s.username && o.order_status === 'completed').length;
+        return { ...s, rating: parseFloat(avg), reviewCount: revs.length, salesCount: sales };
+      }).filter(s => s.salesCount > 0 || s.reviewCount > 0).sort((a,b) => b.salesCount - a.salesCount || b.reviewCount - a.reviewCount || b.rating - a.rating).slice(0,3);
+    }
+
+    function getCategoryIcon(id) { const c = CATEGORIES.find(x=>x.id===id); return c?c.icon:'📦'; }
+
+    // --- RENDERIZADO PRINCIPAL ---
     function render() {
         const app = document.getElementById('app');
-        if(currentView==='catalog') app.innerHTML = renderCatalog();
-        else if(currentView==='cart') app.innerHTML = renderCart();
-        else if(currentView==='orders') app.innerHTML = renderOrders();
-        else if(currentView==='admin') app.innerHTML = renderAdmin();
+        const config = defaultConfig;
+        document.body.style.backgroundColor = config.background_color;
+        document.body.style.color = config.text_color;
+
+        let html = '';
+        if(currentView==='catalog') html = renderCatalog();
+        else if(currentView==='cart') html = renderCart();
+        else if(currentView==='orders') html = renderOrders();
+        else if(currentView==='admin') html = renderAdmin();
+        
+        app.innerHTML = html;
         
         const mod = document.getElementById('modalContainer');
         if(!mod) { const d=document.createElement('div'); d.id='modalContainer'; document.body.appendChild(d); d.innerHTML=showModal?renderModal():''; }
         else mod.innerHTML = showModal?renderModal():'';
     }
 
-    // VISTAS AUXILIARES (Catalog, Cart, Orders igual a V10 con pequeñas mejoras visuales)
+    // VISTA CATÁLOGO
     function renderCatalog() {
         let list = allProducts;
         if(selectedShopFilter) list = list.filter(p => p.seller_shop_name === selectedShopFilter);
@@ -519,28 +556,28 @@
         
         const topShops = getTopShops();
         return `
-            <div class="min-h-full bg-slate-900 text-slate-100 pb-20">
-                <header class="bg-slate-800 sticky top-0 z-40 shadow-lg p-4">
+            <div class="min-h-full pb-20">
+                <header class="bg-slate-800 sticky top-0 z-40 shadow-lg p-4 border-b border-slate-700">
                     <div class="max-w-7xl mx-auto flex flex-wrap justify-between items-center gap-4">
                         <h1 class="text-2xl font-bold text-blue-400">MU MARKET <span class="text-white text-xs">V11</span></h1>
                         <div class="flex gap-2">
                             ${currentUser ? `
-                                <button onclick="currentView='cart';render()" class="bg-slate-700 px-3 py-2 rounded hover:bg-slate-600 relative">🛒 ${cart.length>0?`<span class="cart-badge">${cart.reduce((a,b)=>a+b.quantity,0)}</span>`:''}</button>
-                                <button onclick="currentView='orders';render()" class="bg-slate-700 px-3 py-2 rounded hover:bg-slate-600">📦 Pedidos</button>
-                                ${currentUser.role!=='buyer'?`<button onclick="currentView='admin';render()" class="border border-blue-500 bg-slate-800 px-3 py-2 rounded">⚙️ Panel</button>`:''}
-                                <button onclick="logout()" class="bg-red-600 px-3 py-2 rounded text-white">🚪</button>
-                            ` : `<button onclick="showModal='login';render()" class="bg-blue-600 px-4 py-2 rounded">Login</button>`}
+                                <button onclick="currentView='cart';render()" class="bg-slate-700 px-3 py-2 rounded hover:bg-slate-600 relative border border-slate-600">🛒 ${cart.length>0?`<span class="cart-badge">${cart.reduce((a,b)=>a+b.quantity,0)}</span>`:''}</button>
+                                <button onclick="currentView='orders';render()" class="bg-slate-700 px-3 py-2 rounded hover:bg-slate-600 border border-slate-600">📦 Pedidos</button>
+                                ${currentUser.role!=='buyer'?`<button onclick="currentView='admin';render()" class="border border-blue-500 bg-slate-800 px-3 py-2 rounded font-bold text-blue-400">⚙️ Panel</button>`:''}
+                                <button onclick="logout()" class="bg-red-600 px-3 py-2 rounded text-white hover:bg-red-500">🚪</button>
+                            ` : `<button onclick="showModal='login';render()" class="bg-blue-600 px-4 py-2 rounded hover:bg-blue-500 shadow-lg font-bold">Login / Registro</button>`}
                         </div>
                     </div>
                 </header>
                 ${!selectedShopFilter && topShops.length>0 ? `
                 <div class="max-w-7xl mx-auto p-4 grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                     ${topShops.map((s,i)=>`
-                        <div class="bg-slate-800 p-4 rounded-lg border border-slate-700 rank-${i+1} text-center">
-                            <div class="text-3xl">${i===0?'🥇':i===1?'🥈':'🥉'}</div>
-                            <div class="font-bold text-xl cursor-pointer hover:text-blue-400" onclick="selectedShopFilter='${s.shop_name}';render()">${s.shop_name}</div>
-                            <div class="text-xs text-slate-400">${s.username}</div>
-                            <div class="flex justify-center gap-4 mt-2 text-sm font-mono">
+                        <div class="bg-slate-800 p-4 rounded-lg border border-slate-700 rank-${i+1} text-center shadow-lg">
+                            <div class="text-3xl mb-1">${i===0?'🥇':i===1?'🥈':'🥉'}</div>
+                            <div class="font-bold text-xl cursor-pointer hover:text-blue-400 shop-badge inline-block px-2 rounded" onclick="selectedShopFilter='${s.shop_name}';render()">${s.shop_name}</div>
+                            <div class="text-xs text-slate-400 mb-2">${s.username}</div>
+                            <div class="flex justify-center gap-4 text-sm font-mono bg-slate-900/50 p-2 rounded">
                                 <span class="text-green-400 font-bold">${s.salesCount} Ventas</span> | <span class="text-yellow-400 font-bold">${s.rating}⭐</span>
                             </div>
                         </div>
@@ -548,25 +585,27 @@
                 </div>` : ''}
                 
                 <div class="max-w-7xl mx-auto p-4">
-                    ${selectedShopFilter ? `<div class="flex justify-between items-center mb-4 bg-blue-900/20 p-4 rounded border border-blue-500"><h2 class="text-2xl font-bold">Tienda: ${selectedShopFilter}</h2><button onclick="selectedShopFilter=null;render()" class="bg-red-600 px-4 py-2 rounded text-sm">Ver Todo</button></div>` : 
-                    `<div class="flex flex-wrap gap-2 justify-center mb-6">${CATEGORIES.map(c=>`<button onclick="selectedCategory='${c.id}';render()" class="px-4 py-2 rounded ${selectedCategory===c.id?'bg-blue-600':'bg-slate-800'}">${c.icon} ${c.name}</button>`).join('')}</div>`}
+                    ${selectedShopFilter ? `<div class="flex justify-between items-center mb-4 bg-blue-900/20 p-4 rounded border border-blue-500"><h2 class="text-2xl font-bold">Tienda: ${selectedShopFilter}</h2><button onclick="selectedShopFilter=null;render()" class="bg-red-600 px-4 py-2 rounded text-sm font-bold shadow">Ver Todo</button></div>` : 
+                    `<div class="flex flex-wrap gap-2 justify-center mb-6">${CATEGORIES.map(c=>`<button onclick="selectedCategory='${c.id}';render()" class="px-4 py-2 rounded font-bold shadow-sm ${selectedCategory===c.id?'bg-blue-600 ring-2 ring-blue-400':'bg-slate-800 text-slate-300'}">${c.icon} ${c.name}</button>`).join('')}</div>`}
                     
+                    ${list.length===0 ? '<div class="text-center py-10 text-2xl opacity-50">No hay productos aquí.</div>' : ''}
+
                     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                         ${list.map(p => `
-                            <div class="bg-slate-800 rounded-xl overflow-hidden shadow-lg border border-slate-700 hover:-translate-y-1 transition relative">
-                                ${p.on_sale ? '<span class="absolute top-2 right-2 bg-red-600 text-xs font-bold px-2 py-1 rounded z-10 animate-pulse">OFERTA</span>' : ''}
-                                <div class="h-40 bg-slate-900 flex items-center justify-center text-6xl">
-                                    ${p.image_url ? `<img src="${p.image_url}" class="w-full h-full object-cover">` : '⚔️'}
+                            <div class="bg-slate-800 rounded-xl overflow-hidden shadow-lg border border-slate-700 hover:-translate-y-1 transition relative group">
+                                ${p.on_sale ? '<span class="absolute top-2 right-2 bg-red-600 text-xs font-bold px-2 py-1 rounded z-10 animate-pulse shadow">OFERTA</span>' : ''}
+                                <div class="h-40 bg-slate-900 flex items-center justify-center text-6xl relative overflow-hidden">
+                                    ${p.image_url ? `<img src="${p.image_url}" class="w-full h-full object-cover transition transform group-hover:scale-110">` : getCategoryIcon(p.category)}
                                 </div>
                                 <div class="p-4 text-center">
-                                    <div class="-mt-8 mb-2"><span class="bg-blue-600 text-xs px-2 py-1 rounded-full shadow cursor-pointer" onclick="selectedShopFilter='${p.seller_shop_name}';render()">🏪 ${p.seller_shop_name}</span></div>
-                                    <h3 class="font-bold truncate">${p.name}</h3>
-                                    <div class="text-xs ${p.stock<5?'text-red-500 font-bold animate-pulse':'text-slate-400'}">📦 Stock: ${p.stock}</div>
-                                    <div class="mt-2 flex justify-between items-center">
+                                    <div class="-mt-8 mb-2 relative z-20"><span class="bg-blue-600 text-xs px-2 py-1 rounded-full shadow cursor-pointer border border-blue-400 font-bold" onclick="selectedShopFilter='${p.seller_shop_name}';render()">🏪 ${p.seller_shop_name}</span></div>
+                                    <h3 class="font-bold truncate mb-1">${p.name}</h3>
+                                    <div class="text-xs ${p.stock<5?'text-red-500 font-bold animate-pulse':'text-slate-400'} mb-2">📦 Stock: ${p.stock}</div>
+                                    <div class="mt-2 flex justify-between items-center border-t border-slate-700 pt-2">
                                         <div class="text-left">
-                                            ${p.discount>0 ? `<div class="text-xs line-through opacity-50">$${p.price}</div><div class="text-green-400 font-bold">$${p.final_price.toFixed(2)}</div>` : `<div class="text-green-400 font-bold">$${p.price}</div>`}
+                                            ${p.discount>0 ? `<div class="text-xs line-through opacity-50">$${p.price}</div><div class="text-green-400 font-bold">$${p.final_price.toFixed(2)}</div>` : `<div class="text-green-400 font-bold">$${p.price.toFixed(2)}</div>`}
                                         </div>
-                                        <button onclick="addToCart('${p.__backendId}')" ${p.stock<=0?'disabled':''} class="bg-blue-600 px-3 py-1 rounded text-sm font-bold disabled:opacity-50">${p.stock>0?'COMPRAR':'AGOTADO'}</button>
+                                        <button onclick="addToCart('${p.__backendId}')" ${p.stock<=0?'disabled':''} class="bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded text-sm font-bold disabled:opacity-50 shadow">${p.stock>0?'COMPRAR':'AGOTADO'}</button>
                                     </div>
                                 </div>
                             </div>
@@ -576,9 +615,97 @@
             </div>`;
     }
 
+    // VISTA CARRITO (COMPLETA)
+    function renderCart() {
+        const total = cart.reduce((sum, item) => {
+            const itemPrice = item.discount > 0 ? item.final_price : item.price;
+            return sum + (itemPrice * item.quantity);
+        }, 0);
+
+        return `
+        <div class="min-h-full p-8 max-w-4xl mx-auto">
+          <h2 class="text-3xl font-bold mb-6 text-blue-400">🛒 Carrito de Compras</h2>
+          ${cart.length === 0 ? `
+            <div class="bg-slate-800 p-8 rounded-lg text-center border border-slate-700">
+                <p class="text-xl mb-4">Tu carrito está vacío</p>
+                <button onclick="currentView='catalog'; render();" class="bg-blue-600 px-6 py-2 rounded font-bold hover:bg-blue-500">Ir a Comprar</button>
+            </div>
+          ` : `
+            <div class="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden mb-6">
+                ${cart.map((item, index) => `
+                <div class="p-4 border-b border-slate-700 flex justify-between items-center hover:bg-slate-700/30">
+                    <div class="flex items-center gap-4">
+                        <div class="h-12 w-12 bg-slate-900 rounded flex items-center justify-center text-xl">${getCategoryIcon(item.category)}</div>
+                        <div>
+                            <div class="font-bold text-lg">${item.name}</div>
+                            <div class="text-sm opacity-70">Vendedor: ${item.seller_username}</div>
+                            <div class="text-xs text-slate-400">$${item.final_price} x ${item.quantity}</div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <div class="font-bold text-green-400 text-lg">$${(item.final_price*item.quantity).toFixed(2)}</div>
+                        <button onclick="removeFromCart(${index})" class="text-red-500 hover:text-red-400 font-bold px-2 text-xl">×</button>
+                    </div>
+                </div>
+                `).join('')}
+            </div>
+            <div class="bg-slate-800 p-6 rounded-lg border border-slate-700 text-right">
+                <div class="text-3xl font-bold mb-4">Total: <span class="text-green-400">$${total.toFixed(2)}</span></div>
+                <div class="flex gap-4 justify-end">
+                    <button onclick="currentView='catalog';render()" class="bg-slate-700 hover:bg-slate-600 px-6 py-3 rounded font-bold">Seguir Comprando</button>
+                    <button onclick="createOrder()" class="bg-green-600 hover:bg-green-500 px-8 py-3 rounded font-bold shadow-lg transform hover:scale-105 transition">CONFIRMAR PEDIDO</button>
+                </div>
+            </div>
+          `}
+        </div>`;
+    }
+
+    // VISTA PEDIDOS (COMPLETA)
+    function renderOrders() {
+        const myOrders = allOrders.filter(o => o.buyer_username === currentUser.username).reverse();
+        return `
+        <div class="min-h-full p-8 max-w-4xl mx-auto">
+          <div class="flex justify-between mb-6">
+            <h2 class="text-3xl font-bold text-blue-400">📦 Mis Pedidos</h2>
+            <button onclick="currentView='catalog';render()" class="bg-blue-600 px-4 py-2 rounded font-bold shadow">Volver</button>
+          </div>
+          ${myOrders.length === 0 ? '<div class="bg-slate-800 p-8 rounded text-center text-slate-400">No has realizado pedidos aún.</div>' : ''}
+          
+          ${myOrders.map((o, index) => `
+            <div class="bg-slate-800 p-6 rounded-lg mb-4 border-l-4 shadow-lg ${o.order_status==='completed'?'border-green-500':'border-yellow-500'}">
+                <div class="flex justify-between mb-4 border-b border-slate-700 pb-2">
+                    <span class="font-bold text-lg text-blue-400">PEDIDO #${myOrders.length - index}</span>
+                    <span class="text-xs font-bold px-2 py-1 rounded ${o.order_status==='completed'?'bg-green-900 text-green-200':'bg-yellow-900 text-yellow-200'}">${o.order_status.toUpperCase()}</span>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 bg-slate-900 p-3 rounded border border-slate-700">
+                    <div>
+                        <p class="text-xs uppercase text-slate-500 font-bold">Datos Vendedor</p>
+                        <p class="text-sm text-white font-bold">👤 ${o.seller_username}</p>
+                        <p class="text-sm text-purple-400 font-mono bg-purple-900/20 inline-block px-1 rounded mt-1">📱 ${o.seller_discord}</p>
+                    </div>
+                     <div>
+                        <p class="text-xs uppercase text-slate-500 font-bold">Items</p>
+                        <p class="text-sm font-mono text-slate-300">${o.items}</p>
+                    </div>
+                </div>
+
+                <div class="flex justify-between items-center mt-2">
+                    <div class="font-bold text-xl text-white">Total: <span class="text-green-400">$${o.total.toFixed(2)}</span></div>
+                    ${o.order_status==='pending' ? `
+                        <button onclick="confirmOrder('${o.__backendId}', false)" ${o.buyer_confirmed?'disabled':''} class="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded font-bold disabled:opacity-50 shadow transition">
+                            ${o.buyer_confirmed ? '⏳ Esperando al Vendedor...' : '✅ Confirmar Recibido'}
+                        </button>
+                    ` : '<span class="text-green-500 font-bold flex items-center gap-1">✅ Completado & Calificado</span>'}
+                </div>
+            </div>
+          `).join('')}
+        </div>`;
+    }
+
+    // VISTA ADMIN (COMPLETA CON MODO DIOS)
     function renderAdmin() {
       const user = currentUser;
-      // MODO GESTIÓN: Si adminViewTarget existe, filtramos como si fuéramos ese usuario
       const viewingAs = adminViewTarget || user.username;
       const viewingUser = allUsers.find(u => u.username === viewingAs) || user;
       
@@ -589,45 +716,45 @@
       return `
         <div class="min-h-full bg-slate-900 text-slate-100 p-6">
             <div class="max-w-7xl mx-auto">
-                <div class="flex justify-between items-center mb-6">
+                <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
                     <div class="flex items-center gap-4">
                         <h1 class="text-3xl font-bold">
                             ${adminViewTarget ? `👁️ Gestionando: <span class="text-yellow-400">${viewingUser.shop_name}</span>` : (user.role==='admin'?'⚙️ ADMIN PANEL':'🏪 MI TIENDA')}
                         </h1>
-                        ${adminViewTarget ? `<button onclick="exitShopManagement()" class="bg-red-600 px-4 py-2 rounded font-bold text-sm">❌ SALIR DEL MODO GESTIÓN</button>` : ''}
+                        ${adminViewTarget ? `<button onclick="exitShopManagement()" class="bg-red-600 px-4 py-2 rounded font-bold text-sm hover:bg-red-500 shadow">❌ SALIR DEL MODO GESTIÓN</button>` : ''}
                     </div>
-                    <button onclick="currentView='catalog';render()" class="bg-blue-600 px-4 py-2 rounded">Ir al Catálogo</button>
+                    <button onclick="currentView='catalog';render()" class="bg-blue-600 px-4 py-2 rounded font-bold shadow hover:bg-blue-500">Ir al Catálogo</button>
                 </div>
 
-                <div class="grid grid-cols-4 gap-4 mb-8 text-center">
-                    <div class="bg-slate-800 p-4 rounded border-t-4 border-purple-500">
-                        <div class="text-2xl font-bold">${myProducts.length}</div><div class="text-xs opacity-70">Productos</div>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 text-center">
+                    <div class="bg-slate-800 p-4 rounded border-t-4 border-purple-500 shadow-lg">
+                        <div class="text-3xl font-bold text-white">${myProducts.length}</div><div class="text-xs opacity-70 uppercase">Productos</div>
                     </div>
-                    <div class="bg-slate-800 p-4 rounded border-t-4 border-green-500">
-                        <div class="text-2xl font-bold">${myOrders.filter(o=>o.order_status==='completed').length}</div><div class="text-xs opacity-70">Ventas</div>
+                    <div class="bg-slate-800 p-4 rounded border-t-4 border-green-500 shadow-lg">
+                        <div class="text-3xl font-bold text-green-400">${myOrders.filter(o=>o.order_status==='completed').length}</div><div class="text-xs opacity-70 uppercase">Ventas</div>
                     </div>
-                    <div class="bg-slate-800 p-4 rounded border-t-4 border-yellow-500">
-                        <div class="text-2xl font-bold text-yellow-400">${pending.length}</div><div class="text-xs opacity-70">Pendientes</div>
+                    <div class="bg-slate-800 p-4 rounded border-t-4 border-yellow-500 shadow-lg">
+                        <div class="text-3xl font-bold text-yellow-400">${pending.length}</div><div class="text-xs opacity-70 uppercase">Pendientes</div>
                     </div>
-                     <div class="bg-slate-800 p-4 rounded border-t-4 border-blue-500">
-                        <div class="text-xs opacity-70 mt-2">Discord Tienda</div>
-                        <div class="text-sm font-bold font-mono text-blue-300 truncate">${viewingUser.discord_tag}</div>
+                     <div class="bg-slate-800 p-4 rounded border-t-4 border-blue-500 shadow-lg">
+                        <div class="text-xs opacity-70 mt-1 uppercase">Discord Tienda</div>
+                        <div class="text-sm font-bold font-mono text-blue-300 truncate mt-1">${viewingUser.discord_tag}</div>
                     </div>
                 </div>
 
-                <div class="bg-slate-800 p-6 rounded-xl mb-8 border border-slate-700">
-                    <h2 class="text-xl font-bold mb-4 text-yellow-400">📦 Pedidos por Despachar (${pending.length})</h2>
-                    ${pending.length===0 ? '<p class="opacity-50">Todo al día.</p>' : pending.map((o,i)=>`
-                        <div class="bg-slate-900 p-4 rounded mb-3 border border-slate-600 flex flex-col md:flex-row justify-between gap-4">
+                <div class="bg-slate-800 p-6 rounded-xl mb-8 border border-slate-700 shadow-lg">
+                    <h2 class="text-xl font-bold mb-4 text-yellow-400 border-b border-slate-700 pb-2">📦 Pedidos por Despachar (${pending.length})</h2>
+                    ${pending.length===0 ? '<p class="opacity-50 italic">Estás al día, no tienes pedidos pendientes.</p>' : pending.map((o,i)=>`
+                        <div class="bg-slate-900 p-4 rounded mb-3 border border-slate-600 flex flex-col md:flex-row justify-between gap-4 shadow-sm hover:bg-slate-900/80 transition">
                             <div>
-                                <div class="font-bold text-lg text-blue-300">PEDIDO #${i+1}</div>
-                                <div class="text-sm">Cliente: <span class="font-bold">${o.buyer_username}</span></div>
-                                <div class="bg-purple-900/40 text-purple-200 px-2 py-1 rounded text-xs font-mono mt-1 inline-block border border-purple-500/30">📱 Discord: ${o.buyer_discord}</div>
-                                <div class="mt-2 text-sm text-slate-400 border-l-2 border-slate-600 pl-2">${o.items}</div>
+                                <div class="font-bold text-lg text-blue-300 mb-1">PEDIDO #${i+1} <span class="text-xs text-slate-500 font-mono ml-2">ID: ${o.id.slice(-6)}</span></div>
+                                <div class="text-sm mb-1">Cliente: <span class="font-bold text-white">${o.buyer_username}</span></div>
+                                <div class="bg-purple-900/40 text-purple-200 px-2 py-1 rounded text-xs font-mono inline-block border border-purple-500/30">📱 Discord: ${o.buyer_discord}</div>
+                                <div class="mt-2 text-sm text-slate-400 border-l-2 border-slate-600 pl-2 font-mono">${o.items}</div>
                             </div>
                             <div class="text-right flex flex-col justify-between items-end">
-                                <div class="text-xl font-bold text-green-400">$${o.total}</div>
-                                <button onclick="confirmOrder('${o.__backendId}', true)" ${o.seller_confirmed?'disabled':''} class="bg-green-600 px-4 py-2 rounded font-bold text-sm hover:bg-green-500 disabled:opacity-50">
+                                <div class="text-2xl font-bold text-green-400 mb-2">$${o.total.toFixed(2)}</div>
+                                <button onclick="confirmOrder('${o.__backendId}', true)" ${o.seller_confirmed?'disabled':''} class="bg-green-600 px-6 py-2 rounded font-bold text-sm hover:bg-green-500 disabled:opacity-50 shadow-lg transform hover:scale-105 transition">
                                     ${o.seller_confirmed ? '⏳ Esperando Cliente' : '✅ ENTREGAR'}
                                 </button>
                             </div>
@@ -635,41 +762,41 @@
                     `).join('')}
                 </div>
 
-                <div class="bg-slate-800 p-6 rounded-xl mb-8 border border-slate-700">
-                    <h2 class="text-xl font-bold mb-4 text-blue-400">🛍️ Inventario de la Tienda</h2>
+                <div class="bg-slate-800 p-6 rounded-xl mb-8 border border-slate-700 shadow-lg">
+                    <h2 class="text-xl font-bold mb-4 text-blue-400 border-b border-slate-700 pb-2">🛍️ Inventario de la Tienda</h2>
                     
                     <div class="mb-6 p-4 bg-slate-900 rounded border border-slate-600">
-                        <h3 class="text-sm font-bold mb-2 uppercase text-slate-400">Nuevo Producto</h3>
+                        <h3 class="text-sm font-bold mb-2 uppercase text-slate-400">Agregar Nuevo Producto</h3>
                         <form onsubmit="handleAddProduct(event)" class="grid grid-cols-1 md:grid-cols-6 gap-2">
-                            <input id="productName" placeholder="Nombre" required class="bg-slate-800 p-2 rounded text-white border border-slate-600 md:col-span-2">
+                            <input id="productName" placeholder="Nombre del Item" required class="bg-slate-800 p-2 rounded text-white border border-slate-600 md:col-span-2 focus:border-blue-500 outline-none">
                             <select id="productCategory" class="bg-slate-800 p-2 rounded text-white border border-slate-600">
                                 <option value="items">Arma/Escudo</option><option value="sets">Set</option><option value="wings">Alas</option><option value="jewels">Joyas</option>
                             </select>
                             <input id="productPrice" type="number" step="0.01" placeholder="Precio" required class="bg-slate-800 p-2 rounded text-white border border-slate-600">
                             <input id="productStock" type="number" placeholder="Stock" required class="bg-slate-800 p-2 rounded text-white border border-slate-600">
-                            <button class="bg-blue-600 hover:bg-blue-500 font-bold rounded text-white">➕</button>
+                            <button class="bg-blue-600 hover:bg-blue-500 font-bold rounded text-white shadow">➕ Agregar</button>
                             
                             <input id="productDiscount" type="hidden" value="0">
                             <input id="productImage" type="hidden" value="">
                             <input id="productDescription" type="hidden" value="">
                             <input id="productOnSale" type="checkbox" class="hidden">
                         </form>
-                        <p class="text-xs text-slate-500 mt-1">* Para agregar imagen, descuento o descripción, usa el botón EDITAR luego de crear.</p>
+                        <p class="text-xs text-slate-500 mt-2">* Para agregar imagen, descuento o descripción detallada, usa el botón <span class="font-bold text-blue-400">EDITAR</span> después de crear el item.</p>
                     </div>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                         ${myProducts.map(p => `
-                            <div class="bg-slate-900 rounded border border-slate-600 p-3 relative group hover:border-blue-500 transition">
+                            <div class="bg-slate-900 rounded border border-slate-600 p-3 relative group hover:border-blue-500 transition shadow-sm">
                                 <div class="flex justify-between items-start mb-2">
-                                    <div class="font-bold truncate w-3/4">${p.name}</div>
-                                    <div class="font-mono text-xs bg-slate-800 px-1 rounded text-slate-400">x${p.stock}</div>
+                                    <div class="font-bold truncate w-3/4 text-white">${p.name}</div>
+                                    <div class="font-mono text-xs bg-slate-800 px-1 rounded text-slate-400 border border-slate-700">x${p.stock}</div>
                                 </div>
-                                <div class="text-green-400 font-bold text-lg">$${p.final_price}</div>
-                                ${p.discount>0?`<div class="text-xs text-red-400">-${p.discount}% OFF</div>`:''}
+                                <div class="text-green-400 font-bold text-lg">$${p.final_price.toFixed(2)}</div>
+                                ${p.discount>0?`<div class="text-xs text-red-400 font-bold">-${p.discount}% OFF</div>`:''}
                                 
                                 <div class="mt-3 flex gap-2">
-                                    <button onclick="openEditModal('${p.__backendId}')" class="flex-1 bg-blue-600 hover:bg-blue-500 py-1 rounded text-xs font-bold">✏️ EDITAR</button>
-                                    <button onclick="deleteProduct('${p.__backendId}')" class="bg-red-600 hover:bg-red-500 px-3 py-1 rounded text-xs font-bold">🗑️</button>
+                                    <button onclick="openEditModal('${p.__backendId}')" class="flex-1 bg-blue-600 hover:bg-blue-500 py-1 rounded text-xs font-bold text-white shadow transition">✏️ EDITAR</button>
+                                    <button onclick="deleteProduct('${p.__backendId}')" class="bg-red-600 hover:bg-red-500 px-3 py-1 rounded text-xs font-bold text-white shadow transition">🗑️</button>
                                 </div>
                             </div>
                         `).join('')}
@@ -677,8 +804,8 @@
                 </div>
 
                 ${(user.role === 'admin' && !adminViewTarget) ? `
-                    <div class="bg-slate-800 p-6 rounded-xl border border-slate-700">
-                        <h2 class="text-xl font-bold mb-4 text-purple-400">🌍 Panel Global de Usuarios</h2>
+                    <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
+                        <h2 class="text-xl font-bold mb-4 text-purple-400 border-b border-slate-700 pb-2">🌍 Panel Global de Usuarios</h2>
                         <div class="overflow-x-auto">
                             <table class="w-full text-sm text-left text-slate-300">
                                 <thead class="bg-slate-900 text-white uppercase font-bold">
@@ -686,20 +813,21 @@
                                 </thead>
                                 <tbody>
                                     ${allUsers.map(u => `
-                                        <tr class="border-b border-slate-700 hover:bg-slate-700/50">
-                                            <td class="p-3 font-bold ${onlineUsers.has(u.username)?'text-green-400':''}">${u.username}</td>
-                                            <td><span class="bg-slate-700 px-2 py-1 rounded text-xs">${u.role}</span></td>
-                                            <td class="${u.status==='banned'?'text-red-500':'text-green-500'}">${u.status}</td>
-                                            <td class="font-mono text-xs">${u.discord_tag}</td>
+                                        <tr class="border-b border-slate-700 hover:bg-slate-700/50 transition">
+                                            <td class="p-3 font-bold ${onlineUsers.has(u.username)?'text-green-400':''} flex items-center gap-2">
+                                                ${u.username} ${onlineUsers.has(u.username)?'<span class="block w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>':''}
+                                            </td>
+                                            <td><span class="bg-slate-700 px-2 py-1 rounded text-xs border border-slate-600">${u.role.toUpperCase()}</span></td>
+                                            <td class="${u.status==='banned'?'text-red-500 font-bold':'text-green-500'}">${u.status}</td>
+                                            <td class="font-mono text-xs text-blue-300">${u.discord_tag}</td>
                                             <td class="flex gap-2 py-2">
                                                 ${u.status==='pending' ? `
-                                                    <button onclick="approveUser('${u.__backendId}')" class="bg-green-600 px-2 py-1 rounded text-xs font-bold">ACEPTAR</button>
-                                                    <button onclick="deleteUserAccount('${u.__backendId}')" class="bg-red-600 px-2 py-1 rounded text-xs font-bold">RECHAZAR</button>
+                                                    <button onclick="approveUser('${u.__backendId}')" class="bg-green-600 px-2 py-1 rounded text-xs font-bold hover:bg-green-500 text-white shadow">ACEPTAR</button>
+                                                    <button onclick="deleteUserAccount('${u.__backendId}')" class="bg-red-600 px-2 py-1 rounded text-xs font-bold hover:bg-red-500 text-white shadow">RECHAZAR</button>
                                                 ` : `
-                                                    ${u.role==='reseller' ? `<button onclick="enterShopManagement('${u.username}')" class="bg-indigo-600 hover:bg-indigo-500 px-2 py-1 rounded text-xs font-bold text-white" title="Gestionar Tienda">👁️ GESTIONAR</button>` : ''}
-                                                    
+                                                    ${u.role==='reseller' ? `<button onclick="enterShopManagement('${u.username}')" class="bg-indigo-600 hover:bg-indigo-500 px-2 py-1 rounded text-xs font-bold text-white shadow" title="Ver como este usuario">👁️ GESTIONAR</button>` : ''}
                                                     <button onclick="banUser('${u.__backendId}')" class="text-yellow-500 font-bold text-xs border border-yellow-500 px-2 rounded hover:bg-yellow-500 hover:text-black transition">${u.status.includes('banned')?'UNBAN':'BAN'}</button>
-                                                    <button onclick="deleteUserAccount('${u.__backendId}')" class="text-red-500 font-bold text-xs hover:underline">DEL</button>
+                                                    <button onclick="deleteUserAccount('${u.__backendId}')" class="text-red-500 font-bold text-xs hover:underline ml-1">DEL</button>
                                                 `}
                                             </td>
                                         </tr>
@@ -717,7 +845,7 @@
 
     // --- RENDERIZADO DE MODALES ---
     function renderModal() {
-        const box = "bg-slate-800 p-6 rounded-xl shadow-2xl max-w-md w-full border border-slate-600 relative";
+        const box = "bg-slate-800 p-6 rounded-xl shadow-2xl max-w-md w-full border border-slate-600 relative transform transition-all scale-100";
         const close = `onclick="showModal=null;selectedProductToEdit=null;render()"`;
 
         if(showModal==='editProduct' && selectedProductToEdit) {
@@ -725,60 +853,61 @@
             return `
             <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
                 <div class="${box} max-w-lg">
-                    <div class="flex justify-between mb-4">
+                    <div class="flex justify-between mb-4 border-b border-slate-700 pb-2">
                         <h2 class="text-xl font-bold text-blue-400">✏️ Editar Producto</h2>
-                        <button ${close} class="text-slate-400 hover:text-white">✕</button>
+                        <button ${close} class="text-slate-400 hover:text-white font-bold">✕</button>
                     </div>
                     <form onsubmit="handleUpdateProduct(event)" class="grid grid-cols-2 gap-4">
                         <div class="col-span-2">
-                            <label class="text-xs text-slate-400">Nombre</label>
-                            <input id="editName" value="${p.name}" class="w-full bg-slate-700 p-2 rounded text-white border border-slate-600">
+                            <label class="text-xs text-slate-400 font-bold uppercase">Nombre</label>
+                            <input id="editName" value="${p.name}" class="w-full bg-slate-700 p-2 rounded text-white border border-slate-600 focus:border-blue-500 outline-none">
                         </div>
                         <div>
-                            <label class="text-xs text-slate-400">Precio (USDT)</label>
+                            <label class="text-xs text-slate-400 font-bold uppercase">Precio (USDT)</label>
                             <input id="editPrice" type="number" step="0.01" value="${p.price}" class="w-full bg-slate-700 p-2 rounded text-white border border-slate-600">
                         </div>
                          <div>
-                            <label class="text-xs text-slate-400">Stock</label>
+                            <label class="text-xs text-slate-400 font-bold uppercase">Stock</label>
                             <input id="editStock" type="number" value="${p.stock}" class="w-full bg-slate-700 p-2 rounded text-white border border-slate-600">
                         </div>
                         <div>
-                            <label class="text-xs text-slate-400">% Descuento</label>
+                            <label class="text-xs text-slate-400 font-bold uppercase">% Descuento</label>
                             <input id="editDiscount" type="number" value="${p.discount}" class="w-full bg-slate-700 p-2 rounded text-white border border-slate-600">
                         </div>
-                        <div class="flex items-center mt-4">
-                            <input id="editOnSale" type="checkbox" class="w-5 h-5 accent-red-500 mr-2" ${p.on_sale?'checked':''}> 
-                            <span class="text-sm font-bold text-red-400">🔥 Oferta</span>
+                        <div class="flex items-center mt-6">
+                            <label class="flex items-center cursor-pointer">
+                                <input id="editOnSale" type="checkbox" class="w-5 h-5 accent-red-500 mr-2" ${p.on_sale?'checked':''}> 
+                                <span class="text-sm font-bold text-red-400">🔥 Marcar Oferta</span>
+                            </label>
                         </div>
                          <div class="col-span-2">
-                            <label class="text-xs text-slate-400">URL Imagen</label>
+                            <label class="text-xs text-slate-400 font-bold uppercase">URL Imagen</label>
                             <input id="editImage" value="${p.image_url||''}" class="w-full bg-slate-700 p-2 rounded text-white border border-slate-600">
                         </div>
                          <div class="col-span-2">
-                            <label class="text-xs text-slate-400">Descripción</label>
-                            <textarea id="editDescription" class="w-full bg-slate-700 p-2 rounded text-white border border-slate-600 h-20">${p.description||''}</textarea>
+                            <label class="text-xs text-slate-400 font-bold uppercase">Descripción</label>
+                            <textarea id="editDescription" class="w-full bg-slate-700 p-2 rounded text-white border border-slate-600 h-24 resize-none">${p.description||''}</textarea>
                         </div>
-                        <button class="col-span-2 bg-blue-600 hover:bg-blue-500 py-2 rounded font-bold text-white shadow-lg mt-2">GUARDAR CAMBIOS</button>
+                        <button class="col-span-2 bg-blue-600 hover:bg-blue-500 py-3 rounded font-bold text-white shadow-lg mt-2 uppercase tracking-wide">Guardar Cambios</button>
                     </form>
                 </div>
             </div>`;
         }
 
-        // ... (Login, Register, Review Modals same as V10 but condensed here for brevity in V11 full block)
-        if(showModal==='login') return `<div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" ${close}><div class="${box}"><h2 class="text-2xl font-bold text-center mb-4">Acceso</h2><form onsubmit="handleLogin(event)"><input id="loginUsername" placeholder="Usuario" class="w-full mb-3 p-3 rounded bg-slate-700 text-white" required><input id="loginPassword" type="password" placeholder="Contraseña" class="w-full mb-6 p-3 rounded bg-slate-700 text-white" required><button class="w-full bg-blue-600 py-3 rounded font-bold text-white">ENTRAR</button></form></div></div>`;
+        if(showModal==='login') return `<div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" ${close}><div class="${box}"><h2 class="text-2xl font-bold text-center mb-4 text-white">Acceso</h2><form onsubmit="handleLogin(event)"><input id="loginUsername" placeholder="Usuario" class="w-full mb-3 p-3 rounded bg-slate-700 text-white border border-slate-600" required><input id="loginPassword" type="password" placeholder="Contraseña" class="w-full mb-6 p-3 rounded bg-slate-700 text-white border border-slate-600" required><button class="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded font-bold text-white shadow-lg">ENTRAR</button></form></div></div>`;
         
-        if(showModal==='review') return `<div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4"><div class="${box} border-2 border-yellow-500"><h2 class="text-2xl font-bold text-center text-yellow-400 mb-2">⭐ Califícanos</h2><p class="text-center text-slate-400 mb-4">Tu pedido ha finalizado.</p><form onsubmit="handleSubmitReview(event)"><div class="flex justify-center gap-2 mb-4">${[1,2,3,4,5].map(n=>`<label><input type="radio" name="rating" value="${n}" class="hidden peer"><span class="text-4xl text-slate-600 peer-checked:text-yellow-400 cursor-pointer hover:text-yellow-400">★</span></label>`).join('')}</div><textarea id="reviewText" class="w-full bg-slate-700 p-2 rounded text-white mb-4" placeholder="Comentario..."></textarea><button class="w-full bg-yellow-600 py-2 rounded font-bold text-white">ENVIAR</button></form></div></div>`;
+        if(showModal==='review') return `<div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4"><div class="${box} border-2 border-yellow-500"><h2 class="text-2xl font-bold text-center text-yellow-400 mb-2">⭐ Califícanos</h2><p class="text-center text-slate-400 mb-4">Tu pedido con <b>${selectedOrder?.seller_username}</b> ha finalizado.</p><form onsubmit="handleSubmitReview(event)"><div class="flex justify-center gap-2 mb-6">${[1,2,3,4,5].map(n=>`<label><input type="radio" name="rating" value="${n}" class="hidden peer"><span class="text-4xl text-slate-600 peer-checked:text-yellow-400 cursor-pointer hover:text-yellow-400 transition transform hover:scale-110">★</span></label>`).join('')}</div><textarea id="reviewText" class="w-full bg-slate-700 p-3 rounded text-white mb-4 border border-slate-600" placeholder="Escribe tu opinión..."></textarea><button class="w-full bg-yellow-600 hover:bg-yellow-500 py-3 rounded font-bold text-white shadow-lg">ENVIAR RESEÑA</button></form></div></div>`;
 
-        if(showModal==='register') return `<div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" ${close}><div class="${box}"><h2 class="text-2xl font-bold text-center mb-4 text-green-400">Registro Comprador</h2><form onsubmit="handleRegisterBuyer(event)"><input id="buyerUsername" placeholder="Usuario" class="w-full mb-3 p-3 rounded bg-slate-700 text-white" required><input id="buyerPassword" type="password" placeholder="Contraseña" class="w-full mb-3 p-3 rounded bg-slate-700 text-white" required><input id="buyerDiscord" placeholder="Discord (Ej: User#1234)" class="w-full mb-6 p-3 rounded bg-slate-700 text-white" required><button class="w-full bg-green-600 py-3 rounded font-bold text-white">CREAR CUENTA</button></form></div></div>`;
+        if(showModal==='register') return `<div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" ${close}><div class="${box}"><h2 class="text-2xl font-bold text-center mb-4 text-green-400">Registro Comprador</h2><form onsubmit="handleRegisterBuyer(event)"><input id="buyerUsername" placeholder="Usuario" class="w-full mb-3 p-3 rounded bg-slate-700 text-white border border-slate-600" required><input id="buyerPassword" type="password" placeholder="Contraseña" class="w-full mb-3 p-3 rounded bg-slate-700 text-white border border-slate-600" required><input id="buyerDiscord" placeholder="Discord (Ej: User#1234)" class="w-full mb-6 p-3 rounded bg-slate-700 text-white border border-slate-600" required><button class="w-full bg-green-600 hover:bg-green-500 py-3 rounded font-bold text-white shadow-lg">CREAR CUENTA</button></form></div></div>`;
         
-        if(showModal==='registerReseller') return `<div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" ${close}><div class="${box}"><h2 class="text-2xl font-bold text-center mb-4 text-purple-400">Solicitud Vendedor</h2><form onsubmit="handleRegisterReseller(event)"><input id="resellerUsername" placeholder="Usuario" class="w-full mb-3 p-3 rounded bg-slate-700 text-white" required><input id="resellerPassword" type="password" placeholder="Contraseña" class="w-full mb-3 p-3 rounded bg-slate-700 text-white" required><input id="resellerShop" placeholder="Nombre Tienda" class="w-full mb-3 p-3 rounded bg-slate-700 text-white" required><input id="resellerDiscord" placeholder="Discord" class="w-full mb-6 p-3 rounded bg-slate-700 text-white" required><button class="w-full bg-purple-600 py-3 rounded font-bold text-white">ENVIAR</button></form></div></div>`;
+        if(showModal==='registerReseller') return `<div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" ${close}><div class="${box}"><h2 class="text-2xl font-bold text-center mb-4 text-purple-400">Solicitud Vendedor</h2><form onsubmit="handleRegisterReseller(event)"><input id="resellerUsername" placeholder="Usuario" class="w-full mb-3 p-3 rounded bg-slate-700 text-white border border-slate-600" required><input id="resellerPassword" type="password" placeholder="Contraseña" class="w-full mb-3 p-3 rounded bg-slate-700 text-white border border-slate-600" required><input id="resellerShop" placeholder="Nombre Tienda" class="w-full mb-3 p-3 rounded bg-slate-700 text-white border border-slate-600" required><input id="resellerDiscord" placeholder="Discord Tag" class="w-full mb-6 p-3 rounded bg-slate-700 text-white border border-slate-600" required><button class="w-full bg-purple-600 hover:bg-purple-500 py-3 rounded font-bold text-white shadow-lg">ENVIAR SOLICITUD</button></form></div></div>`;
 
-        if(showModal==='setupShop') return `<div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4"><div class="${box}"><h2 class="text-2xl font-bold text-center mb-4">Configura tu Tienda</h2><form onsubmit="handleSetupShop(event)"><input id="setupShopName" placeholder="Nombre Tienda" class="w-full mb-3 p-3 rounded bg-slate-700 text-white" required><input id="setupDiscord" placeholder="Discord" value="${currentUser.discord_tag||''}" class="w-full mb-6 p-3 rounded bg-slate-700 text-white" required><button class="w-full bg-blue-600 py-3 rounded font-bold text-white">GUARDAR</button></form></div></div>`;
+        if(showModal==='setupShop') return `<div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4"><div class="${box}"><h2 class="text-2xl font-bold text-center mb-4">Configura tu Tienda</h2><form onsubmit="handleSetupShop(event)"><input id="setupShopName" placeholder="Nombre Tienda" class="w-full mb-3 p-3 rounded bg-slate-700 text-white border border-slate-600" required><input id="setupDiscord" placeholder="Discord" value="${currentUser.discord_tag||''}" class="w-full mb-6 p-3 rounded bg-slate-700 text-white border border-slate-600" required><button class="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded font-bold text-white shadow-lg">GUARDAR CONFIGURACIÓN</button></form></div></div>`;
 
         return '';
     }
     
-    // Helpers para modals de V10 (Setup Shop, etc) - Mantenidos en lógica de arriba
+    // Helpers finales
     async function handleSetupShop(e) {
       e.preventDefault();
       const user = selectedOrder; // Usamos esta variable temp
@@ -786,7 +915,7 @@
       const shopName = document.getElementById('setupShopName').value.trim();
       const discord = document.getElementById('setupDiscord').value.trim();
       if(allUsers.find(u=>u.discord_tag===discord && u.__backendId!==user.__backendId)) { showToast('Discord en uso'); return; }
-      const up = {...user, role:'reseller', shop_name:shopName, discord_tag:discord, approved:true, status:'approved'};
+      const up = {...user, role:'reseller', shop_name:shopName, discord_tag:discord || 'No Informado', approved:true, status:'approved'};
       await window.dataSdk.update(up);
       if(currentUser && user.__backendId===currentUser.__backendId) { currentUser=up; localStorage.setItem(SESSION_KEY, JSON.stringify(currentUser)); currentView='admin'; }
       showModal=null; selectedOrder=null; render();
@@ -801,26 +930,13 @@
       showToast('Gracias!'); showModal=null; selectedOrder=null; render();
     }
 
-    // UTILIDADES
-    function getTopShops() {
-      const resellers = allUsers.filter(u => u.role === 'reseller' && u.approved);
-      return resellers.map(s => {
-        const revs = allReviews.filter(r => r.reviewed_seller === s.username);
-        const avg = revs.length ? (revs.reduce((a,b)=>a+b.rating,0)/revs.length).toFixed(1) : 0;
-        const sales = allOrders.filter(o => o.seller_username === s.username && o.order_status === 'completed').length;
-        return { ...s, rating: parseFloat(avg), reviewCount: revs.length, salesCount: sales };
-      }).filter(s => s.salesCount > 0 || s.reviewCount > 0).sort((a,b) => b.salesCount - a.salesCount || b.reviewCount - a.reviewCount || b.rating - a.rating).slice(0,3);
-    }
-
-    function renderCart() { return renderCatalog().replace('renderCatalog', ''); } // Fallback, usar lógica v10
-    function renderOrders() { return renderCatalog().replace('renderCatalog', ''); } // Fallback
-
     function showToast(msg) {
       const t = document.createElement('div');
       t.className = 'fixed bottom-6 right-6 px-6 py-3 rounded-lg shadow-lg font-semibold z-50 text-white animate-bounce bg-blue-600';
       t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 3000);
     }
 
+    // INICIAR APP
     init();
   </script>
  </body>
