@@ -3,7 +3,7 @@
  <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mu Online 99B Marketplace - Final Version</title>
+  <title>Mu Online 99B Marketplace - V8 Professional</title>
   
   <script src="https://cdn.tailwindcss.com"></script>
   
@@ -38,6 +38,15 @@
     .product-card:hover {
       transform: translateY(-5px);
       box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+    }
+
+    .shop-badge {
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    .shop-badge:hover {
+        transform: scale(1.05);
+        background-color: #4f46e5; /* Indigo-600 */
     }
 
     .loading-spinner {
@@ -135,7 +144,7 @@
 
   <script>
     // --- CONFIGURACIÓN DE BASE DE DATOS EN TIEMPO REAL ---
-    const DB_KEY = 'mu_marketplace_full_db_v7_final'; 
+    const DB_KEY = 'mu_marketplace_db_v8_pro'; 
     
     // Inicializar DB desde LocalStorage
     let savedData = localStorage.getItem(DB_KEY);
@@ -224,7 +233,7 @@
     };
 
     // --- GESTIÓN DE SESIÓN Y TIMEOUT ---
-    const SESSION_KEY = 'mu_session_user_v7_final';
+    const SESSION_KEY = 'mu_session_user_v8_pro';
     let inactivityTimeout;
     const TIMEOUT_LIMIT = 5 * 60 * 1000; // 5 minutos exactos
 
@@ -232,6 +241,7 @@
     let currentUser = null;
     let currentView = 'catalog';
     let selectedCategory = 'all';
+    let selectedShopFilter = null; // NUEVO: Para filtrar por tienda
     
     // Listas de datos en memoria
     let allProducts = [];
@@ -506,7 +516,6 @@
       const activityRecords = window.mockDb.data.filter(item => item.type === 'activity');
       const existingActivity = activityRecords.find(a => a.username === currentUser.username);
       
-      // Optimización: Solo actualizar si pasaron más de 2 min para no saturar
       const lastTime = existingActivity ? new Date(existingActivity.last_activity).getTime() : 0;
       const now = Date.now();
 
@@ -526,7 +535,6 @@
       }
       
       if (userActivityTimeout) clearTimeout(userActivityTimeout);
-      // Revisar cada 3 minutos
       userActivityTimeout = setTimeout(updateUserActivity, 3 * 60 * 1000);
     }
 
@@ -537,6 +545,7 @@
       localStorage.removeItem(SESSION_KEY);
       currentView = 'catalog';
       cart = [];
+      selectedShopFilter = null;
       showToast(auto ? '💤 Sesión cerrada por inactividad' : 'Sesión cerrada');
       render();
     }
@@ -605,7 +614,7 @@
       }
     }
 
-    // --- GESTIÓN DE USUARIOS Y ROLES (MEJORADO) ---
+    // --- GESTIÓN DE USUARIOS Y ROLES ---
     async function approveUser(backendId) {
         const user = allUsers.find(u => u.__backendId === backendId);
         if (!user) return;
@@ -621,7 +630,6 @@
     }
 
     async function rejectUser(backendId) {
-        // Funciona como eliminar, pero contextualmente es "Rechazar"
         deleteUserAccount(backendId);
     }
 
@@ -642,13 +650,11 @@
     }
 
     async function deleteUserAccount(backendId) {
-        // PROTECCIÓN: CONFIRMACIÓN DE SEGURIDAD
         if(!confirm("⚠️ ¡ADVERTENCIA DE SEGURIDAD!\n\n¿Estás COMPLETAMENTE SEGURO de eliminar/rechazar este usuario?\nEsta acción borrará su cuenta y todos sus productos permanentemente.")) return;
         
         const user = allUsers.find(u => u.__backendId === backendId);
         if (!user) return;
 
-        // Si es vendedor, borrar sus productos también
         if(user.role === 'reseller') {
             const userProducts = allProducts.filter(p => p.seller_username === user.username);
             for(const p of userProducts) {
@@ -803,6 +809,19 @@
       render();
     }
 
+    // --- FUNCIONES DE FILTRO POR TIENDA ---
+    function filterByShop(shopName) {
+        selectedShopFilter = shopName;
+        selectedCategory = 'all'; // Reset category
+        showToast(`🛒 Viendo tienda: ${shopName}`);
+        render();
+    }
+
+    function clearShopFilter() {
+        selectedShopFilter = null;
+        render();
+    }
+
     // --- CREACIÓN DE PEDIDOS ---
     async function createOrder() {
       if (cart.length === 0) return;
@@ -859,12 +878,11 @@
         if (!result.isOk) {
           allOk = false;
         } else {
-            // Crear notificación
             const notificationData = {
                 id: 'notification_' + result.item.__backendId, 
                 type: 'activity',
                 username: sellerUsername, 
-                message: `¡NUEVO PEDIDO (${orderData.id.substring(0, 8)}) de ${currentUser.username}!`,
+                message: `¡NUEVO PEDIDO de ${currentUser.username}!`,
                 dismissed: false, 
                 created_at: new Date().toISOString()
             };
@@ -911,9 +929,7 @@
                     await window.dataSdk.update(updatedProduct); 
                   }
                 }
-                
                 await window.dataSdk.update(completedOrder); 
-                
               } catch (e) {
                 console.error(e);
               }
@@ -959,7 +975,7 @@
       render();
     }
 
-    // --- ESTADÍSTICAS Y RANKING (MEJORADO: VENTAS > RESEÑAS > ESTRELLAS) ---
+    // --- ESTADÍSTICAS Y RANKING ---
     function getSellerRating(sellerUsername) {
       const sellerReviews = allReviews.filter(r => r.reviewed_seller === sellerUsername);
       if (sellerReviews.length === 0) return { average: 0, count: 0 };
@@ -976,7 +992,6 @@
       
       const shopsStats = resellers.map(seller => {
         const rating = getSellerRating(seller.username);
-        // Calcular Ventas Completadas
         const salesCount = allOrders.filter(o => 
             o.seller_username === seller.username && 
             o.order_status === 'completed'
@@ -990,15 +1005,13 @@
         };
       });
 
-      // Filtro: Debe tener al menos 1 venta O 1 review para aparecer
       const activeShops = shopsStats.filter(s => s.salesCount > 0 || s.reviewCount > 0);
 
-      // ORDEN ESTRICTO: 1. Ventas, 2. Cantidad Reseñas, 3. Rating
       return activeShops.sort((a, b) => {
         if (b.salesCount !== a.salesCount) return b.salesCount - a.salesCount;
         if (b.reviewCount !== a.reviewCount) return b.reviewCount - a.reviewCount;
         return b.rating - a.rating;
-      }).slice(0, 3); // SOLO TOP 3
+      }).slice(0, 3); 
     }
 
     function renderStars(rating) {
@@ -1071,11 +1084,19 @@
 
     function renderCatalog() {
       const config = getConfig();
-      const filteredProducts = selectedCategory === 'all' 
-        ? allProducts 
-        : selectedCategory === 'promotions'
-        ? allProducts.filter(p => p.on_sale === true)
-        : allProducts.filter(p => p.category === selectedCategory);
+      
+      // LOGICA DE FILTRADO POR TIENDA O CATEGORIA
+      let filteredProducts = allProducts;
+      
+      if (selectedShopFilter) {
+          filteredProducts = allProducts.filter(p => p.seller_shop_name === selectedShopFilter);
+      } else {
+          filteredProducts = selectedCategory === 'all' 
+            ? allProducts 
+            : selectedCategory === 'promotions'
+            ? allProducts.filter(p => p.on_sale === true)
+            : allProducts.filter(p => p.category === selectedCategory);
+      }
 
       const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
       const topShops = getTopShops(); 
@@ -1121,7 +1142,7 @@
             </div>
           </header>
 
-          ${topShops.length > 0 ? `
+          ${!selectedShopFilter && topShops.length > 0 ? `
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
               <div class="mb-4 text-center">
                 <h2 class="text-2xl font-bold text-yellow-400 mb-1">🏆 MEJORES VENDEDORES</h2>
@@ -1133,7 +1154,7 @@
                     <div class="text-4xl mb-2">
                       ${index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉'}
                     </div>
-                    <h3 class="font-bold text-xl mb-1">${shop.shop_name}</h3>
+                    <h3 class="font-bold text-xl mb-1 shop-badge px-2 py-1 rounded inline-block" onclick="filterByShop('${shop.shop_name}')">${shop.shop_name}</h3>
                     <p class="text-sm opacity-70 mb-3">👤 ${shop.username}</p>
                     
                     <div class="flex justify-center gap-4 mb-3">
@@ -1153,15 +1174,24 @@
           ` : ''}
 
           <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-            <div class="flex flex-wrap gap-3 justify-center">
-              ${CATEGORIES.map(cat => `
-                <button 
-                  onclick="selectedCategory='${cat.id}'; render();" 
-                  class="category-btn px-6 py-3 rounded-lg font-semibold shadow-md ${selectedCategory === cat.id ? 'ring-2 ring-blue-400 bg-blue-600' : 'bg-slate-800 text-slate-300'}">
-                  ${cat.icon} ${cat.name}
-                </button>
-              `).join('')}
-            </div>
+            ${selectedShopFilter ? `
+                <div class="flex items-center justify-between bg-blue-900/30 border border-blue-500 p-4 rounded-lg mb-6">
+                    <h2 class="text-2xl font-bold text-blue-300">🏪 Tienda: ${selectedShopFilter}</h2>
+                    <button onclick="clearShopFilter()" class="bg-red-600 hover:bg-red-500 px-4 py-2 rounded font-bold text-sm">
+                        Ver Todas las Tiendas
+                    </button>
+                </div>
+            ` : `
+                <div class="flex flex-wrap gap-3 justify-center">
+                  ${CATEGORIES.map(cat => `
+                    <button 
+                      onclick="selectedCategory='${cat.id}'; render();" 
+                      class="category-btn px-6 py-3 rounded-lg font-semibold shadow-md ${selectedCategory === cat.id ? 'ring-2 ring-blue-400 bg-blue-600' : 'bg-slate-800 text-slate-300'}">
+                      ${cat.icon} ${cat.name}
+                    </button>
+                  `).join('')}
+                </div>
+            `}
           </div>
 
           <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-12">
@@ -1189,11 +1219,17 @@
                       ` : getCategoryIcon(product.category)}
                     </div>
 
-                    <div class="p-4">
-                      <h3 class="font-bold mb-1 truncate">${product.name}</h3>
-                      <p class="text-xs opacity-60 mb-2">🏪 ${product.seller_shop_name} (${rating.average}⭐)</p>
+                    <div class="p-4 relative">
+                      <div class="flex justify-center -mt-8 mb-2 relative z-20">
+                          <button onclick="filterByShop('${product.seller_shop_name}')" class="shop-badge bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg border border-blue-400 tracking-wide">
+                            🏪 ${product.seller_shop_name}
+                          </button>
+                      </div>
+
+                      <h3 class="font-bold mb-1 truncate text-center">${product.name}</h3>
+                      <p class="text-xs opacity-60 mb-2 text-center">${rating.average}⭐ (${rating.count} Reviews)</p>
                       
-                      <div class="flex items-center justify-between mt-4">
+                      <div class="flex items-center justify-between mt-4 border-t border-slate-700 pt-3">
                         <div>
                           ${product.discount > 0 ? `
                             <p class="text-xs line-through opacity-50">$${product.price}</p>
@@ -1265,14 +1301,25 @@
             <h2 class="text-3xl font-bold">📦 Mis Pedidos</h2>
             <button onclick="currentView='catalog';render()" class="bg-blue-600 px-4 py-2 rounded">Volver</button>
           </div>
-          ${myOrders.map(o => `
+          ${myOrders.map((o, index) => `
             <div class="bg-slate-800 p-6 rounded-lg mb-4 border-l-4 ${o.order_status==='completed'?'border-green-500':'border-yellow-500'}">
-                <div class="flex justify-between mb-2">
-                    <span class="font-bold">#${o.id.slice(-6)}</span>
+                <div class="flex justify-between mb-4 border-b border-slate-700 pb-2">
+                    <span class="font-bold text-lg text-blue-400">PEDIDO #${myOrders.length - index}</span>
                     <span class="text-xs font-bold px-2 py-1 rounded ${o.order_status==='completed'?'bg-green-900':'bg-yellow-900'}">${o.order_status.toUpperCase()}</span>
                 </div>
-                <p class="text-sm text-slate-400 mb-2">Vendedor: ${o.seller_username} (${o.seller_discord})</p>
-                <div class="bg-slate-900 p-2 rounded text-sm mb-4 font-mono text-slate-300">${o.items}</div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 bg-slate-900 p-3 rounded">
+                    <div>
+                        <p class="text-xs uppercase text-slate-500 font-bold">Datos Vendedor</p>
+                        <p class="text-sm text-white">👤 ${o.seller_username}</p>
+                        <p class="text-sm text-purple-400">📱 Discord: ${o.seller_discord}</p>
+                    </div>
+                     <div>
+                        <p class="text-xs uppercase text-slate-500 font-bold">Items</p>
+                        <p class="text-sm font-mono text-slate-300">${o.items}</p>
+                    </div>
+                </div>
+
                 <div class="flex justify-between items-center">
                     <div class="font-bold text-xl">$${o.total.toFixed(2)}</div>
                     ${o.order_status==='pending' ? `
@@ -1287,19 +1334,16 @@
       `;
     }
 
-    // --- PANEL ADMIN ACTUALIZADO Y EXTENDIDO ---
+    // --- PANEL ADMIN (VENDEDOR) ACTUALIZADO ---
     function renderAdmin() {
       const config = getConfig();
       const userData = getCurrentUserData();
       if (!userData) return 'Error: Usuario no encontrado';
 
-      // Filtrar datos según rol
       const userProducts = userData.role === 'admin' ? allProducts : allProducts.filter(p => p.seller_username === userData.username);
       const myOrders = userData.role === 'admin' ? allOrders : allOrders.filter(o => o.seller_username === userData.username);
       const pendingOrders = myOrders.filter(o => o.order_status === 'pending');
       
-      // --- ESTADÍSTICAS EN TIEMPO REAL ---
-      // Se recalculan cada vez que se renderiza el panel, usando las variables globales actualizadas por mockDb
       const stats = {
           items: userProducts.filter(p => p.category === 'items').length,
           wings: userProducts.filter(p => p.category === 'wings').length,
@@ -1354,24 +1398,40 @@
                 <h2 class="text-xl font-bold mb-4 text-yellow-400">📦 Pedidos Pendientes (${pendingOrders.length})</h2>
                 ${pendingOrders.length === 0 ? `
                     <p class="opacity-50 italic">No hay pedidos pendientes por procesar.</p>
-                ` : pendingOrders.map(o => `
-                    <div class="bg-slate-900 p-4 rounded mb-2 flex flex-wrap justify-between items-center gap-4 border border-slate-700">
-                        <div>
-                            <div class="font-bold text-white">#${o.id.slice(-6)}</div>
-                            <div class="text-sm text-slate-400">
-                                De: <span class="text-white font-semibold">${o.buyer_username}</span> (${o.buyer_discord})
+                ` : pendingOrders.map((o, index) => `
+                    <div class="bg-slate-900 p-4 rounded mb-2 flex flex-col gap-4 border border-slate-700">
+                        <div class="flex justify-between border-b border-slate-700 pb-2">
+                            <span class="font-bold text-lg text-yellow-400">PEDIDO #${index + 1}</span>
+                            <span class="text-sm opacity-50 font-mono">${o.id.slice(-6)}</span>
+                        </div>
+
+                        <div class="flex flex-wrap md:flex-nowrap gap-6">
+                            <div class="w-full md:w-1/3 bg-slate-800/50 p-3 rounded">
+                                <h4 class="text-xs font-bold text-blue-400 uppercase mb-2">👤 Datos del Cliente</h4>
+                                <p class="text-sm font-bold text-white mb-1">${o.buyer_username}</p>
+                                <div class="flex items-center gap-2 text-purple-300 bg-purple-900/30 p-2 rounded border border-purple-500/30">
+                                    <span>📱</span>
+                                    <span class="font-mono text-sm font-bold select-all">Discord: ${o.buyer_discord}</span>
+                                </div>
                             </div>
-                            <div class="text-xs opacity-60 mt-1 font-mono border-l-2 border-slate-600 pl-2">
-                                ${o.items}
+
+                            <div class="w-full md:w-2/3 bg-slate-800/50 p-3 rounded">
+                                <h4 class="text-xs font-bold text-green-400 uppercase mb-2">🛒 Detalle de Compra</h4>
+                                <div class="font-mono text-sm text-slate-300 mb-2 border-l-2 border-green-500 pl-3">
+                                    ${o.items}
+                                </div>
+                                <div class="text-right font-bold text-xl text-green-400 mt-2">
+                                    Total: $${o.total}
+                                </div>
                             </div>
                         </div>
-                        <div class="flex items-center gap-4">
-                            <div class="font-bold text-xl text-green-400">$${o.total}</div>
-                            <button 
+
+                        <div class="flex justify-end pt-2 border-t border-slate-700">
+                             <button 
                                 onclick="confirmOrder('${o.__backendId}', true)" 
                                 ${o.seller_confirmed ? 'disabled' : ''}
-                                class="bg-green-600 hover:bg-green-500 disabled:opacity-50 px-4 py-2 rounded font-bold text-white shadow">
-                                ${o.seller_confirmed ? 'Esperando Cliente...' : '✅ Entregar'}
+                                class="w-full md:w-auto bg-green-600 hover:bg-green-500 disabled:opacity-50 px-6 py-2 rounded font-bold text-white shadow-lg transform transition hover:scale-105">
+                                ${o.seller_confirmed ? '⏳ Esperando Confirmación del Cliente...' : '✅ MARCAR COMO ENTREGADO'}
                             </button>
                         </div>
                     </div>
