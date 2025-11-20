@@ -3,7 +3,7 @@
  <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mu Online 99B Marketplace - V8 Professional</title>
+  <title>Mu Online 99B Marketplace - V9 Stock Live</title>
   
   <script src="https://cdn.tailwindcss.com"></script>
   
@@ -144,7 +144,7 @@
 
   <script>
     // --- CONFIGURACIÓN DE BASE DE DATOS EN TIEMPO REAL ---
-    const DB_KEY = 'mu_marketplace_db_v8_pro'; 
+    const DB_KEY = 'mu_marketplace_db_v9_stock'; 
     
     // Inicializar DB desde LocalStorage
     let savedData = localStorage.getItem(DB_KEY);
@@ -233,7 +233,7 @@
     };
 
     // --- GESTIÓN DE SESIÓN Y TIMEOUT ---
-    const SESSION_KEY = 'mu_session_user_v8_pro';
+    const SESSION_KEY = 'mu_session_user_v9_stock';
     let inactivityTimeout;
     const TIMEOUT_LIMIT = 5 * 60 * 1000; // 5 minutos exactos
 
@@ -241,7 +241,7 @@
     let currentUser = null;
     let currentView = 'catalog';
     let selectedCategory = 'all';
-    let selectedShopFilter = null; // NUEVO: Para filtrar por tienda
+    let selectedShopFilter = null;
     
     // Listas de datos en memoria
     let allProducts = [];
@@ -925,6 +925,7 @@
                 for (const item of itemsData) {
                   const product = allProducts.find(p => p.__backendId === item.backendId);
                   if (product) {
+                    // RESTA DE STOCK EN TIEMPO REAL
                     const updatedProduct = {...product, stock: Math.max(0, product.stock - item.quantity)};
                     await window.dataSdk.update(updatedProduct); 
                   }
@@ -934,7 +935,7 @@
                 console.error(e);
               }
 
-              showToast('¡Pedido completado!');
+              showToast('¡Pedido completado y Stock actualizado!');
           } else {
               showToast('Confirmación registrada.');
           }
@@ -1229,7 +1230,13 @@
                       <h3 class="font-bold mb-1 truncate text-center">${product.name}</h3>
                       <p class="text-xs opacity-60 mb-2 text-center">${rating.average}⭐ (${rating.count} Reviews)</p>
                       
-                      <div class="flex items-center justify-between mt-4 border-t border-slate-700 pt-3">
+                      <div class="text-center mb-3">
+                        <span class="text-xs font-bold ${product.stock < 5 ? 'text-red-500 animate-pulse' : 'text-slate-400'}">
+                            📦 Stock Disponible: ${product.stock}
+                        </span>
+                      </div>
+
+                      <div class="flex items-center justify-between mt-2 border-t border-slate-700 pt-3">
                         <div>
                           ${product.discount > 0 ? `
                             <p class="text-xs line-through opacity-50">$${product.price}</p>
@@ -1334,7 +1341,7 @@
       `;
     }
 
-    // --- PANEL ADMIN (VENDEDOR) ACTUALIZADO ---
+    // --- PANEL ADMIN (VENDEDOR) ---
     function renderAdmin() {
       const config = getConfig();
       const userData = getCurrentUserData();
