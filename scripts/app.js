@@ -231,22 +231,43 @@ async function handleLogin(e) {
     const username = e.target.username.value;
     const password = e.target.password.value;
 
-    const user = allUsers.find(u => u.username === username && u.password === password);
+    const user = allUsers.find(u => u.username === username);
     
-    if (user) {
-        if (user.role === 'banned') { // NUEVO: Verificar baneo
-            showToast('🚫 Tu cuenta ha sido baneada. Contacta al administrador.');
-            return;
-        }
-        currentUser = user;
-        localStorage.setItem(SESSION_KEY, JSON.stringify(user));
-        currentView = user.role === 'admin' ? 'admin' : 'catalog';
-        showModal = null;
-        showToast(`Bienvenido, ${user.username}!`);
-        updateUserActivity();
-    } else {
+    if (!user || user.password !== password) {
         showToast('❌ Credenciales incorrectas.');
+        return;
     }
+    
+    if (user.role === 'banned') { 
+        showToast('🚫 Tu cuenta ha sido baneada. Contacta al administrador.');
+        return;
+    }
+
+    // --- SECCIÓN CRÍTICA: Autenticación con Supabase Client ---
+    // Usar el cliente supabase global para iniciar sesión, lo que garantiza
+    // que el token JWT se guarde en la sesión del navegador para RLS.
+    // NOTA: Usamos un email ficticio para cumplir con el esquema auth.users
+    const { data, error } = await supabase.auth.signInWithPassword({
+        email: user.username + "@marketplace.com", 
+        password: password,
+    });
+
+    if (error) {
+        console.error("Error de autenticación Supabase:", error);
+        // Si falla la autenticación de Supabase (e.g., el email no existe en auth.users)
+        showToast('❌ Error al iniciar sesión en el backend (Auth.users).'); 
+        return;
+    }
+    // --- FIN SECCIÓN CRÍTICA ---
+    
+    currentUser = user;
+    localStorage.setItem(SESSION_KEY, JSON.stringify(user)); 
+    currentView = user.role === 'admin' ? 'admin' : 'catalog';
+    showModal = null;
+    showToast(`Bienvenido, ${user.username}!`);
+    
+    updateUserActivity(); 
+    
     render();
 }
 
@@ -313,6 +334,8 @@ async function handleRegisterReseller(e) {
             username: ADMIN_CREDENTIALS.username,
             message: `⚠️ Nueva solicitud de revendedor de ${username}.`,
             dismissed: false,
+            // Asumiendo que el admin tiene un registro de actividad con su username.
+            // Si el admin está logueado, esta actividad fallará si no es admin.uid(), lo cual es esperado.
             last_activity: new Date().toISOString()
         });
         showModal = 'login';
@@ -337,7 +360,7 @@ async function updateUserActivity() {
     
     const newActivity = {
         type: 'activity',
-        // CORRECCIÓN 2: Usar user_id (UUID) para RLS
+        // CORRECCIÓN 2: Usar user (UUID) para RLS
         user: currentUser.id || currentUser.__backendId, // UUID requerido para RLS (UPDATE/INSERT)
         username: currentUser.username, // Mantenido para la UI
         message: `${currentUser.username} está en línea.`,
@@ -1416,7 +1439,7 @@ function renderOrders() {
                     </div>
                     <div>
                         <p class="text-xs text-gray-400">Total:</p>
-                        <p class="text-green-400 text-lg font-bold">${order.total_price} Zen</p>
+                        <p class="text-green-400 text-lg font-bold">${order.total_price} Zen}</p>
                     </div>
                 </div>
 
@@ -1868,6 +1891,7 @@ function renderModal() {
 
 // --- Inicialización ---
 async function init() {
+    // Nota: SESSION_KEY ahora es global gracias a la modificación en dataSdk.js
     const storedUser = localStorage.getItem(SESSION_KEY);
     if (storedUser) {
       currentUser = JSON.parse(storedUser);
