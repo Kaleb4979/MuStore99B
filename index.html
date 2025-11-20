@@ -161,8 +161,8 @@
     
     // 📢 CONFIGURACIÓN SUPABASE (CHAT REALTIME) - UTILIZAR LOS VALORES REALES
     // NOTA: Estas claves son públicas y se exponen en el cliente.
-    const SUPABASE_URL = 'https://ciysaobejtxfkpmbmswb.supabase.co'; // <--- SU URL REAL
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNpeXNhb2JlanR4ZmtwbWJtc3diIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM2MTAyNTksImV4cCI6MjA3OTE4NjI1OX0.WDg1v-2UK8yow7uXK8UyqOt3xOp_-BMMEVqyJeExb3w'; // <--- SU CLAVE ANON KEY REAL
+    const SUPABASE_URL = 'https://ciysaobejtxfkpmbmswb.supabase.co'; 
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNpeXNhb2JlanR4ZmtwbWJtc3diIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM2MTAyNTksImV4cCI6MjA3OTE4NjI1OX0.WDg1v-2UK8yow7uXK8UyqOt3xOp_-BMMEVqyJeExb3w'; 
     
     let supabaseClient = null;
     if (window.supabase) {
@@ -363,7 +363,7 @@
                 console.error("Error al cargar historial de chat:", error);
                 showToast('❌ Error al cargar historial de chat.');
                 chatMessages = [{ sender: 'System', content: 'No se pudo cargar el chat.', created_at: new Date().toISOString() }];
-                window.chatSdk.listener(orderId);
+                window.chatSdk.listener(orderId); // Renderizar con mensaje de error
                 return;
             }
             
@@ -448,7 +448,46 @@
     };
 
     // ---------------------------------------------------------
-    // 5. INICIALIZACIÓN (ARRANQUE)
+    // 5. ESTADO GLOBAL (VARIABLES EN MEMORIA) - Corregido para definición temprana
+    // ---------------------------------------------------------
+    let currentUser = null; // 🚨 Corregido: Declaración al inicio
+    let currentView = 'catalog'; 
+    let selectedCategory = 'all';
+    let selectedShopFilter = null;
+    let adminViewTarget = null; 
+    let selectedProductToEdit = null; 
+    let managedUser = null; 
+    let allProducts = [];
+    let allUsers = [];
+    let allOrders = [];
+    let allReviews = []; 
+    let cart = JSON.parse(localStorage.getItem('mu_cart_v22') || '[]');
+    let showModal = null; 
+    let selectedOrder = null; 
+    let chatTargetOrder = null; 
+    let chatMessages = [];
+    let chatChannel = null; // Re-declarado aquí para claridad, aunque ya está en el SDK
+    let inactivityTimeout;
+    const TIMEOUT_LIMIT = 5 * 60 * 1000; 
+    const CATEGORIES = [
+      { id: 'all', name: 'Todos', icon: '🎮' },
+      { id: 'promotions', name: 'Promociones', icon: '🔥' },
+      { id: 'items', name: 'Items', icon: '⚔️' },
+      { id: 'jewels', name: 'Joyas', icon: '💎' },
+      { id: 'wings', name: 'Alas', icon: '🦅' },
+      { id: 'sets', name: 'Sets', icon: '🛡️' }
+    ];
+    const ADMIN_CREDENTIALS = {
+      username: 'Kaleb',
+      password: 'Kaleb.2021',
+      discord_tag: 'KalebAdmin#9999'
+    };
+    let onlineUsers = new Set();
+    let userActivityTimeout = null;
+    // ---------------------------------------------------------
+
+    // ---------------------------------------------------------
+    // 6. INICIALIZACIÓN (ARRANQUE)
     // ---------------------------------------------------------
     async function init() {
       // Intentar recuperar sesión guardada
@@ -459,7 +498,7 @@
       }
 
       // Configurar listeners de inactividad
-      setupAutoLogout();
+      setupAutoLogout(); // Ya no fallará porque currentUser está definido como null
 
       // Conectar a la "Base de Datos" (JSONBin)
       await window.dataSdk.init(dataHandler);
@@ -496,7 +535,7 @@
     }
 
     // ---------------------------------------------------------
-    // 6. FUNCIONES DE USUARIO (LOGIN/REGISTRO/LOGOUT)
+    // 7. FUNCIONES DE USUARIO (LOGIN/REGISTRO/LOGOUT)
     // ---------------------------------------------------------
     async function handleLogin(e) {
       e.preventDefault();
@@ -743,7 +782,7 @@
 
 
     // ---------------------------------------------------------
-    // 7. GESTIÓN DE PRODUCTOS (CRUD COMPLETO)
+    // 8. GESTIÓN DE PRODUCTOS (CRUD COMPLETO)
     // ---------------------------------------------------------
     
     // Función centralizada para abrir la gestión de productos de cualquier usuario
@@ -877,7 +916,7 @@
     }
 
     // ---------------------------------------------------------
-    // 8. GESTIÓN DE USUARIOS (ADMIN)
+    // 9. GESTIÓN DE USUARIOS (ADMIN)
     // ---------------------------------------------------------
     
     // Nueva función para abrir el modal de gestión
@@ -1016,7 +1055,7 @@
     }
 
     // ---------------------------------------------------------
-    // 9. CARRITO Y PEDIDOS
+    // 10. CARRITO Y PEDIDOS
     // ---------------------------------------------------------
     function updateCartStorage() {
         localStorage.setItem('mu_cart_v22', JSON.stringify(cart));
@@ -1254,7 +1293,7 @@
     }
 
     // ---------------------------------------------------------
-    // 10. FUNCIONES DE RESEÑA
+    // 11. FUNCIONES DE RESEÑA
     // ---------------------------------------------------------
     function getShopRating(username) {
         const reviews = allReviews.filter(r => r.reviewed_seller === username);
@@ -1310,7 +1349,7 @@
     }
     
     // ---------------------------------------------------------
-    // 11. FUNCIONES DE CHAT
+    // 12. FUNCIONES DE CHAT
     // ---------------------------------------------------------
     function openChatModal(orderId) {
         const order = allOrders.find(o => o.__backendId === orderId);
@@ -1378,7 +1417,7 @@
 
 
     // ---------------------------------------------------------
-    // 12. UTILIDADES DE RENDERIZADO
+    // 13. UTILIDADES DE RENDERIZADO
     // ---------------------------------------------------------
     function getTopShops() {
       const resellers = allUsers.filter(u => u.role === 'reseller' && u.approved);
@@ -1432,7 +1471,7 @@
     }
 
     // ---------------------------------------------------------
-    // 13. RENDERIZADO PRINCIPAL (EL CÓDIGO VISUAL)
+    // 14. RENDERIZADO PRINCIPAL (EL CÓDIGO VISUAL)
     // ---------------------------------------------------------
     function render() {
       const app = document.getElementById('app');
@@ -2172,7 +2211,7 @@
     }
 
     // ---------------------------------------------------------
-    // 14. RENDERIZADO DE MODALES (HTML FORMS)
+    // 15. RENDERIZADO DE MODALES (HTML FORMS)
     // ---------------------------------------------------------
     function renderModal() {
         const close = `onclick="closeChatModal(); showModal=null;selectedProductToEdit=null;managedUser=null;selectedOrder=null;render()"`;
@@ -2196,7 +2235,7 @@
                 <div class="${box} max-w-lg p-0" onclick="event.stopPropagation()">
                     <div class="bg-slate-900 p-4 rounded-t-xl flex justify-between items-center border-b border-slate-700">
                         <div>
-                            <h2 class="text-xl font-bold text-blue-400">💬 Chat de Pedido #${chatTargetOrder.id.slice(-8)}</h2>
+                            <h2 class="text-xl font-bold text-blue-400">💬 Chat de Pedido #${chatTargetOrder.__backendId.slice(-8)}</h2>
                             <p class="text-sm text-slate-400">Hablando con: <span class="text-white font-bold">${partnerName}</span> (${partnerDiscord})</p>
                         </div>
                         <button onclick="closeChatModal()" class="text-slate-400 hover:text-white font-bold text-xl">✕</button>
@@ -2489,7 +2528,7 @@
     }
 
     // ---------------------------------------------------------
-    // 15. INICIO DE LA APLICACIÓN
+    // 16. INICIO DE LA APLICACIÓN
     // ---------------------------------------------------------
     init();
   </script>
