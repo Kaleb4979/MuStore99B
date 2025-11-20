@@ -410,20 +410,12 @@
       { id: 'sets', name: 'Sets', icon: '🛡️' }
     ];
 
-    // MODIFICACIÓN CRÍTICA: Array de Credenciales de Admin Supremo
-    const ADMIN_CREDENTIALS = [
-      {
-        username: 'Kaleb',
-        password: 'Kaleb.2021',
-        discord_tag: 'KalebAdmin#9999'
-      },
-      // --- NUEVO ADMIN SUPREMO AÑADIDO ---
-      {
-        username: 'kilen',
-        password: '03080506000',
-        discord_tag: 'newkilen1'
-      }
-    ];
+    // Credenciales del Admin Supremo (MODIFICADAS)
+    const ADMIN_CREDENTIALS = {
+      username: 'admin',
+      password: 'admin',
+      discord_tag: 'AdminSupremo#0001'
+    };
     
     // Control de Usuarios Online
     let onlineUsers = new Set();
@@ -586,7 +578,84 @@
     };
 
     // ---------------------------------------------------------
-    // 5. INICIALIZACIÓN (ARRANQUE) - SIN CAMBIOS
+    // 5. FUNCIONES UTILITARIAS DE GESTIÓN DE DATOS (ADMIN)
+    // ---------------------------------------------------------
+    
+    function downloadJson(data, filename) {
+        const jsonStr = JSON.stringify(data, null, 2);
+        const blob = new Blob([jsonStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast('✅ Copia de seguridad descargada.');
+    }
+
+    async function downloadBackup() {
+        // Usar la data actual que está sincronizada con el BIN
+        const data = window.mockDb.data;
+        const filename = `mu_marketplace_backup_${new Date().toISOString().slice(0, 10)}.json`;
+        downloadJson(data, filename);
+    }
+
+    function triggerUpload() {
+        document.getElementById('fileInput').click();
+    }
+
+    function readJsonFile(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const json = JSON.parse(event.target.result);
+                    resolve(json);
+                } catch (e) {
+                    reject(new Error('El archivo no es un JSON válido.'));
+                }
+            };
+            reader.onerror = (error) => reject(error);
+            reader.readAsText(file);
+        });
+    }
+
+    async function handleFileUpload(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        if (!confirm(`⚠️ ¡ALERTA! Esta acción REEMPLAZARÁ TODO el contenido del BIN remoto con el archivo:\n\n${file.name}\n\n¿Estás seguro de continuar?`)) {
+            return;
+        }
+        
+        showToast('⏳ Cargando y subiendo datos...');
+
+        try {
+            const newData = await readJsonFile(file);
+            
+            if (!Array.isArray(newData)) {
+                throw new Error('El archivo JSON debe ser un array de objetos.');
+            }
+
+            const result = await window.dataSdk.write(newData);
+            
+            if (result.isOk) {
+                showToast('✅ Restauración COMPLETA y exitosa.');
+                showModal = null; // Cerrar modal al finalizar
+                render();
+            } else {
+                showToast('❌ Error en la escritura remota. Verifica tu Master Key.');
+            }
+        } catch (error) {
+            console.error('Error al importar:', error);
+            showToast(`❌ Error al importar: ${error.message || 'Error desconocido'}`);
+        }
+    }
+
+    // ---------------------------------------------------------
+    // 6. INICIALIZACIÓN (ARRANQUE) - SIN CAMBIOS
     // ---------------------------------------------------------
     async function init() {
       // Intentar recuperar sesión guardada
@@ -634,29 +703,25 @@
     }
 
     // ---------------------------------------------------------
-    // 6. FUNCIONES DE USUARIO (LOGIN/REGISTRO/LOGOUT) - MODIFICADO
+    // 7. FUNCIONES DE USUARIO (LOGIN/REGISTRO/LOGOUT) - SIN CAMBIOS
     // ---------------------------------------------------------
     async function handleLogin(e) {
       e.preventDefault();
       const username = document.getElementById('loginUsername').value.trim();
       const password = document.getElementById('loginPassword').value;
 
-      // MODIFICACIÓN: Caso Especial: Login Admin Hardcodeado (Busca en el array)
-      const matchedAdmin = ADMIN_CREDENTIALS.find(admin => 
-        admin.username === username && admin.password === password
-      );
-
-      if (matchedAdmin) {
+      // Caso Especial: Login Admin Hardcodeado
+      if (username === ADMIN_CREDENTIALS.username && password === ADMIN_CREDENTIALS.password) {
         currentUser = { 
-            username: matchedAdmin.username, 
+            username, 
             role: 'admin', 
-            __backendId: 'admin_' + matchedAdmin.username,
-            discord_tag: matchedAdmin.discord_tag 
+            __backendId: 'admin',
+            discord_tag: ADMIN_CREDENTIALS.discord_tag 
         };
         localStorage.setItem(SESSION_KEY, JSON.stringify(currentUser));
         showModal = null;
         currentView = 'admin';
-        showToast('Bienvenido Admin Supremo (Modo Dios Activo)');
+        showToast('Bienvenido Admin (Modo Dios Activo)');
         await updateUserActivity();
         render();
         return;
@@ -879,7 +944,7 @@
 
 
     // ---------------------------------------------------------
-    // 7. GESTIÓN DE PRODUCTOS (CRUD COMPLETO) - SIN CAMBIOS
+    // 8. GESTIÓN DE PRODUCTOS (CRUD COMPLETO) - SIN CAMBIOS
     // ---------------------------------------------------------
     
     // Función centralizada para abrir la gestión de productos de cualquier usuario
@@ -1013,7 +1078,7 @@
     }
 
     // ---------------------------------------------------------
-    // 8. GESTIÓN DE USUARIOS (ADMIN) - SIN CAMBIOS
+    // 9. GESTIÓN DE USUARIOS (ADMIN) - SIN CAMBIOS
     // ---------------------------------------------------------
     
     // Nueva función para abrir el modal de gestión
@@ -1152,7 +1217,7 @@
     }
 
     // ---------------------------------------------------------
-    // 9. CARRITO Y PEDIDOS - SIN CAMBIOS RELEVANTES
+    // 10. CARRITO Y PEDIDOS - SIN CAMBIOS RELEVANTES
     // ---------------------------------------------------------
     function updateCartStorage() {
         localStorage.setItem('mu_cart_v22', JSON.stringify(cart));
@@ -1390,7 +1455,7 @@
     }
 
     // ---------------------------------------------------------
-    // 10. FUNCIONES DE RESEÑA - SIN CAMBIOS
+    // 11. FUNCIONES DE RESEÑA - SIN CAMBIOS
     // ---------------------------------------------------------
     function getShopRating(username) {
         const reviews = allReviews.filter(r => r.reviewed_seller === username);
@@ -1446,7 +1511,7 @@
     }
     
     // ---------------------------------------------------------
-    // 11. FUNCIONES DE CHAT (AJUSTADAS PARA SUPABASE)
+    // 12. FUNCIONES DE CHAT (AJUSTADAS PARA SUPABASE)
     // ---------------------------------------------------------
     async function openChatModal(orderId) {
         const order = allOrders.find(o => o.__backendId === orderId);
@@ -1522,7 +1587,7 @@
 
 
     // ---------------------------------------------------------
-    // 12. UTILIDADES DE RENDERIZADO - SIN CAMBIOS
+    // 13. UTILIDADES DE RENDERIZADO - SIN CAMBIOS
     // ---------------------------------------------------------
     function getTopShops() {
       const resellers = allUsers.filter(u => u.role === 'reseller' && u.approved);
@@ -1576,7 +1641,7 @@
     }
 
     // ---------------------------------------------------------
-    // 13. RENDERIZADO PRINCIPAL (EL CÓDIGO VISUAL) - SIN CAMBIOS
+    // 14. RENDERIZADO PRINCIPAL (EL CÓDIGO VISUAL) - SIN CAMBIOS
     // ---------------------------------------------------------
     function render() {
       const app = document.getElementById('app');
@@ -1798,7 +1863,7 @@
                             ${product.stock > 0 ? 'COMPRAR' : 'AGOTADO'}
                           </button>
                         </div>
-                    </div>
+                      </div>
                     </div>
                   `}).join('')}
               </div>
@@ -2167,159 +2232,99 @@
                         </div>
                         `}).join('')}
                 </div>
-        </div>`;
-    }
 
-    // --- VISTA ADMIN / RESELLER (PANEL COMPLETO) ---
-    function renderAdmin() {
-      const user = currentUser;
-      const viewingAs = adminViewTarget || user.username;
-      const viewingUser = allUsers.find(u => u.username === viewingAs) || user;
-      
-      const myProducts = allProducts.filter(p => p.seller_username === viewingAs);
-      const myOrders = allOrders.filter(o => o.seller_username === viewingAs);
-      const pending = myOrders.filter(o => o.order_status === 'pending').reverse();
-      
-      const completedOrdersLog = allOrders.filter(o => o.order_status === 'completed').reverse();
-      
-      // 1. Calcular las ventas de todos los revendedores (para la tabla global)
-      const sellerSalesMap = getSellerSalesMap();
-
-      const displayUsers = allUsers.sort((a, b) => {
-          if (a.status === 'pending' && b.status !== 'pending') return -1;
-          if (a.status !== 'pending' && b.status === 'pending') return 1;
-          if (a.role === 'admin') return 1;
-          if (b.role === 'admin') return -1;
-          return a.username.localeCompare(b.username);
-      });
-
-      const stats = {
-          total: myProducts.length,
-          sales: myOrders.filter(o => o.order_status === 'completed').length,
-          revenue: myOrders.filter(o => o.order_status === 'completed').reduce((a,b)=>a+b.total,0),
-          online: onlineUsers.size
-      };
-
-      return `
-        <div class="min-h-full bg-slate-900 text-slate-100 p-6">
-            <div class="max-w-7xl mx-auto">
-                <div class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4 border-b border-slate-700 pb-6">
-                    <div class="flex items-center gap-4">
-                        <h1 class="text-3xl font-bold flex items-center gap-2">
-                            ${adminViewTarget ? `👁️ GESTIONANDO TIENDA: <span class="text-yellow-400 underline">${viewingUser.shop_name}</span>` : (user.role==='admin'?'⚙️ PANEL ADMINISTRADOR':'🏪 MI TIENDA')}
-                        </h1>
-                        ${adminViewTarget ? `
-                            <button onclick="exitShopManagement()" class="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded font-bold text-sm shadow animate-pulse">
-                                ❌ SALIR DEL MODO GESTIÓN
-                            </button>
-                        ` : ''}
+                <div class="bg-slate-800 p-6 rounded-xl mb-8 border border-slate-700 shadow-lg">
+                    <h2 class="text-xl font-bold mb-6 text-blue-400 border-b border-slate-700 pb-2">🛍️ Gestión de Inventario</h2>
+                    
+                    <div class="mb-8 p-5 bg-slate-900 rounded-lg border border-slate-600">
+                        <h3 class="text-sm font-bold mb-3 uppercase text-slate-400 flex items-center gap-2">
+                            <span>➕</span> Publicar Nuevo Item
+                        </h3>
+                        <form onsubmit="handleAddProduct(event)" class="grid grid-cols-1 md:grid-cols-12 gap-3">
+                            <div class="md:col-span-4">
+                                <input id="productName" placeholder="Nombre del Item" required class="w-full bg-slate-800 p-3 rounded text-white border border-slate-600 focus:border-blue-500 outline-none">
+                            </div>
+                            <div class="md:col-span-2">
+                                <select id="productCategory" class="w-full bg-slate-800 p-3 rounded text-white border border-slate-600 focus:border-blue-500">
+                                    <option value="items">Arma/Escudo</option>
+                                    <option value="sets">Set Completo</option>
+                                    <option value="wings">Alas</option>
+                                    <option value="jewels">Joyas</option>
+                                </select>
+                            </div>
+                            <div class="md:col-span-2">
+                                <input id="productPrice" type="number" step="0.01" placeholder="Precio $" required class="w-full bg-slate-800 p-3 rounded text-white border border-slate-600 focus:border-blue-500">
+                            </div>
+                            <div class="md:col-span-2">
+                                <input id="productStock" type="number" placeholder="Stock" required class="w-full bg-slate-800 p-3 rounded text-white border border-slate-600 focus:border-blue-500">
+                            </div>
+                            <div class="md:col-span-2">
+                                <button type="submit" class="w-full h-full bg-blue-600 hover:bg-blue-500 font-bold rounded text-white shadow transition uppercase text-sm">
+                                    Publicar
+                                </button>
+                            </div>
+                            
+                            <input id="productDiscount" type="hidden" value="0">
+                            <input id="productImage" type="hidden" value="">
+                            <input id="productDescription" type="hidden" value="">
+                            <input id="productOnSale" type="checkbox" class="hidden">
+                        </form>
+                        <p class="text-xs text-slate-500 mt-3 ml-1 flex items-center gap-1">
+                            ℹ️ Para agregar imagen, descuento o descripción, usa el botón <span class="font-bold text-blue-400 bg-slate-800 px-1 rounded">EDITAR</span> una vez creado el item.
+                        </p>
                     </div>
-                    <div class="flex gap-2">
-                        ${user.role === 'admin' ? `
-                            <button onclick="showModal='dataTools';render()" class="bg-slate-700 px-6 py-2 rounded font-bold shadow hover:bg-slate-600 transition border border-slate-500 text-yellow-400 border-yellow-500/50">
-                                💾 RESPALDO SYSTEM
-                            </button>
-                        ` : ''}
-                        <button onclick="loadAdminView()" class="bg-slate-700 px-6 py-2 rounded font-bold shadow hover:bg-slate-600 transition border border-slate-500 text-blue-400 border-blue-500/50">
-                            🔄 REFRESCAR DATOS
-                        </button>
-                        <button onclick="currentView='catalog';render()" class="bg-blue-600 px-6 py-2 rounded font-bold shadow hover:bg-blue-500 transition">
-                            🏠 Volver al Inicio
-                        </button>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        ${myProducts.map(p => `
+                            <div class="bg-slate-900 rounded-lg border border-slate-600 p-4 relative group hover:border-blue-500 transition shadow-sm flex flex-col justify-between h-full">
+                                <div>
+                                    <div class="flex justify-between items-start mb-2">
+                                        <div class="font-bold truncate text-white text-lg pr-2" title="${p.name}">${p.name}</div>
+                                        <div class="font-mono text-xs bg-slate-800 px-2 py-1 rounded text-slate-400 border border-slate-700 whitespace-nowrap">
+                                            📦 Stock: ${p.stock}
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mb-4">
+                                        <div class="text-green-400 font-bold text-2xl">$${p.final_price.toFixed(2)}</div>
+                                        ${p.discount > 0 ? `<div class="text-xs text-red-400 font-bold bg-red-900/20 inline-block px-1 rounded border border-red-900/50">-${p.discount}% OFF</div>` : '<div class="h-5"></div>'}
+                                    </div>
+                                </div>
+                                
+                                <div class="flex gap-2 mt-auto pt-3 border-t border-slate-800">
+                                    <button onclick="openEditModal('${p.__backendId}')" class="flex-1 bg-blue-600 hover:bg-blue-500 py-2 rounded text-xs font-bold text-white shadow transition flex items-center justify-center gap-1">
+                                        ✏️ EDITAR
+                                    </button>
+                                    <button onclick="deleteProduct('${p.__backendId}')" class="bg-red-600 hover:bg-red-500 px-3 py-2 rounded text-xs font-bold text-white shadow transition flex items-center justify-center">
+                                        🗑️
+                                    </button>
+                                </div>
+                            </div>
+                        `).join('')}
                     </div>
                 </div>
 
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-                    <div class="bg-slate-800 p-6 rounded-xl border-t-4 border-purple-500 shadow-lg">
-                        <div class="text-3xl font-bold text-white">${stats.total}</div>
-                        <div class="text-xs opacity-70 font-bold uppercase tracking-wide">Productos Activos</div>
-                    </div>
-                    <div class="bg-slate-800 p-6 rounded-xl border-t-4 border-green-500 shadow-lg">
-                        <div class="text-3xl font-bold text-green-400">${stats.sales}</div>
-                        <div class="text-xs opacity-70 font-bold uppercase tracking-wide">Ventas Completadas</div>
-                    </div>
-                    <div class="bg-slate-800 p-6 rounded-xl border-t-4 border-yellow-500 shadow-lg">
-                        <div class="text-3xl font-bold text-yellow-400">${pending.length}</div>
-                        <div class="text-xs opacity-70 font-bold uppercase tracking-wide">Pedidos Pendientes</div>
-                    </div>
-                     <div class="bg-slate-800 p-6 rounded-xl border-t-4 border-blue-500 shadow-lg">
-                        <div class="text-xs opacity-70 font-bold uppercase tracking-wide mb-1">Discord Tienda</div>
-                        <div class="text-sm font-bold font-mono text-blue-300 truncate bg-slate-900/50 p-1 rounded">${viewingUser.discord_tag}</div>
-                    </div>
-                </div>
-                
                 ${(user.role === 'admin' && !adminViewTarget) ? `
-                    <div class="bg-slate-800 p-6 rounded-xl mb-8 border border-slate-700 shadow-lg">
-                        <h2 class="text-xl font-bold mb-6 text-green-400 border-b border-slate-700 pb-2 flex items-center gap-2">
-                            📜 LOG HISTÓRICO DE PEDIDOS (${completedOrdersLog.length})
-                            <button onclick="clearCompletedOrdersLog()" class="bg-red-700 hover:bg-red-600 text-white px-3 py-1 rounded text-xs font-bold transition ml-auto">
-                                🗑️ LIMPIAR LOG
-                            </button>
+                    <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
+                        <h2 class="text-xl font-bold mb-6 text-purple-400 border-b border-slate-700 pb-2 flex items-center gap-2">
+                            🌍 Panel Global de Usuarios <span class="text-xs bg-slate-900 text-slate-400 px-2 py-1 rounded ml-auto">Total: ${displayUsers.length}</span>
                         </h2>
-                        <div class="overflow-x-auto rounded-lg border border-slate-700 max-h-64 overflow-y-auto">
+                        
+                        <div class="overflow-x-auto rounded-lg border border-slate-700">
                             <table class="w-full text-sm text-left text-slate-300">
-                                <thead class="bg-slate-900 text-white uppercase font-bold text-xs sticky top-0 z-10">
+                                <thead class="bg-slate-900 text-white uppercase font-bold text-xs">
                                     <tr>
-                                        <th class="p-3">Fecha</th>
-                                        <th class="p-3">Tienda/Vendedor</th>
-                                        <th class="p-3">Comprador</th>
-                                        <th class="p-3">Items</th>
-                                        <th class="p-3 text-right">Total</th>
+                                        <th class="p-4">Usuario (Tienda)</th>
+                                        <th class="p-4">Rol</th>
+                                        <th class="p-4">Estado</th>
+                                        <th class="p-4 text-center">VENTAS</th> 
+                                        <th class="p-4">Discord</th>
+                                        <th class="p-4 text-right">Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-700">
-                                    ${completedOrdersLog.length === 0 ? `
-                                        <tr><td colspan="5" class="p-4 text-center opacity-50">No hay registro de pedidos completados.</td></tr>
-                                    ` : completedOrdersLog.map(o => `
-                                        <tr class="hover:bg-slate-700/30 transition font-mono">
-                                            <td class="p-3 text-xs text-slate-500">${new Date(o.created_at).toLocaleDateString()}</td>
-                                            <td class="p-3 font-bold text-blue-300">${o.seller_username}</td>
-                                            <td class="p-3 text-white">${o.buyer_username}</td>
-                                            <td class="p-3 text-xs truncate max-w-xs">${o.items}</td>
-                                            <td class="p-3 text-right font-bold text-green-400">$${o.total.toFixed(2)}</td>
-                                        </tr>
-                                    `).join('')}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                ` : ''}
-
-                <div class="bg-slate-800 p-6 rounded-xl mb-8 border border-slate-700 shadow-lg">
-                    <h2 class="text-xl font-bold mb-4 text-yellow-400 border-b border-slate-700 pb-2 flex items-center gap-2">
-                        📦 Pedidos por Despachar <span class="bg-slate-700 text-white px-2 rounded text-sm">${pending.length}</span>
-                    </h2>
-                    
-                    ${pending.length === 0 ? `
-                        <div class="text-center py-8 opacity-50">
-                            <p class="italic">No tienes pedidos pendientes. ¡Buen trabajo!</p>
-                        </div>
-                    ` : pending.map((o, i) => {
-                        const sellerConfirmed = o.seller_confirmed;
-                        const buyerConfirmed = o.buyer_confirmed;
-                        
-                        let buttonText, buttonClass, buttonAction;
-                        
-                        if (buyerConfirmed) {
-                            buttonText = 'Cliente CONFIRMADO';
-                            buttonClass = 'bg-orange-700/50 disabled:opacity-100 disabled:cursor-wait';
-                            buttonAction = 'disabled';
-                        } else if (sellerConfirmed) {
-                            buttonText = '⏳ Esperando Cliente';
-                            buttonClass = 'bg-yellow-600/50 disabled:opacity-100 disabled:cursor-wait';
-                            buttonAction = 'disabled';
-                        } else {
-                            buttonText = '✅ MARCAR ENTREGADO';
-                            buttonClass = 'bg-green-600 hover:bg-green-500';
-                            buttonAction = `onclick="confirmOrder('${o.__backendId}', true)"`;
-                        }
-                        
-                        const statusBadgeText = buyerConfirmed ? 'Cliente Confirmó' : (sellerConfirmed ? 'Tú Confirmaste (Esperando Cliente)' : 'Pendiente de tu Entrega');
-                        const statusBadgeClass = buyerConfirmed ? 'bg-orange-900 text-orange-200' : (sellerConfirmed ? 'bg-yellow-900 text-yellow-200' : 'bg-red-900 text-red-200');
-
-                        return `
-                        <div class="bg-slate-900 p-5 rounded-lg mb-4 border border-slate-600 flex flex-col md:flex-row justify-between gap-6 shadow-sm hover:bg-slate-900/80 transition">
-                            <div class="flex-1">
-                                <div class="flex items-center gap-3 mb-2">
-                                    <span class="font-bold text-lg text-blue-300">PEDIDO #${pending.length - i}</span>
-                                    <span class="px-2 py-1 rounded text-xs font
+                                    ${displayUsers.map(u => `
+                                        <tr class="hover:bg-slate-700/30 transition ${u.status === 'pending' ? 'bg-yellow-900/20 border-l-4 border-yellow-500' : ''}">
+                                            <td class="p-4 font-bold flex flex-col justify-start">
+                                                <span class="text-white cursor-pointer hover:text-blue-400" onclick="openManageUserModal('${u.username}')">
+                                                    ${u.username}
