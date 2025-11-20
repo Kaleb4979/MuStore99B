@@ -12,9 +12,8 @@ const TABLE_NAMES = {
     'product': 'products',
     'order': 'orders',
     'review': 'reviews',
-    'activity': 'activities',
     'config': 'config',
-    'message': 'messages'
+    'message': 'messages' // Nueva tabla para chat
 };
 
 // --- CLAVES GLOBALES (NECESARIAS PARA app.js) ---
@@ -87,32 +86,27 @@ window.dataSdk = {
         if (!supabase) return { isOk: false };
         
         try {
-            // Mapeamos 'id' a '__backendId' para compatibilidad con el frontend
-            const [users, products, orders, reviews, activities, config] = await Promise.all([
+            // Se eliminó la consulta a 'activities'
+            const [users, products, orders, reviews, config] = await Promise.all([
                 supabase.from(TABLE_NAMES.user).select('*, __backendId:id'),
-                // Seleccionamos el seller_id (UUID)
                 supabase.from(TABLE_NAMES.product).select('*, __backendId:id, seller_id'), 
-                // Seleccionamos buyer_id y seller_id (UUIDs)
                 supabase.from(TABLE_NAMES.order).select('*, __backendId:id, buyer_id, seller_id'),
-                // Seleccionamos reviewed_seller_id (UUID)
                 supabase.from(TABLE_NAMES.review).select('*, __backendId:id, reviewed_seller_id'), 
-                // Seleccionamos user_id (UUID) y username
-                supabase.from(TABLE_NAMES.activity).select('*, __backendId:id, user_id, username'), 
                 supabase.from(TABLE_NAMES.config).select('config, id').limit(1).single() 
             ]);
 
-            if (users.error || products.error || orders.error || activities.error || reviews.error) {
-                console.error("Error leyendo tablas:", users.error || products.error || orders.error || activities.error || reviews.error);
+            if (users.error || products.error || orders.error || reviews.error) {
+                console.error("Error leyendo tablas:", users.error || products.error || orders.error || reviews.error);
                 showToast('❌ Error de lectura de datos. Revise políticas RLS.');
                 return { isOk: false };
             }
 
             // Normalizar y combinar los datos
             const combinedData = [
-                // USERS: usa su ID nativo
+                // USERS
                 ...(users.data || []).map(u => ({ ...u, type: 'user', __backendId: u.id })), 
                 
-                // PRODUCTS: Mapeo seller_id -> seller (para que la UI pueda usar .seller)
+                // PRODUCTS
                 ...(products.data || []).map(p => ({ 
                     ...p, 
                     type: 'product', 
@@ -120,7 +114,7 @@ window.dataSdk = {
                     seller: p.seller_id // Mapeo UUID
                 })),
                 
-                // ORDERS: Mapeo buyer_id/seller_id -> buyer/seller (para que la UI pueda usarlos)
+                // ORDERS
                 ...(orders.data || []).map(o => ({ 
                     ...o, 
                     type: 'order', 
@@ -129,21 +123,13 @@ window.dataSdk = {
                     seller: o.seller_id // Mapeo UUID
                 })), 
                 
-                // REVIEWS: Mapeo reviewed_seller_id -> reviewed_seller
+                // REVIEWS
                 ...(reviews.data || []).map(r => ({ 
                     ...r, 
                     type: 'review', 
                     __backendId: r.id, 
                     reviewed_seller: r.reviewed_seller_id // Mapeo UUID
                 })),
-                
-                // ACTIVITIES: Mapeo user_id -> user
-                ...(activities.data || []).map(a => ({ 
-                    ...a, 
-                    type: 'activity', 
-                    __backendId: a.id, 
-                    user: a.user_id // Mapeo UUID
-                })), 
             ];
 
             // Añadir configuración (si existe)
@@ -168,24 +154,20 @@ window.dataSdk = {
         if (!supabase) return { isOk: false };
         const tableName = window.dataSdk.getTableFromItem(item);
         
-        // Mapeo inverso de la UI a la BD para INSERT: 
         let insertData = { ...item };
 
         if (item.type === 'product' && item.seller) {
-            insertData.seller_id = item.seller; // seller (UUID) -> seller_id
+            insertData.seller_id = item.seller; 
         } else if (item.type === 'order' && item.buyer && item.seller) {
-            insertData.buyer_id = item.buyer;   // buyer (UUID) -> buyer_id
-            insertData.seller_id = item.seller; // seller (UUID) -> seller_id
+            insertData.buyer_id = item.buyer;   
+            insertData.seller_id = item.seller; 
         } else if (item.type === 'review' && item.reviewed_seller) {
-             insertData.reviewed_seller_id = item.reviewed_seller; // seller (UUID) -> reviewed_seller_id
+             insertData.reviewed_seller_id = item.reviewed_seller; 
         } 
+        // Se eliminó la lógica de 'activity'
         
-        // CORRECCIÓN CLAVE PARA ACTIVITIES: El campo 'user' se mapea a 'user_id'
-        if (item.type === 'activity' && item.user) {
-             insertData.user_id = item.user; 
-        }
 
-        // Limpiar claves de mapeo y auxiliares (type, __backendId, etc.) antes de insertar
+        // Limpiar claves de mapeo y auxiliares
         const { __backendId, type, seller, buyer, user, id, ...finalInsertData } = insertData; 
         
         const { data, error } = await supabase
@@ -208,7 +190,6 @@ window.dataSdk = {
         if (!supabase) return { isOk: false };
         const tableName = window.dataSdk.getTableFromItem(item);
         
-        // Mapeo inverso de la UI a la BD para UPDATE
         let updateData = { ...item };
         
         if (item.type === 'product' && item.seller) {
@@ -219,14 +200,9 @@ window.dataSdk = {
         } else if (item.type === 'review' && item.reviewed_seller) {
              updateData.reviewed_seller_id = item.reviewed_seller;
         } 
-        
-        // CORRECCIÓN CLAVE PARA ACTIVITIES: El campo 'user' se mapea a 'user_id'
-        if (item.type === 'activity' && item.user) {
-             updateData.user_id = item.user;
-        }
+        // Se eliminó la lógica de 'activity'
 
-
-        // Quitamos claves de mapeo, auxiliares y la ID nativa (ya que la usamos en .eq)
+        // Quitamos claves de mapeo, auxiliares y la ID nativa
         const { __backendId, type, seller, buyer, user, id, ...finalUpdateData } = updateData;
 
         // Filtramos por la ID nativa de Supabase (item.id o item.__backendId)
@@ -269,7 +245,10 @@ window.dataSdk = {
     write: () => {
         console.warn("dataSdk.write está obsoleto. Use dataSdk.create o dataSdk.update.");
         return { isOk: false };
-    }
+    },
+    
+    // EXPOSICIÓN DE SUPABASE PARA app.js
+    getSupabaseClient: () => supabase
 };
 
 
