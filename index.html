@@ -3,7 +3,7 @@
  <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mu Online 99B Marketplace</title>
+  <title>Mu Online 99B Marketplace - Final Version</title>
   
   <script src="https://cdn.tailwindcss.com"></script>
   
@@ -74,14 +74,6 @@
       backdrop-filter: blur(4px);
     }
 
-    .star {
-      cursor: pointer;
-      transition: all 0.2s ease;
-    }
-    .star:hover {
-      transform: scale(1.2);
-    }
-
     /* ESTILOS DEL RANKING TOP 3 */
     .top-shop-card {
       transition: all 0.3s ease;
@@ -143,7 +135,7 @@
 
   <script>
     // --- CONFIGURACIÓN DE BASE DE DATOS EN TIEMPO REAL ---
-    const DB_KEY = 'mu_marketplace_full_db_v6'; 
+    const DB_KEY = 'mu_marketplace_full_db_v7_final'; 
     
     // Inicializar DB desde LocalStorage
     let savedData = localStorage.getItem(DB_KEY);
@@ -232,7 +224,7 @@
     };
 
     // --- GESTIÓN DE SESIÓN Y TIMEOUT ---
-    const SESSION_KEY = 'mu_session_user_full_v6';
+    const SESSION_KEY = 'mu_session_user_v7_final';
     let inactivityTimeout;
     const TIMEOUT_LIMIT = 5 * 60 * 1000; // 5 minutos exactos
 
@@ -264,6 +256,7 @@
       username: 'Kaleb',
       password: 'Kaleb.2021'
     };
+    
 
     let onlineUsers = new Set();
     let userActivityTimeout = null;
@@ -612,7 +605,26 @@
       }
     }
 
-    // --- GESTIÓN DE USUARIOS Y ROLES ---
+    // --- GESTIÓN DE USUARIOS Y ROLES (MEJORADO) ---
+    async function approveUser(backendId) {
+        const user = allUsers.find(u => u.__backendId === backendId);
+        if (!user) return;
+        
+        const updatedUser = {
+            ...user,
+            status: 'active',
+            approved: true
+        };
+        
+        await window.dataSdk.update(updatedUser);
+        showToast('✅ Usuario ACEPTADO y activado');
+    }
+
+    async function rejectUser(backendId) {
+        // Funciona como eliminar, pero contextualmente es "Rechazar"
+        deleteUserAccount(backendId);
+    }
+
     async function banUser(backendId) {
         const user = allUsers.find(u => u.__backendId === backendId);
         if (!user) return;
@@ -630,7 +642,8 @@
     }
 
     async function deleteUserAccount(backendId) {
-        if(!confirm("⚠️ ¿Estás seguro de ELIMINAR DEFINITIVAMENTE esta cuenta y todos sus datos?")) return;
+        // PROTECCIÓN: CONFIRMACIÓN DE SEGURIDAD
+        if(!confirm("⚠️ ¡ADVERTENCIA DE SEGURIDAD!\n\n¿Estás COMPLETAMENTE SEGURO de eliminar/rechazar este usuario?\nEsta acción borrará su cuenta y todos sus productos permanentemente.")) return;
         
         const user = allUsers.find(u => u.__backendId === backendId);
         if (!user) return;
@@ -645,7 +658,7 @@
 
         const result = await window.dataSdk.delete(user);
         if (result.isOk) {
-            showToast('🗑️ Cuenta eliminada correctamente');
+            showToast('🗑️ Cuenta eliminada/rechazada correctamente');
         } else {
             showToast('Error al eliminar cuenta');
         }
@@ -946,7 +959,7 @@
       render();
     }
 
-    // --- ESTADÍSTICAS Y RANKING ---
+    // --- ESTADÍSTICAS Y RANKING (MEJORADO: VENTAS > RESEÑAS > ESTRELLAS) ---
     function getSellerRating(sellerUsername) {
       const sellerReviews = allReviews.filter(r => r.reviewed_seller === sellerUsername);
       if (sellerReviews.length === 0) return { average: 0, count: 0 };
@@ -977,10 +990,10 @@
         };
       });
 
-      // Filtro: Debe tener al menos 1 venta O 1 review
+      // Filtro: Debe tener al menos 1 venta O 1 review para aparecer
       const activeShops = shopsStats.filter(s => s.salesCount > 0 || s.reviewCount > 0);
 
-      // Orden: Ventas > Reseñas > Rating
+      // ORDEN ESTRICTO: 1. Ventas, 2. Cantidad Reseñas, 3. Rating
       return activeShops.sort((a, b) => {
         if (b.salesCount !== a.salesCount) return b.salesCount - a.salesCount;
         if (b.reviewCount !== a.reviewCount) return b.reviewCount - a.reviewCount;
@@ -1124,14 +1137,14 @@
                     <p class="text-sm opacity-70 mb-3">👤 ${shop.username}</p>
                     
                     <div class="flex justify-center gap-4 mb-3">
-                       <div class="text-center">
+                        <div class="text-center">
                           <p class="text-2xl font-bold text-green-400">${shop.salesCount}</p>
                           <p class="text-xs opacity-70">Ventas</p>
-                       </div>
-                       <div class="text-center">
+                        </div>
+                        <div class="text-center">
                           <p class="text-2xl font-bold text-yellow-400">${shop.rating}</p>
                           <p class="text-xs opacity-70">${shop.reviewCount} Reseñas</p>
-                       </div>
+                        </div>
                     </div>
                   </div>
                 `).join('')}
@@ -1286,6 +1299,7 @@
       const pendingOrders = myOrders.filter(o => o.order_status === 'pending');
       
       // --- ESTADÍSTICAS EN TIEMPO REAL ---
+      // Se recalculan cada vez que se renderiza el panel, usando las variables globales actualizadas por mockDb
       const stats = {
           items: userProducts.filter(p => p.category === 'items').length,
           wings: userProducts.filter(p => p.category === 'wings').length,
@@ -1421,12 +1435,21 @@
                                         </td>
                                         <td class="text-xs opacity-70">${u.shop_name || '-'}</td>
                                         <td>
-                                            <button onclick="banUser('${u.__backendId}')" class="text-yellow-500 hover:text-yellow-400 font-bold mr-3 transition">
-                                                ${u.status.includes('banned') ? 'UNBAN' : 'BAN'}
-                                            </button>
-                                            <button onclick="deleteUserAccount('${u.__backendId}')" class="text-red-500 hover:text-red-400 font-bold transition">
-                                                DEL
-                                            </button>
+                                            ${u.status === 'pending' ? `
+                                                <button onclick="approveUser('${u.__backendId}')" class="bg-green-600 text-white px-3 py-1 rounded font-bold text-xs mr-2 hover:bg-green-500 transition">
+                                                    ACEPTAR
+                                                </button>
+                                                <button onclick="rejectUser('${u.__backendId}')" class="bg-red-600 text-white px-3 py-1 rounded font-bold text-xs hover:bg-red-500 transition">
+                                                    RECHAZAR
+                                                </button>
+                                            ` : `
+                                                <button onclick="banUser('${u.__backendId}')" class="text-yellow-500 hover:text-yellow-400 font-bold mr-3 transition">
+                                                    ${u.status.includes('banned') ? 'UNBAN' : 'BAN'}
+                                                </button>
+                                                <button onclick="deleteUserAccount('${u.__backendId}')" class="text-red-500 hover:text-red-400 font-bold transition">
+                                                    DEL
+                                                </button>
+                                            `}
                                         </td>
                                     </tr>
                                 `).join('')}
