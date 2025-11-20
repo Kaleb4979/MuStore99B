@@ -22,19 +22,13 @@
     html {
       height: 100%;
     }
-    .category-btn {
-      transition: all 0.3s ease;
-    }
-    .category-btn:hover {
-      transform: translateY(-2px);
-    }
-    .product-card {
-      transition: all 0.3s ease;
-    }
-    .product-card:hover {
-      transform: translateY(-5px);
-      box-shadow: 0 10px 25px rgba(0,0,0,0.3);
-    }
+    /* Animaciones y Efectos */
+    .category-btn { transition: all 0.3s ease; }
+    .category-btn:hover { transform: translateY(-2px); }
+    
+    .product-card { transition: all 0.3s ease; }
+    .product-card:hover { transform: translateY(-5px); box-shadow: 0 10px 25px rgba(0,0,0,0.4); }
+    
     .loading-spinner {
       border: 3px solid rgba(255,255,255,0.3);
       border-top: 3px solid white;
@@ -43,70 +37,50 @@
       height: 20px;
       animation: spin 1s linear infinite;
     }
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    
     .cart-badge {
       position: absolute;
-      top: -8px;
-      right: -8px;
-      background-color: #ef4444;
-      color: white;
-      border-radius: 50%;
-      width: 24px;
-      height: 24px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 12px;
-      font-weight: bold;
+      top: -8px; right: -8px;
+      background-color: #ef4444; color: white;
+      border-radius: 50%; width: 24px; height: 24px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: bold;
     }
-    .modal-backdrop {
-      background-color: rgba(0, 0, 0, 0.7);
-    }
-    .btn-primary {
-      transition: all 0.2s ease;
-    }
-    .btn-primary:hover {
-      transform: scale(1.05);
-    }
-    .star {
-      cursor: pointer;
-      transition: all 0.2s ease;
-    }
-    .star:hover {
-      transform: scale(1.2);
-    }
-    .top-shop-card {
-      transition: all 0.3s ease;
-    }
-    .top-shop-card:hover {
-      transform: translateX(5px);
-    }
+    
+    .modal-backdrop { background-color: rgba(0, 0, 0, 0.8); backdrop-filter: blur(4px); }
+    
+    .star { cursor: pointer; transition: all 0.2s ease; }
+    .star:hover { transform: scale(1.3); color: #fbbf24; }
+    
+    .top-shop-card { transition: all 0.3s ease; }
+    .top-shop-card:hover { transform: scale(1.05); }
+    
+    /* Estilos específicos para el ranking */
+    .rank-1 { border: 2px solid #FFD700; box-shadow: 0 0 15px rgba(255, 215, 0, 0.3); }
+    .rank-2 { border: 2px solid #C0C0C0; box-shadow: 0 0 10px rgba(192, 192, 192, 0.3); }
+    .rank-3 { border: 2px solid #CD7F32; box-shadow: 0 0 10px rgba(205, 127, 50, 0.3); }
   </style>
   <style>@view-transition { navigation: auto; }</style>
 
   <script>
-    const DB_KEY = 'mu_marketplace_db_v2'; 
+    const DB_KEY = 'mu_marketplace_db_v3_final'; 
 
-    // Inicializar DB en memoria desde LocalStorage o vacío
+    // Inicializar DB en memoria desde LocalStorage
     let savedData = localStorage.getItem(DB_KEY);
     window.mockDb = {
       data: savedData ? JSON.parse(savedData) : [],
       handler: null,
       notify() {
-        // Guardar en LocalStorage cada vez que hay cambios
         localStorage.setItem(DB_KEY, JSON.stringify(this.data));
         if (this.handler) this.handler.onDataChanged(this.data);
       }
     };
 
-    // Simular Data SDK (CORREGIDO: Lógica de actualización para persistencia)
+    // Data SDK Simulado (Persistencia y Tiempo Real Local)
     window.dataSdk = {
       init: async (handler) => {
         window.mockDb.handler = handler;
-        // Notificar datos iniciales
         setTimeout(() => window.mockDb.notify(), 50); 
         return { isOk: true };
       },
@@ -119,7 +93,6 @@
       update: async (item) => {
         const index = window.mockDb.data.findIndex(i => i.__backendId === item.__backendId);
         if (index !== -1) {
-          // CLONAR y REEMPLAZAR para asegurar inmutabilidad simulada y persistencia
           window.mockDb.data[index] = {...item}; 
           window.mockDb.notify();
           return { isOk: true, item: item };
@@ -133,7 +106,7 @@
       }
     };
     
-    // Simular Element SDK (Configuración visual)
+    // Element SDK Simulado
     window.elementSdk = {
       config: {},
       init: (options) => {
@@ -150,10 +123,11 @@
   <div id="app" class="min-h-full"></div>
   
   <script>
+    // --- CONFIGURACIÓN BASE ---
     const defaultConfig = {
       site_title: "Mu Online 99B Marketplace",
-      welcome_message: "Bienvenido a nuestra tienda de items premium",
-      contact_info: "Contacto: Discord/WhatsApp",
+      welcome_message: "El mejor mercado para items, sets y alas.",
+      contact_info: "Soporte: Discord Oficial",
       background_color: "#0f172a",
       card_background: "#1e293b",
       text_color: "#f1f5f9",
@@ -163,6 +137,7 @@
       font_size: 16
     };
 
+    // --- ESTADO DE LA APLICACIÓN ---
     let currentUser = null;
     let currentView = 'catalog';
     let selectedCategory = 'all';
@@ -183,64 +158,47 @@
       { id: 'sets', name: 'Sets', icon: '🛡️' }
     ];
 
-    const ADMIN_CREDENTIALS = {
-      username: 'Kaleb',
-      password: 'Kaleb.2021'
-    };
-
+    const ADMIN_CREDENTIALS = { username: 'Kaleb', password: 'Kaleb.2021' };
     let onlineUsers = new Set();
     let userActivityTimeout = null;
     
-    // --- LÓGICA DE NOTIFICACIÓN CON SONIDO ---
+    // --- AUDIO Y NOTIFICACIONES ---
     let audioContextResumed = false;
-    // CORRECCIÓN: Usamos una URL directa y pública para evitar el NotSupportedError
-    const notificationAudio = new Audio('https://cdn.pixabay.com/download/audio/2021/08/04/audio_3d19163e5e.wav?filename=short-success-sound-alert.wav'); 
+    const notificationAudio = new Audio('https://freesound.org/data/previews/389/389332_7366710-lq.mp3'); 
 
     function playNotificationSound() {
-        if (!audioContextResumed) {
-            console.log("Audio no pudo iniciar, esperando interacción del usuario.");
-            return;
-        }
-        // Clona y reproduce para evitar conflictos
+        if (!audioContextResumed) return;
         const audioClone = notificationAudio.cloneNode(true);
-        audioClone.volume = 0.5; // Bajar un poco el volumen
-        audioClone.play().catch(e => console.error("Error al reproducir sonido:", e));
+        audioClone.volume = 0.6; 
+        audioClone.play().catch(e => console.error("Audio error:", e));
     }
-    // --- FIN LÓGICA DE NOTIFICACIÓN CON SONIDO ---
 
-
-    // Data SDK Handler (Lógica de Notificación y render)
+    // --- MANEJADOR DE DATOS (CORAZÓN DEL TIEMPO REAL) ---
     const dataHandler = {
       onDataChanged(data) {
+        // 1. Desempaquetar datos
         allProducts = data.filter(item => item.type === 'product') || [];
         allUsers = data.filter(item => item.type === 'user') || [];
         allOrders = data.filter(item => item.type === 'order') || [];
         allReviews = data.filter(item => item.type === 'review') || [];
         const activityRecords = data.filter(item => item.type === 'activity') || [];
         
-        // --- LÓGICA DE DETECCIÓN DE NUEVOS PEDIDOS CON SONIDO ---
+        // 2. Notificaciones de Actividad (Nuevos Pedidos)
         if (currentUser) {
-            // Buscamos alertas NO descartadas que sean para el usuario actual o si es admin
             const newOrderAlert = activityRecords.find(a => 
-                a.type === 'activity' &&
-                a.message && 
-                !a.dismissed && 
+                a.type === 'activity' && a.message && !a.dismissed && 
                 (a.username === currentUser.username || currentUser.role === 'admin') 
             );
 
             if (newOrderAlert) {
                 showToast(`🔔 ${newOrderAlert.message}`);
                 playNotificationSound();
-                
-                // Marcar como descartada usando dataSdk.update para persistir y notificar
                 const updatedAlert = {...newOrderAlert, dismissed: true};
                 window.dataSdk.update(updatedAlert); 
             }
         }
-        // --- FIN LÓGICA DE DETECCIÓN ---
-
         
-        // Actualizar usuarios en línea (últimos 5 minutos)
+        // 3. Usuarios Online
         const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
         onlineUsers = new Set(
           activityRecords
@@ -248,170 +206,50 @@
             .map(a => a.username)
         );
         
-        checkPendingReviews();
-        // CLAVE: Validar el carrito contra la nueva lista de productos para sincronizar eliminación/creación
+        // 4. Validaciones Críticas
         validateCart();
         
-        render(); // Se llama una sola vez al final del dataHandler
+        // 5. TRIGGER DE CALIFICACIÓN (Fix "Apenas se marca")
+        // Verifica si hay una orden completada pendiente de review y abre el modal
+        checkPendingReviews();
+        
+        // 6. Renderizar UI
+        render(); 
       }
     };
 
-    // Initialize
     async function init() {
-      const initResult = await window.dataSdk.init(dataHandler);
-      
+      await window.dataSdk.init(dataHandler);
       if (window.elementSdk) {
         window.elementSdk.init({
           defaultConfig,
-          onConfigChange: async (config) => {
-            document.body.style.backgroundColor = config.background_color || defaultConfig.background_color;
-            document.body.style.color = config.text_color || defaultConfig.text_color;
-            const baseSize = config.font_size || defaultConfig.font_size;
-            document.body.style.fontSize = `${baseSize}px`;
-            render();
-          }
+          onConfigChange: async (config) => { render(); }
         });
       }
-
-      render();
     }
 
-    // Verificar pedidos pendientes de calificar
+    // --- FUNCIÓN CRÍTICA: DETECTAR PENDIENTE DE CALIFICAR ---
     function checkPendingReviews() {
       if (!currentUser || currentUser.role !== 'buyer') return;
       
+      // Buscar orden completada que necesite review
       const pendingOrder = allOrders.find(o => 
         o.buyer_username === currentUser.username && 
         o.order_status === 'completed' && 
         o.needs_review === true
       );
 
-      if (pendingOrder && !showModal) { // Solo mostrar si no hay otro modal abierto
-        selectedOrder = pendingOrder;
-        showModal = 'review';
-        // No llamamos render aquí, ya se llama en dataHandler
-      }
-    }
-
-    // Export/Import Functions
-    async function exportData() {
-      const btn = event?.target;
-      if (btn) {
-        btn.disabled = true;
-        btn.innerHTML = '<div class="loading-spinner mx-auto"></div>';
-      }
-
-      const exportData = {
-        products: allProducts,
-        users: allUsers,
-        orders: allOrders,
-        reviews: allReviews,
-        exportDate: new Date().toISOString(),
-        version: '1.0'
-      };
-
-      const dataStr = JSON.stringify(exportData, null, 2);
-      
-      try {
-        const blob = new Blob([dataStr], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `marketplace_backup_${new Date().toISOString().split('T')[0]}.json`;
-        a.style.display = 'none';
-        document.body.appendChild(a);
-        a.click();
-        
-        setTimeout(() => {
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-        }, 100);
-        
-        showToast('✅ Descargando archivo JSON...');
-      } catch (error) {
-        showToast('❌ Error al descargar.');
-      }
-
-      if (btn) {
-        btn.disabled = false;
-        btn.innerHTML = '📥 Exportar Todos los Datos';
-      }
-    }
-
-    async function importData(event) {
-      const file = event.target.files[0];
-      if (!file) return;
-
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        try {
-          const importedData = JSON.parse(e.target.result);
-          if (!importedData.products && !importedData.users) { // Check relajado para permitir parciales
-            showToast('❌ Archivo JSON inválido');
-            return;
-          }
-          showModal = 'importConfirm';
-          selectedOrder = importedData; // Uso temporal de variable
-          render();
-        } catch (error) {
-          showToast('❌ Error al leer el archivo JSON');
+      // Si existe y NO estamos ya calificándola, FORZAR APERTURA DEL MODAL
+      if (pendingOrder) {
+        if (showModal !== 'review' || (selectedOrder && selectedOrder.__backendId !== pendingOrder.__backendId)) {
+            selectedOrder = pendingOrder;
+            showModal = 'review';
+            // No llamamos render() aquí para evitar bucles infinitos, se llamará al final del dataHandler
         }
-      };
-      reader.readAsText(file);
-      event.target.value = '';
+      }
     }
 
-    async function confirmImport() {
-      const importedData = selectedOrder;
-      if (!importedData) return;
-
-      const btn = document.getElementById('confirmImportBtn');
-      if(btn) {
-        btn.innerHTML = '<div class="loading-spinner mx-auto"></div> Importando...';
-        btn.disabled = true;
-      }
-
-      // Import logic (Iterate via DataSDK to trigger Updates)
-      const collections = ['users', 'products', 'orders', 'reviews'];
-      
-      for (const col of collections) {
-          if(importedData[col]) {
-              for(const item of importedData[col]) {
-                  const newItem = {...item};
-                  delete newItem.__backendId; // Generar nuevos IDs
-                  // Esto dispara notify(), lo que actualiza la UI en tiempo real
-                  await window.dataSdk.create(newItem); 
-              }
-          }
-      }
-
-      showToast(`✅ Importación completada con éxito`);
-      showModal = null;
-      selectedOrder = null;
-      render();
-    }
-    
-    // Función para resetear completamente la base de datos 
-    async function resetDatabase() {
-      if (!confirm("⚠️ ¡PELIGRO!\n\n¿Estás seguro de que quieres BORRAR TODA LA BASE DE DATOS?\n\nEsto eliminará usuarios, productos y pedidos. No se puede deshacer.")) {
-        return;
-      }
-      
-      // Borrar datos en memoria
-      window.mockDb.data = [];
-      // Borrar datos en LocalStorage
-      localStorage.removeItem(DB_KEY);
-      
-      showToast('🗑️ Base de datos eliminada. Reiniciando...');
-      
-      // Recargar la página para iniciar de cero
-      setTimeout(() => {
-        window.location.reload();
-      }, 1500);
-    }
-
-
-    // Auth Functions
+    // --- FUNCIONES DE AUTENTICACIÓN ---
     async function handleLogin(e) {
       e.preventDefault();
       const username = document.getElementById('loginUsername').value.trim();
@@ -419,2071 +257,687 @@
 
       if (username === ADMIN_CREDENTIALS.username && password === ADMIN_CREDENTIALS.password) {
         currentUser = { username, role: 'admin', __backendId: 'admin' };
-        showModal = null;
         currentView = 'admin';
-        showToast('Bienvenido Admin');
-        await updateUserActivity();
-        render();
+        finishLogin();
         return;
       }
 
       const user = allUsers.find(u => u.username === username && u.password === password);
       if (user) {
-        // VERIFICAR SI ESTÁ BANEADO
-        if (user.status === 'banned') {
-            showToast('🚫 Tu cuenta ha sido suspendida/baneada.');
-            return;
-        }
-
-        if (user.role === 'reseller' && !user.approved) {
-          showToast('Tu cuenta aún no ha sido aprobada');
-          return;
-        }
+        if (user.status === 'banned') { showToast('🚫 Cuenta suspendida.'); return; }
+        if (user.role === 'reseller' && !user.approved) { showToast('Cuenta en revisión.'); return; }
         
-        currentUser = { 
-          username: user.username,
-          role: user.role,
-          shop_name: user.shop_name,
-          discord_tag: user.discord_tag,
-          __backendId: user.__backendId
-        };
+        currentUser = user;
         
         if (user.role === 'reseller' && (!user.shop_name || !user.discord_tag)) {
           selectedOrder = user;
           showModal = 'setupShop';
-          showToast('Por favor configura tu tienda para continuar');
-          render();
-          return;
+        } else {
+          showModal = null;
+          if (user.role === 'reseller') currentView = 'admin';
         }
-        
-        showModal = null;
-        if (user.role === 'reseller' || user.role === 'admin') {
-          currentView = 'admin';
-        }
-        showToast(`Bienvenido ${username}`);
-        
-        await updateUserActivity();
-        checkPendingReviews();
-        render();
+        finishLogin();
       } else {
-        showToast('Usuario o contraseña incorrectos');
+        showToast('Credenciales inválidas');
       }
+    }
+
+    async function finishLogin() {
+        showToast(`Bienvenido ${currentUser.username}`);
+        await updateUserActivity();
+        checkPendingReviews(); // Chequeo inicial al loguear
+        render();
     }
 
     async function handleRegisterBuyer(e) {
       e.preventDefault();
+      // ... (Lógica estándar de registro, simplificada para brevedad)
       const username = document.getElementById('buyerUsername').value.trim();
-      const password = document.getElementById('buyerPassword').value;
-      const discord = document.getElementById('buyerDiscord').value.trim();
-
-      if (allUsers.find(u => u.username === username)) {
-        showToast('El usuario ya existe');
-        return;
-      }
-
+      if (allUsers.find(u => u.username === username)) { showToast('Usuario existente'); return; }
+      
       const userData = {
-        id: Date.now().toString(),
-        type: 'user',
-        username,
-        password,
-        discord_tag: discord,
-        profile_picture: '',
-        role: 'buyer',
-        approved: true,
-        status: 'active',
-        created_at: new Date().toISOString()
+        id: Date.now().toString(), type: 'user', username,
+        password: document.getElementById('buyerPassword').value,
+        discord_tag: document.getElementById('buyerDiscord').value.trim(),
+        role: 'buyer', approved: true, status: 'active', created_at: new Date().toISOString()
       };
-
-      const result = await window.dataSdk.create(userData);
-      if (result.isOk) {
-        showToast('Registro exitoso! Ahora puedes iniciar sesión');
-        showModal = 'login';
-        render();
-      } else {
-        showToast('Error al registrar usuario');
-      }
+      await window.dataSdk.create(userData);
+      showToast('Registro exitoso'); showModal = 'login'; render();
     }
 
     async function handleRegisterReseller(e) {
       e.preventDefault();
       const username = document.getElementById('resellerUsername').value.trim();
-      const password = document.getElementById('resellerPassword').value;
-      const discord = document.getElementById('resellerDiscord').value.trim();
-      const shopName = document.getElementById('resellerShop').value.trim();
-
-      if (allUsers.find(u => u.username === username)) {
-        showToast('El usuario ya existe');
-        return;
-      }
-
+      if (allUsers.find(u => u.username === username)) { showToast('Usuario existente'); return; }
+      
       const userData = {
-        id: Date.now().toString(),
-        type: 'user',
-        username,
-        password,
-        discord_tag: discord,
-        shop_name: shopName,
-        profile_picture: '',
-        role: 'reseller',
-        approved: false,
-        status: 'pending',
-        created_at: new Date().toISOString()
+        id: Date.now().toString(), type: 'user', username,
+        password: document.getElementById('resellerPassword').value,
+        shop_name: document.getElementById('resellerShop').value.trim(),
+        discord_tag: document.getElementById('resellerDiscord').value.trim(),
+        role: 'reseller', approved: false, status: 'pending', created_at: new Date().toISOString()
       };
-
-      const result = await window.dataSdk.create(userData);
-      if (result.isOk) {
-        showToast('Solicitud enviada! Espera aprobación del admin');
-        showModal = null;
-        render();
-      } else {
-        showToast('Error al enviar solicitud');
-      }
+      await window.dataSdk.create(userData);
+      showToast('Solicitud enviada'); showModal = null; render();
     }
 
     async function updateUserActivity() {
       if (!currentUser) return;
-      
-      const activityRecords = window.mockDb.data.filter(item => item.type === 'activity');
-      const existingActivity = activityRecords.find(a => a.username === currentUser.username);
-      
+      // Actualizar "Last Seen"
+      const existingActivity = window.mockDb.data.find(item => item.type === 'activity' && item.username === currentUser.username);
       if (existingActivity) {
-        // Clonamos para evitar modificar el objeto en el array antes de la actualización
-        const updatedActivity = {...existingActivity, last_activity: new Date().toISOString()};
-        await window.dataSdk.update(updatedActivity);
+        await window.dataSdk.update({...existingActivity, last_activity: new Date().toISOString()});
       } else {
-        const activityData = {
-          id: 'activity_' + currentUser.username,
-          type: 'activity',
-          username: currentUser.username,
-          last_activity: new Date().toISOString()
-        };
-        await window.dataSdk.create(activityData);
+        await window.dataSdk.create({
+            id: 'act_' + currentUser.username, type: 'activity', 
+            username: currentUser.username, last_activity: new Date().toISOString()
+        });
       }
-      
       if (userActivityTimeout) clearTimeout(userActivityTimeout);
       userActivityTimeout = setTimeout(updateUserActivity, 2 * 60 * 1000);
     }
 
     function logout() {
       if (userActivityTimeout) clearTimeout(userActivityTimeout);
-      currentUser = null;
-      currentView = 'catalog';
-      cart = [];
-      showToast('Sesión cerrada');
+      currentUser = null; currentView = 'catalog'; cart = [];
       render();
     }
 
-    // Product Functions
+    // --- GESTIÓN DE PRODUCTOS Y CARRITO ---
     async function handleAddProduct(e) {
       e.preventDefault();
-      if (allProducts.length >= 999) {
-        showToast('Límite de productos alcanzado');
-        return;
-      }
-
+      // ... (Lógica estándar de creación de producto)
       const btn = e.target.querySelector('button[type="submit"]');
       btn.disabled = true;
-      btn.innerHTML = '<div class="loading-spinner mx-auto"></div>';
-
-      let imageUrl = document.getElementById('productImage').value.trim();
       
-      if (imageUrl && imageUrl.includes('imgur.com/') && !imageUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
-        imageUrl = imageUrl + '.jpg';
-      }
-
-      const discount = parseInt(document.getElementById('productDiscount').value) || 0;
-      const onSale = document.getElementById('productOnSale').checked;
       const originalPrice = parseFloat(document.getElementById('productPrice').value);
-      const finalPrice = discount > 0 ? originalPrice * (1 - discount / 100) : originalPrice;
-
+      const discount = parseInt(document.getElementById('productDiscount').value) || 0;
+      
       const productData = {
-        id: Date.now().toString(),
         type: 'product',
         name: document.getElementById('productName').value.trim(),
         category: document.getElementById('productCategory').value,
         price: originalPrice,
-        final_price: finalPrice,
+        final_price: discount > 0 ? originalPrice * (1 - discount / 100) : originalPrice,
         discount: discount,
-        on_sale: onSale,
+        on_sale: document.getElementById('productOnSale').checked,
         stock: parseInt(document.getElementById('productStock').value),
         description: document.getElementById('productDescription').value.trim(),
-        image_url: imageUrl,
+        image_url: document.getElementById('productImage').value.trim(),
         seller_username: currentUser.username,
-        seller_shop_name: currentUser.shop_name || currentUser.username,
-        seller_discord: currentUser.discord_tag || 'Admin',
+        seller_shop_name: currentUser.shop_name,
+        seller_discord: currentUser.discord_tag,
         created_at: new Date().toISOString()
       };
 
-      const result = await window.dataSdk.create(productData);
-      if (result.isOk) {
-        showToast('Producto agregado exitosamente');
-        e.target.reset();
-      } else {
-        showToast('Error al agregar producto');
-      }
-
+      await window.dataSdk.create(productData);
+      showToast('Producto Agregado'); e.target.reset();
       btn.disabled = false;
-      btn.innerHTML = 'Agregar Producto';
     }
 
-    async function deleteProduct(backendId) {
-      const product = allProducts.find(p => p.__backendId === backendId);
-      if (!product) return;
-
-      // Usamos dataSdk.delete, esto dispara el dataHandler que actualiza todo
-      const result = await window.dataSdk.delete(product); 
-      if (result.isOk) {
-        showToast('Producto eliminado');
-      } else {
-        showToast('Error al eliminar producto');
-      }
+    async function deleteProduct(id) {
+        const p = allProducts.find(i => i.__backendId === id);
+        if(p) await window.dataSdk.delete(p);
     }
 
-    // LOGICA DE APROBACIÓN / RECHAZO (Borrado)
-    async function approveReseller(backendId, approve) {
-      const user = allUsers.find(u => u.__backendId === backendId);
-      if (!user) return;
-
-      if (approve) {
-        const updatedUser = {...user, approved: true, status: 'approved'};
-        const result = await window.dataSdk.update(updatedUser);
-        if (result.isOk) showToast('Vendedor aprobado');
-      } else {
-        // SI ES RECHAZADO, SE BORRA LA SOLICITUD
-        const result = await window.dataSdk.delete(user);
-        if (result.isOk) showToast('Solicitud rechazada y eliminada de la base de datos');
-      }
-    }
-
-    async function changeUserRole(backendId, newRole) {
-      const user = allUsers.find(u => u.__backendId === backendId);
-      if (!user) return;
-
-      const oldRole = user.role;
-      let updatedUser = {...user, role: newRole};
-      
-      if (newRole === 'reseller') {
-        updatedUser = {...updatedUser, approved: true, status: 'approved'};
-      } else if (newRole === 'admin') {
-        updatedUser = {...updatedUser, approved: true, status: 'approved'};
-        if (oldRole === 'reseller') {
-          updatedUser.shop_name = '';
-          updatedUser.discord_tag = updatedUser.discord_tag || '';
-        }
-      } else if (newRole === 'buyer') {
-        updatedUser = {...updatedUser, approved: true, status: 'active', shop_name: ''};
-      }
-
-      const result = await window.dataSdk.update(updatedUser);
-      if (result.isOk) {
-        showToast(`Rol cambiado a ${newRole}`);
-      } else {
-        showToast('Error al cambiar rol');
-      }
-    }
-
-    // NUEVAS FUNCIONES: BANEO Y ELIMINAR CUENTA
-    async function banUser(backendId) {
-        const user = allUsers.find(u => u.__backendId === backendId);
-        if (!user) return;
-        
-        let updatedUser;
-        if(user.status === 'banned') {
-            // Desbanear
-            updatedUser = {...user, status: 'active', approved: true};
-            await window.dataSdk.update(updatedUser);
-            showToast('Usuario desbaneado (activo)');
-        } else {
-            // Banear
-            updatedUser = {...user, status: 'banned', approved: false};
-            await window.dataSdk.update(updatedUser);
-            showToast('🚫 Usuario BANEADO exitosamente');
-        }
-    }
-
-    async function deleteUserAccount(backendId) {
-        if(!confirm("⚠️ ¿Estás seguro de ELIMINAR DEFINITIVAMENTE esta cuenta y todos sus datos?")) return;
-        
-        const user = allUsers.find(u => u.__backendId === backendId);
-        if (!user) return;
-
-        // Opcional: Borrar productos asociados si es vendedor
-        if(user.role === 'reseller') {
-            const userProducts = allProducts.filter(p => p.seller_username === user.username);
-            for(const p of userProducts) {
-                await window.dataSdk.delete(p);
-            }
-        }
-
-        const result = await window.dataSdk.delete(user);
-        if (result.isOk) {
-            showToast('🗑️ Cuenta eliminada correctamente');
-        } else {
-            showToast('Error al eliminar cuenta');
-        }
-    }
-
-    async function handleSetupShop(e) {
-      e.preventDefault();
-      const user = selectedOrder;
-      if (!user) return;
-
-      const btn = e.target.querySelector('button[type="submit"]');
-      btn.disabled = true;
-      btn.innerHTML = '<div class="loading-spinner mx-auto"></div>';
-
-      const shopName = document.getElementById('setupShopName').value.trim();
-      const discordTag = document.getElementById('setupDiscord').value.trim();
-
-      // Validar Discord (simple)
-      const discordExists = allUsers.find(u => u.discord_tag === discordTag && u.__backendId !== user.__backendId);
-      if (discordExists) {
-        showToast('Este Discord ya está registrado por otro usuario');
-        btn.disabled = false;
-        btn.innerHTML = 'Crear Tienda';
-        return;
-      }
-
-      const updatedUser = {
-        ...user,
-        role: 'reseller',
-        shop_name: shopName,
-        discord_tag: discordTag,
-        approved: true,
-        status: 'approved'
-      };
-
-      const result = await window.dataSdk.update(updatedUser);
-      if (result.isOk) {
-        showToast('Tienda configurada exitosamente');
-        showModal = null;
-        selectedOrder = null;
-        
-        if (currentUser && user.__backendId === currentUser.__backendId) {
-          currentUser = updatedUser;
-          currentView = 'admin';
-        }
-        
-        render();
-      } else {
-        showToast('Error al configurar tienda');
-        btn.disabled = false;
-        btn.innerHTML = 'Crear Tienda';
-      }
-    }
-
-    // User Profile & Search Functions
-    function filterUsers(searchTerm) {
-      const rows = document.querySelectorAll('.user-row');
-      const term = searchTerm.toLowerCase().trim();
-      
-      rows.forEach(row => {
-        const username = row.getAttribute('data-username');
-        if (username.includes(term)) {
-          row.style.display = '';
-        } else {
-          row.style.display = 'none';
-        }
-      });
-    }
-
-    function viewUserProfile(backendId) {
-      const user = allUsers.find(u => u.__backendId === backendId);
-      if (!user) return;
-      
-      selectedOrder = user;
-      showModal = 'userProfile';
-      render();
-    }
-
-    // Cart Functions
-    // CORRECCIÓN CLAVE: Verifica si los items en el carrito existen y actualiza sus propiedades
     function validateCart() {
         if (cart.length === 0) return;
-
-        let cartModified = false;
-        
-        // Creamos un nuevo carrito filtrado
-        const newCart = cart.filter(cartItem => {
-            const correspondingProduct = allProducts.find(p => p.__backendId === cartItem.__backendId);
-            
-            // 1. Producto eliminado (no existe)
-            if (!correspondingProduct) {
-                showToast(`❌ El item "${cartItem.name}" ha sido eliminado del catálogo.`);
-                cartModified = true;
-                return false; 
+        let modified = false;
+        const newCart = cart.filter(item => {
+            const real = allProducts.find(p => p.__backendId === item.__backendId);
+            if (!real) { showToast(`Item "${item.name}" eliminado.`); modified = true; return false; }
+            if (item.quantity > real.stock) { item.quantity = real.stock; modified = true; }
+            // Sincronizar precios/datos
+            if (item.price !== real.price || item.final_price !== real.final_price) {
+                Object.assign(item, real); modified = true;
             }
-            
-            // 2. Sincronizar stock
-            if (cartItem.quantity > correspondingProduct.stock) {
-                cartItem.quantity = correspondingProduct.stock;
-                cartModified = true;
-                if (cartItem.quantity === 0) {
-                     showToast(`❌ El item "${cartItem.name}" se agotó y se eliminó del carrito.`);
-                     return false;
-                }
-                showToast(`⚠️ Stock de "${cartItem.name}" limitado a ${cartItem.quantity}.`);
-            }
-            
-            // 3. Sincronizar propiedades (precio, nombre, etc.)
-            // Esto es crucial para reflejar si el vendedor subió/bajó el precio o cambió el nombre
-            if (
-                cartItem.price !== correspondingProduct.price ||
-                cartItem.final_price !== correspondingProduct.final_price ||
-                cartItem.name !== correspondingProduct.name
-            ) {
-                cartItem.price = correspondingProduct.price;
-                cartItem.final_price = correspondingProduct.final_price;
-                cartItem.discount = correspondingProduct.discount;
-                cartItem.name = correspondingProduct.name;
-                cartItem.category = correspondingProduct.category;
-                cartItem.image_url = correspondingProduct.image_url;
-                cartItem.seller_username = correspondingProduct.seller_username;
-                cartItem.seller_discord = correspondingProduct.seller_discord;
-                cartModified = true;
-            }
-            
-            return true;
+            return item.quantity > 0;
         });
+        if (modified) cart = newCart;
+    }
+
+    function addToCart(id) {
+        if (!currentUser) { showModal = 'login'; render(); return; }
+        const prod = allProducts.find(p => p.__backendId === id);
+        if (!prod || prod.stock < 1) return;
         
-        // Reemplazamos el carrito viejo por el nuevo si hubo modificaciones
-        if (cartModified) {
-           cart = newCart;
-           // El render se llama al final del dataHandler, así que esto se reflejará.
-        }
-    }
-
-    function addToCart(backendId) {
-      if (!currentUser) {
-        showToast('Inicia sesión para agregar al carrito');
-        showModal = 'login';
-        render();
-        return;
-      }
-
-      const product = allProducts.find(p => p.__backendId === backendId);
-      if (!product || product.stock <= 0) {
-        showToast('Producto sin stock');
-        return;
-      }
-
-      const existing = cart.find(item => item.__backendId === backendId);
-      if (existing) {
-        if (existing.quantity < product.stock) {
-          existing.quantity++;
-          showToast('Cantidad actualizada');
+        const exist = cart.find(i => i.__backendId === id);
+        if (exist) {
+            if (exist.quantity < prod.stock) exist.quantity++;
         } else {
-          showToast('No hay más stock disponible');
+            cart.push({ ...prod, quantity: 1 });
         }
-      } else {
-        // Al agregar, usamos una copia del producto más reciente de allProducts.
-        cart.push({ ...product, quantity: 1 });
-        showToast('Agregado al carrito');
-      }
-      render();
+        showToast('Agregado al carrito'); render();
     }
 
-    function updateCartQuantity(index, change) {
-      const item = cart[index];
-      const product = allProducts.find(p => p.__backendId === item.__backendId);
-      const newQuantity = item.quantity + change;
-
-      if (newQuantity < 1) {
-        removeFromCart(index);
-        return;
-      }
-
-      if (product && newQuantity <= product.stock) { // Comprobación de existencia agregada
-        cart[index].quantity = newQuantity;
-        render();
-      } else {
-        showToast('No hay más stock disponible');
-      }
-    }
-
-    function removeFromCart(index) {
-      cart.splice(index, 1);
-      showToast('Producto eliminado del carrito');
-      render();
-    }
-
-    function clearCart() {
-      cart = [];
-      render();
-    }
-
-    // Order Functions (CORREGIDO: Notificación, Stock y Confirmación)
+    // --- PEDIDOS Y CONFIRMACIÓN ---
     async function createOrder() {
-      if (cart.length === 0) return;
-      if (allOrders.length >= 999) {
-        showToast('Límite de pedidos alcanzado');
-        return;
-      }
-      
-      // Vuelva a validar el carrito antes de crear la orden
-      validateCart(); 
-      if (cart.length === 0) {
-          showToast('El carrito se vació debido a cambios de stock/eliminación de items.');
-          render();
-          return;
-      }
+        validateCart();
+        if (cart.length === 0) return;
 
+        const ordersBySeller = {};
+        cart.forEach(item => {
+            if (!ordersBySeller[item.seller_username]) {
+                ordersBySeller[item.seller_username] = { 
+                    seller: item.seller_username, discord: item.seller_discord, items: [], total: 0 
+                };
+            }
+            const price = item.discount > 0 ? item.final_price : item.price;
+            ordersBySeller[item.seller_username].items.push(item);
+            ordersBySeller[item.seller_username].total += price * item.quantity;
+        });
 
-      const ordersBySeller = {};
-      cart.forEach(item => {
-        if (!ordersBySeller[item.seller_username]) {
-          ordersBySeller[item.seller_username] = {
-            seller: item.seller_username,
-            discord: item.seller_discord,
-            items: [],
-            total: 0
-          };
-        }
-        const itemPrice = item.discount > 0 ? item.final_price : item.price;
-        ordersBySeller[item.seller_username].items.push(item);
-        ordersBySeller[item.seller_username].total += itemPrice * item.quantity;
-      });
-
-      let allOk = true;
-      for (const sellerUsername in ordersBySeller) {
-        const orderInfo = ordersBySeller[sellerUsername];
-        const itemsDesc = orderInfo.items.map(item => {
-          const itemPrice = item.discount > 0 ? item.final_price : item.price;
-          return `${item.name} x${item.quantity} ($${(itemPrice * item.quantity).toFixed(2)} USDT)`;
-        }).join(' | ');
-
-        const itemsData = JSON.stringify(orderInfo.items.map(item => ({
-          backendId: item.__backendId,
-          name: item.name,
-          quantity: item.quantity
-        })));
-
-        const orderData = {
-          id: Date.now().toString() + '_' + sellerUsername,
-          type: 'order',
-          buyer_username: currentUser.username,
-          buyer_discord: currentUser.discord_tag,
-          seller_username: sellerUsername,
-          seller_discord: orderInfo.discord,
-          items: itemsDesc,
-          items_data: itemsData,
-          total: orderInfo.total,
-          order_status: 'pending',
-          seller_confirmed: false,
-          buyer_confirmed: false,
-          created_at: new Date().toISOString()
-        };
-
-        const result = await window.dataSdk.create(orderData);
-        if (!result.isOk) {
-          allOk = false;
-        } else {
-            // --- CÓDIGO AGREGADO PARA LA NOTIFICACIÓN DEL VENDEDOR/ADMIN ---
-            const notificationData = {
-                id: 'notification_' + result.item.__backendId, // Usar el ID real del item creado
-                type: 'activity',
-                username: sellerUsername, 
-                message: `¡NUEVO PEDIDO (${orderData.id.substring(0, 8)}) de ${currentUser.username}!`,
-                dismissed: false, 
-                created_at: new Date().toISOString()
+        for (const seller in ordersBySeller) {
+            const o = ordersBySeller[seller];
+            const itemsStr = o.items.map(i => `${i.name} x${i.quantity}`).join(', ');
+            const itemsJson = JSON.stringify(o.items.map(i => ({ backendId: i.__backendId, quantity: i.quantity })));
+            
+            const orderData = {
+                type: 'order', id: Date.now() + '_' + seller,
+                buyer_username: currentUser.username, buyer_discord: currentUser.discord_tag,
+                seller_username: seller, seller_discord: o.discord,
+                items: itemsStr, items_data: itemsJson, total: o.total,
+                order_status: 'pending', seller_confirmed: false, buyer_confirmed: false,
+                created_at: new Date().toISOString(), needs_review: false // Inicialmente false
             };
-            // Esto dispara el dataHandler en el lado del VENDEDOR/ADMIN
-            await window.dataSdk.create(notificationData);
-            // --- FIN CÓDIGO AGREGADO ---
+            
+            const res = await window.dataSdk.create(orderData);
+            
+            // Notificar al vendedor
+            if(res.isOk) {
+                await window.dataSdk.create({
+                    type: 'activity', username: seller, message: `¡Nuevo Pedido de ${currentUser.username}!`, dismissed: false, created_at: new Date().toISOString()
+                });
+            }
         }
-      }
-
-      if (!allOk) {
-          showToast('Error al crear uno o más pedidos');
-          return;
-      }
-
-      showToast('Pedido(s) creado(s) exitosamente! Contacta al vendedor por Discord');
-      cart = [];
-      currentView = 'orders';
-      render();
+        
+        cart = []; showToast('Pedido Creado'); currentView = 'orders'; render();
     }
 
     async function confirmOrder(backendId, isSeller) {
-      const order = allOrders.find(o => o.__backendId === backendId);
-      if (!order) return;
-
-      // 1. Actualizar la confirmación localmente
-      let updatedOrder = {...order};
-
-      if (isSeller) {
-        if (updatedOrder.seller_confirmed) return; // Ya confirmado
-        updatedOrder.seller_confirmed = true;
-      } else {
-        if (updatedOrder.buyer_confirmed) return; // Ya confirmado
-        updatedOrder.buyer_confirmed = true;
-      }
-
-      // 2. Persistir el estado de confirmación
-      const result = await window.dataSdk.update(updatedOrder); 
-      
-      if (result.isOk) {
-          // 3. Verificar si ambas partes han confirmado
-          if (result.item.seller_confirmed && result.item.buyer_confirmed && result.item.order_status !== 'completed') {
-              
-              const completedOrder = {...result.item, order_status: 'completed', needs_review: true};
-              
-              // Actualizar Stock de forma ASÍNCRONA
-              try {
-                const itemsData = JSON.parse(completedOrder.items_data);
-                for (const item of itemsData) {
-                  const product = allProducts.find(p => p.__backendId === item.backendId);
-                  if (product) {
-                    const updatedProduct = {...product, stock: Math.max(0, product.stock - item.quantity)};
-                    // Actualizamos cada producto por separado (dispara notify() y render() en tiempo real)
-                    await window.dataSdk.update(updatedProduct); 
-                  }
-                }
-                
-                // 4. Finalizamos la actualización del pedido a 'completed' y needs_review
-                await window.dataSdk.update(completedOrder); 
-                
-              } catch (e) {
-                console.error('Error procesando items y stock:', e);
-                showToast('Error al actualizar stock, contactar Admin.');
-              }
-
-              showToast('¡Pedido completado! Stock actualizado');
-              if (!isSeller) {
-                  selectedOrder = completedOrder;
-                  showModal = 'review';
-              }
-          } else {
-              showToast('Confirmación registrada. Esperando confirmación de ' + (isSeller ? 'comprador' : 'vendedor'));
-          }
-        // render() se llama automáticamente al final del dataHandler/update
-      } else {
-        showToast('Error al confirmar pedido');
-      }
-    }
-
-
-    async function handleSubmitReview(e) {
-      e.preventDefault();
-      if (!selectedOrder) return;
-
-      const rating = parseInt(document.querySelector('input[name="rating"]:checked')?.value || '0');
-      const reviewText = document.getElementById('reviewText').value.trim();
-
-      if (rating === 0) {
-        showToast('Por favor selecciona una calificación');
-        return;
-      }
-
-      const btn = e.target.querySelector('button[type="submit"]');
-      btn.disabled = true;
-      btn.innerHTML = '<div class="loading-spinner mx-auto"></div>';
-
-      const reviewData = {
-        id: Date.now().toString(),
-        type: 'review',
-        buyer_username: currentUser.username,
-        reviewed_seller: selectedOrder.seller_username,
-        rating: rating,
-        review_text: reviewText,
-        created_at: new Date().toISOString()
-      };
-
-      const reviewResult = await window.dataSdk.create(reviewData);
-      
-      if (reviewResult.isOk) {
-        // Actualizar el pedido para marcar que ya se calificó
-        const updatedOrder = {...selectedOrder, needs_review: false};
-        await window.dataSdk.update(updatedOrder);
+        const order = allOrders.find(o => o.__backendId === backendId);
+        if (!order) return;
         
-        showToast('¡Gracias por tu reseña!');
-        showModal = null;
-        selectedOrder = null;
-        render();
-      } else {
-        showToast('Error al guardar reseña');
-      }
+        let updated = {...order};
+        if (isSeller) updated.seller_confirmed = true;
+        else updated.buyer_confirmed = true;
 
-      btn.disabled = false;
-      btn.innerHTML = 'Enviar Reseña';
+        const res = await window.dataSdk.update(updated);
+        
+        // VERIFICAR SI AMBOS CONFIRMARON -> COMPLETAR
+        if (res.isOk && res.item.seller_confirmed && res.item.buyer_confirmed && res.item.order_status !== 'completed') {
+            
+            const completedOrder = { ...res.item, order_status: 'completed', needs_review: true };
+            
+            // 1. Descontar Stock
+            try {
+                const items = JSON.parse(completedOrder.items_data);
+                for (const i of items) {
+                    const prod = allProducts.find(p => p.__backendId === i.backendId);
+                    if (prod) await window.dataSdk.update({ ...prod, stock: Math.max(0, prod.stock - i.quantity) });
+                }
+            } catch (e) { console.error(e); }
+
+            // 2. Actualizar Orden a 'completed' (Esto dispara el checkPendingReviews en el otro cliente)
+            await window.dataSdk.update(completedOrder);
+            
+            showToast('¡Pedido Completado!');
+        } else {
+            showToast('Confirmado. Esperando a la otra parte.');
+        }
     }
 
-    // Review Functions
-    function getSellerRating(sellerUsername) {
-      const sellerReviews = allReviews.filter(r => r.reviewed_seller === sellerUsername);
-      if (sellerReviews.length === 0) return { average: 0, count: 0 };
-      
-      const sum = sellerReviews.reduce((acc, r) => acc + r.rating, 0);
-      return {
-        average: (sum / sellerReviews.length).toFixed(1),
-        count: sellerReviews.length
-      };
+    // --- SISTEMA DE REVIEWS Y TOP SHOPS ---
+    async function handleSubmitReview(e) {
+        e.preventDefault();
+        if (!selectedOrder) return;
+        
+        const rating = parseInt(document.querySelector('input[name="rating"]:checked')?.value || '0');
+        if (rating === 0) { showToast('Selecciona estrellas'); return; }
+
+        const reviewData = {
+            type: 'review',
+            buyer_username: currentUser.username,
+            reviewed_seller: selectedOrder.seller_username,
+            rating: rating,
+            review_text: document.getElementById('reviewText').value.trim(),
+            created_at: new Date().toISOString()
+        };
+
+        const res = await window.dataSdk.create(reviewData);
+        if (res.isOk) {
+            // Quitar flag de needs_review
+            await window.dataSdk.update({ ...selectedOrder, needs_review: false });
+            showToast('¡Reseña Enviada!'); showModal = null; selectedOrder = null; render();
+        }
+    }
+
+    function getSellerRating(username) {
+        const revs = allReviews.filter(r => r.reviewed_seller === username);
+        if (revs.length === 0) return { average: 0, count: 0 };
+        const sum = revs.reduce((a, b) => a + b.rating, 0);
+        return { average: (sum / revs.length).toFixed(1), count: revs.length };
     }
 
     function getTopShops() {
-      const resellers = allUsers.filter(u => u.role === 'reseller' && u.approved);
-      const shopsWithRatings = resellers.map(seller => {
-        const rating = getSellerRating(seller.username);
-        return {
-          ...seller,
-          rating: parseFloat(rating.average),
-          reviewCount: rating.count
-        };
-      }).filter(shop => shop.reviewCount > 0);
-
-      return shopsWithRatings.sort((a, b) => {
-        if (b.rating !== a.rating) return b.rating - a.rating;
-        return b.reviewCount - a.reviewCount;
-      }).slice(0, 3);
+        const resellers = allUsers.filter(u => u.role === 'reseller' && u.approved);
+        const shops = resellers.map(u => {
+            const r = getSellerRating(u.username);
+            return { ...u, rating: parseFloat(r.average), count: r.count };
+        });
+        
+        // Ordenar: Mayor Rating > Mayor Cantidad de Reviews
+        return shops.filter(s => s.count > 0)
+                    .sort((a, b) => (b.rating - a.rating) || (b.count - a.count))
+                    .slice(0, 3);
     }
 
-    function renderStars(rating) {
-      const fullStars = Math.floor(rating);
-      const hasHalfStar = rating % 1 >= 0.5;
-      let stars = '';
-      for (let i = 0; i < fullStars; i++) stars += '⭐';
-      if (hasHalfStar) stars += '✨';
-      const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
-      for (let i = 0; i < emptyStars; i++) stars += '☆';
-      return stars;
+    // --- UTILIDADES UI ---
+    function showToast(msg) {
+        const t = document.createElement('div');
+        t.className = 'fixed bottom-6 right-6 px-6 py-3 rounded-lg shadow-lg font-semibold z-50 text-white bg-blue-600';
+        t.textContent = msg; document.body.appendChild(t);
+        setTimeout(() => t.remove(), 3000);
     }
 
-    // Utility Functions
-    function showToast(message) {
-      const toast = document.createElement('div');
-      toast.className = 'fixed bottom-6 right-6 px-6 py-3 rounded-lg shadow-lg font-semibold z-50 text-white';
-      toast.style.backgroundColor = getConfig().primary_button;
-      toast.textContent = message;
-      document.body.appendChild(toast);
-      setTimeout(() => toast.remove(), 3000);
+    function renderStars(n) {
+        return '⭐'.repeat(Math.floor(n)) + (n % 1 >= 0.5 ? '✨' : '') + '☆'.repeat(5 - Math.floor(n) - (n % 1 >= 0.5 ? 1 : 0));
     }
 
-    function getConfig() {
-      return window.elementSdk ? window.elementSdk.config : defaultConfig;
-    }
-
-    function getCurrentUserData() {
-      if (!currentUser) return null;
-      if (currentUser.role === 'admin' && currentUser.__backendId === 'admin') {
-        return currentUser;
-      }
-      return allUsers.find(u => u.username === currentUser.username);
-    }
-
-    function getCategoryIcon(categoryId) {
-      const cat = CATEGORIES.find(c => c.id === categoryId);
-      return cat ? cat.icon : '📦';
-    }
-
-    function getCategoryName(categoryId) {
-      const cat = CATEGORIES.find(c => c.id === categoryId);
-      return cat ? cat.name : 'Otro';
-    }
-
-    // Render Functions (Lógica Autoplay)
     function render() {
-      const app = document.getElementById('app');
-      const config = getConfig();
+        const app = document.getElementById('app');
+        const config = window.elementSdk.config || defaultConfig;
+        document.body.style.backgroundColor = config.background_color;
+        document.body.style.color = config.text_color;
 
-      document.body.style.backgroundColor = config.background_color;
-      document.body.style.color = config.text_color;
-      document.body.style.fontFamily = `${config.font_family}, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`;
-      
-      // --- CÓDIGO PARA EL AUTOPLAY POLICY ---
-      if (!audioContextResumed) {
-          // Eliminamos cualquier listener previo de un solo uso
-          document.body.removeEventListener('click', initAudioContext);
-          // Agregamos el listener de un solo uso
-          document.body.addEventListener('click', initAudioContext, { once: true });
-      }
+        // Autoplay Policy Fix
+        if (!audioContextResumed) {
+            document.body.addEventListener('click', () => {
+                notificationAudio.play().then(() => { 
+                    audioContextResumed = true; notificationAudio.pause(); notificationAudio.currentTime = 0; 
+                }).catch(()=>{});
+            }, { once: true });
+        }
 
-      function initAudioContext() {
-           // Intentar reproducir y parar inmediatamente (para iniciar el contexto de audio)
-           notificationAudio.play().then(() => {
-                audioContextResumed = true;
-                console.log("Contexto de Audio reanudado por interacción.");
-                notificationAudio.pause();
-                notificationAudio.currentTime = 0;
-           }).catch(e => console.warn("No se pudo iniciar el audio (esperando interacción):", e));
-      }
-      // --- FIN CÓDIGO AUTOPLAY POLICY ---
+        // Router
+        if (currentView === 'catalog') app.innerHTML = renderCatalog();
+        else if (currentView === 'cart') app.innerHTML = renderCart();
+        else if (currentView === 'orders') app.innerHTML = renderOrders();
+        else if (currentView === 'admin') app.innerHTML = renderAdmin();
 
-      if (currentView === 'catalog') {
-        app.innerHTML = renderCatalog();
-      } else if (currentView === 'cart') {
-        app.innerHTML = renderCart();
-      } else if (currentView === 'orders') {
-        app.innerHTML = renderOrders();
-      } else if (currentView === 'admin') {
-        app.innerHTML = renderAdmin();
-      }
-
-      // Asegurarse de que el modal se renderice DESPUÉS del contenido principal
-      const modalContainer = document.getElementById('modalContainer');
-      if (modalContainer) {
-          modalContainer.innerHTML = showModal ? renderModal() : '';
-      } else {
-          // Si el contenedor no existe (en la primera carga), se creará en el renderCatalog/etc.
-          // En este caso, el renderModal se llama a través de la lógica de innerHTML de arriba.
-      }
-
+        // Modal Container
+        const cont = document.getElementById('modalContainer');
+        if(!cont) {
+            const d = document.createElement('div'); d.id = 'modalContainer'; 
+            app.appendChild(d); d.innerHTML = showModal ? renderModal() : '';
+        } else {
+            cont.innerHTML = showModal ? renderModal() : '';
+        }
     }
 
+    // --- VISTAS HTML ---
     function renderCatalog() {
-      const config = getConfig();
-      const filteredProducts = selectedCategory === 'all' 
-        ? allProducts 
-        : selectedCategory === 'promotions'
-        ? allProducts.filter(p => p.on_sale === true)
-        : allProducts.filter(p => p.category === selectedCategory);
+        const config = window.elementSdk.config || defaultConfig;
+        const topShops = getTopShops();
+        const filtered = selectedCategory === 'all' ? allProducts : 
+                         selectedCategory === 'promotions' ? allProducts.filter(p => p.on_sale) : 
+                         allProducts.filter(p => p.category === selectedCategory);
 
-      const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-      const topShops = getTopShops();
-
-      return `
-        <div class="min-h-full" style="background-color: ${config.background_color}; color: ${config.text_color};">
-          <header class="shadow-lg" style="background-color: ${config.card_background};">
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-              <div class="flex flex-col lg:flex-row justify-between items-center gap-4">
-                <div class="text-center lg:text-left">
-                  <h1 class="text-3xl lg:text-4xl font-bold">${config.site_title}</h1>
-                  <p class="text-sm lg:text-base mt-2 opacity-80">${config.welcome_message}</p>
-                  <p class="text-xs mt-1 opacity-60">${config.contact_info}</p>
-                </div>
-                <div class="flex flex-wrap gap-2 justify-center">
-                  ${currentUser ? `
-                    <button onclick="currentView='cart'; render();" class="relative px-4 py-2 rounded-lg font-semibold transition" style="background-color: ${config.primary_button}; color: white;">
-                      🛒 Carrito
-                      ${cartCount > 0 ? `<span class="cart-badge">${cartCount}</span>` : ''}
-                    </button>
-                    <button onclick="currentView='orders'; render();" class="px-4 py-2 rounded-lg font-semibold transition bg-purple-600 text-white">
-                      📦 Mis Pedidos
-                    </button>
-                    ${currentUser.role !== 'buyer' ? `
-                      <button onclick="currentView='admin'; render();" class="px-4 py-2 rounded-lg font-semibold transition" style="background-color: ${config.secondary_button}; color: white;">
-                        ${currentUser.role === 'admin' ? '⚙️ Admin' : '🏪 Mi Tienda'}
-                      </button>
-                    ` : ''}
-                    <button onclick="logout();" class="px-4 py-2 rounded-lg font-semibold transition bg-red-600 text-white">
-                      🚪 Salir
-                    </button>
-                  ` : `
-                    <button onclick="showModal='register'; render();" class="px-4 py-2 rounded-lg font-semibold transition" style="background-color: ${config.secondary_button}; color: white;">
-                      📝 Registrarse
-                    </button>
-                    <button onclick="showModal='registerReseller'; render();" class="px-4 py-2 rounded-lg font-semibold transition" style="background-color: ${config.primary_button}; color: white;">
-                      🏪 Abrir Tienda
-                    </button>
-                    <button onclick="showModal='login'; render();" class="px-4 py-2 rounded-lg font-semibold transition bg-purple-600 text-white">
-                      🔐 Login
-                    </button>
-                  `}
-                </div>
-              </div>
-            </div>
-          </header>
-
-          ${topShops.length > 0 ? `
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-              <div class="rounded-xl p-6 shadow-lg" style="background-color: ${config.card_background};">
-                <h2 class="text-2xl font-bold mb-4 text-center">🏆 Top 3 Tiendas Más Confiables</h2>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
-                  ${topShops.map((shop, index) => `
-                    <div class="top-shop-card rounded-lg p-4 text-center shadow-md" style="background-color: rgba(0,0,0,0.3); border: 2px solid ${index === 0 ? '#FFD700' : index === 1 ? '#C0C0C0' : index === 2 ? '#CD7F32' : 'rgba(255,255,255,0.1)'};">
-                      <div class="text-3xl mb-2">
-                        ${index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '🏅'}
-                      </div>
-                      <p class="font-bold text-lg mb-1">🏪 ${shop.shop_name}</p>
-                      <p class="text-sm opacity-70 mb-2">👤 ${shop.username}</p>
-                      <div class="text-xl mb-1">${renderStars(shop.rating)}</div>
-                      <p class="font-bold text-lg" style="color: ${config.secondary_button};">${shop.rating} ⭐</p>
-                      <p class="text-xs opacity-70">(${shop.reviewCount} reseñas)</p>
+        return `
+        <div class="min-h-full pb-10">
+            <header class="shadow-lg" style="background-color: ${config.card_background};">
+                <div class="max-w-7xl mx-auto px-4 py-6 flex flex-col md:flex-row justify-between items-center gap-4">
+                    <div>
+                        <h1 class="text-3xl font-bold">${config.site_title}</h1>
+                        <p class="text-sm opacity-70">${config.welcome_message}</p>
                     </div>
-                  `).join('')}
+                    <div class="flex gap-2 flex-wrap justify-center">
+                        ${currentUser ? `
+                            <button onclick="currentView='cart'; render();" class="relative px-4 py-2 rounded bg-blue-600 text-white font-bold">
+                                🛒 Carrito ${cart.length > 0 ? `<span class="cart-badge">${cart.reduce((a,b)=>a+b.quantity,0)}</span>` : ''}
+                            </button>
+                            <button onclick="currentView='orders'; render();" class="px-4 py-2 rounded bg-purple-600 text-white font-bold">📦 Pedidos</button>
+                            ${currentUser.role !== 'buyer' ? `<button onclick="currentView='admin'; render();" class="px-4 py-2 rounded bg-green-600 text-white font-bold">🏪 Tienda</button>` : ''}
+                            <button onclick="logout();" class="px-4 py-2 rounded bg-red-600 text-white font-bold">Salir</button>
+                        ` : `
+                            <button onclick="showModal='login'; render();" class="px-4 py-2 rounded bg-blue-600 text-white font-bold">Login</button>
+                            <button onclick="showModal='register'; render();" class="px-4 py-2 rounded bg-green-600 text-white font-bold">Registro</button>
+                            <button onclick="showModal='registerReseller'; render();" class="px-4 py-2 rounded bg-purple-600 text-white font-bold">Vender</button>
+                        `}
+                    </div>
                 </div>
-              </div>
-            </div>
-          ` : ''}
+            </header>
 
-          <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-            <div class="flex flex-wrap gap-3 justify-center">
-              ${CATEGORIES.map(cat => `
-                <button 
-                  onclick="selectedCategory='${cat.id}'; render();" 
-                  class="category-btn px-6 py-3 rounded-lg font-semibold shadow-md ${selectedCategory === cat.id ? 'ring-4 ring-blue-400' : ''}"
-                  style="background-color: ${selectedCategory === cat.id ? config.primary_button : config.card_background}; color: ${config.text_color};">
-                  ${cat.icon} ${cat.name}
-                </button>
-              `).join('')}
-            </div>
-          </div>
-
-          <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-12">
-            ${filteredProducts.length === 0 ? `
-              <div class="text-center py-20">
-                <p class="text-2xl opacity-60">📦 No hay productos disponibles</p>
-                <p class="mt-4 opacity-40">Pronto habrá items increíbles aquí</p>
-              </div>
-            ` : `
-              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                ${filteredProducts.map(product => {
-                  const rating = getSellerRating(product.seller_username);
-                  return `
-                  <div class="product-card rounded-xl shadow-lg overflow-hidden ${product.on_sale ? 'ring-4 ring-red-500' : ''} relative" style="background-color: ${config.card_background};">
-                    ${product.on_sale ? `
-                      <div class="absolute top-2 right-2 z-10">
-                        <span class="px-3 py-1 rounded-full text-sm font-bold bg-red-600 text-white shadow-lg animate-pulse">
-                          🔥 PROMO
-                        </span>
-                      </div>
-                    ` : ''}
-                    
-                    <div class="px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600">
-                      <p class="text-xs font-semibold text-white flex items-center justify-between">
-                        <span>🏪 ${product.seller_shop_name || product.seller_username}</span>
-                        ${rating.count > 0 ? `<span>⭐ ${rating.average} (${rating.count})</span>` : ''}
-                      </p>
-                      <p class="text-xs text-white opacity-90">👤 ${product.seller_username} | 💬 ${product.seller_discord}</p>
-                    </div>
-
-                    <div class="flex items-center justify-center h-40 text-6xl" style="background-color: rgba(0,0,0,0.2);">
-                      ${product.image_url ? `
-                        <img src="${product.image_url}" alt="${product.name}" class="w-full h-full object-cover" onerror="this.style.display='none'; this.parentElement.innerHTML='${getCategoryIcon(product.category)}';">
-                      ` : getCategoryIcon(product.category)}
-                    </div>
-
-                    <div class="p-4">
-                      <h3 class="text-xl font-bold mb-2">${product.name}</h3>
-                      <p class="text-sm opacity-70 mb-3 line-clamp-2">${product.description}</p>
-                      
-                      <div class="flex items-center gap-2 mb-3">
-                        <span class="px-3 py-1 rounded-full text-xs font-semibold" style="background-color: ${config.primary_button}; color: white;">
-                          ${getCategoryIcon(product.category)} ${getCategoryName(product.category)}
-                        </span>
-                        <span class="px-3 py-1 rounded-full text-xs font-semibold ${product.stock > 0 ? 'bg-green-600' : 'bg-red-600'} text-white">
-                          📦 Stock: ${product.stock}
-                        </span>
-                      </div>
-
-                      <div class="flex items-center justify-between mt-4">
-                        <div>
-                          ${product.discount > 0 ? `
-                            <p class="text-sm line-through opacity-50">$${product.price.toFixed(2)} USDT</p>
-                            <p class="text-2xl font-bold" style="color: ${config.secondary_button};">
-                              💰 $${product.final_price.toFixed(2)} USDT
-                            </p>
-                            <span class="inline-block mt-1 px-2 py-1 rounded-full text-xs font-bold bg-red-600 text-white">
-                              -${product.discount}% OFF
-                            </span>
-                          ` : `
-                            <p class="text-2xl font-bold" style="color: ${config.secondary_button};">
-                              💰 $${product.price.toFixed(2)} USDT
-                            </p>
-                          `}
+            ${topShops.length > 0 ? `
+            <div class="max-w-7xl mx-auto px-4 mt-8">
+                <h2 class="text-2xl font-bold text-center mb-6">🏆 Top Tiendas Premium</h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    ${topShops.map((shop, idx) => `
+                        <div class="top-shop-card rounded-xl p-6 text-center relative overflow-hidden rank-${idx+1}" style="background-color: ${config.card_background};">
+                            <div class="text-4xl mb-2">${idx===0?'🥇':idx===1?'🥈':'🥉'}</div>
+                            <h3 class="text-xl font-bold">${shop.shop_name}</h3>
+                            <p class="text-sm opacity-70">Vendedor: ${shop.username}</p>
+                            <div class="mt-3">
+                                <p class="text-2xl text-yellow-400">${renderStars(shop.rating)}</p>
+                                <p class="text-sm font-bold">${shop.rating} / 5.0</p>
+                                <p class="text-xs opacity-60">(${shop.count} reseñas)</p>
+                            </div>
                         </div>
-                        <button 
-                          onclick="addToCart('${product.__backendId}')" 
-                          ${product.stock <= 0 ? 'disabled' : ''}
-                          class="px-4 py-2 rounded-lg font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed"
-                          style="background-color: ${config.secondary_button}; color: white;">
-                          ${product.stock > 0 ? '🛒 Agregar' : '❌ Sin Stock'}
-                        </button>
-                      </div>
+                    `).join('')}
+                </div>
+            </div>
+            ` : ''}
+
+            <div class="max-w-7xl mx-auto px-4 mt-8 flex flex-wrap justify-center gap-3">
+                ${CATEGORIES.map(cat => `
+                    <button onclick="selectedCategory='${cat.id}'; render();" 
+                        class="category-btn px-6 py-3 rounded-lg font-bold shadow-md ${selectedCategory===cat.id ? 'ring-4 ring-blue-400 bg-blue-600 text-white' : 'bg-gray-800 text-gray-200'}">
+                        ${cat.icon} ${cat.name}
+                    </button>
+                `).join('')}
+            </div>
+
+            <div class="max-w-7xl mx-auto px-4 mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                ${filtered.map(p => {
+                    const r = getSellerRating(p.seller_username);
+                    return `
+                    <div class="product-card rounded-xl overflow-hidden relative shadow-lg" style="background-color: ${config.card_background};">
+                        ${p.on_sale ? `<span class="absolute top-2 right-2 bg-red-600 text-white px-3 py-1 rounded-full text-xs font-bold z-10 animate-pulse">🔥 PROMO</span>` : ''}
+                        <div class="h-48 bg-gray-900 flex items-center justify-center overflow-hidden">
+                            ${p.image_url ? `<img src="${p.image_url}" class="w-full h-full object-cover" onerror="this.style.display='none'">` : `<span class="text-6xl">📦</span>`}
+                        </div>
+                        <div class="p-4">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <h3 class="font-bold text-lg truncate w-40">${p.name}</h3>
+                                    <p class="text-xs opacity-70">🏪 ${p.seller_shop_name} ${r.count>0 ? `(${r.average}⭐)`:''}</p>
+                                </div>
+                                <div class="text-right">
+                                    ${p.discount > 0 ? `
+                                        <p class="text-xs line-through opacity-50">$${p.price}</p>
+                                        <p class="text-lg font-bold text-green-400">$${p.final_price.toFixed(2)}</p>
+                                    ` : `<p class="text-lg font-bold text-green-400">$${p.price.toFixed(2)}</p>`}
+                                </div>
+                            </div>
+                            <button onclick="addToCart('${p.__backendId}')" ${p.stock<1?'disabled':''} 
+                                class="w-full mt-4 py-2 rounded font-bold text-white transition ${p.stock>0?'bg-blue-600 hover:bg-blue-700':'bg-gray-600 cursor-not-allowed'}">
+                                ${p.stock>0 ? '🛒 Agregar' : 'Sin Stock'}
+                            </button>
+                        </div>
                     </div>
-                  </div>
                 `}).join('')}
-              </div>
-            `}
-          </main>
-          <div id="modalContainer"></div>
-        </div>
-      `;
+            </div>
+        </div>`;
     }
 
     function renderCart() {
-      const config = getConfig();
-      const total = cart.reduce((sum, item) => {
-        const itemPrice = item.discount > 0 ? item.final_price : item.price;
-        return sum + (itemPrice * item.quantity);
-      }, 0);
-
-      return `
-        <div class="min-h-full" style="background-color: ${config.background_color}; color: ${config.text_color};">
-          <header class="shadow-lg" style="background-color: ${config.card_background};">
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-              <div class="flex justify-between items-center">
-                <h1 class="text-3xl font-bold">🛒 Mi Carrito</h1>
-                <button onclick="currentView='catalog'; render();" class="px-4 py-2 rounded-lg font-semibold transition" style="background-color: ${config.primary_button}; color: white;">
-                  ← Volver al Catálogo
-                </button>
-              </div>
-            </div>
-          </header>
-
-          <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            ${cart.length === 0 ? `
-              <div class="text-center py-20">
-                <p class="text-4xl mb-4">🛒</p>
-                <p class="text-2xl opacity-60 mb-6">Tu carrito está vacío</p>
-                <button onclick="currentView='catalog'; render();" class="px-6 py-3 rounded-lg font-semibold transition" style="background-color: ${config.primary_button}; color: white;">
-                  Ver Productos
-                </button>
-              </div>
-            ` : `
-              <div class="grid lg:grid-cols-3 gap-8">
-                <div class="lg:col-span-2 space-y-4">
-                  ${cart.map((item, index) => `
-                    <div class="rounded-xl p-4 shadow-lg" style="background-color: ${config.card_background};">
-                      <div class="flex gap-4">
-                        <div class="flex-shrink-0 w-24 h-24 rounded-lg flex items-center justify-center text-4xl" style="background-color: rgba(0,0,0,0.2);">
-                          ${item.image_url ? `
-                            <img src="${item.image_url}" alt="${item.name}" class="w-full h-full object-cover rounded-lg" onerror="this.style.display='none'; this.parentElement.innerHTML='${getCategoryIcon(item.category)}';">
-                          ` : getCategoryIcon(item.category)}
+        const config = window.elementSdk.config || defaultConfig;
+        const total = cart.reduce((acc, el) => acc + (el.final_price * el.quantity), 0);
+        return `
+        <div class="max-w-4xl mx-auto px-4 py-8">
+            <h1 class="text-3xl font-bold mb-6">🛒 Tu Carrito</h1>
+            ${cart.length === 0 ? '<p class="opacity-60">Carrito vacío...</p><button onclick="currentView=\'catalog\'; render();" class="mt-4 px-4 py-2 bg-blue-600 rounded text-white">Volver</button>' : `
+                <div class="space-y-4">
+                    ${cart.map((item, idx) => `
+                        <div class="flex justify-between items-center p-4 rounded-lg shadow" style="background-color: ${config.card_background};">
+                            <div class="flex items-center gap-4">
+                                <div class="w-16 h-16 bg-gray-700 rounded flex items-center justify-center text-2xl">📦</div>
+                                <div>
+                                    <h3 class="font-bold">${item.name}</h3>
+                                    <p class="text-sm opacity-70">x${item.quantity} - $${(item.final_price * item.quantity).toFixed(2)}</p>
+                                </div>
+                            </div>
+                            <button onclick="cart.splice(${idx},1); render();" class="text-red-500 font-bold">❌</button>
                         </div>
-                        
-                        <div class="flex-1">
-                          <h3 class="text-xl font-bold mb-1">${item.name}</h3>
-                          <p class="text-sm opacity-70 mb-2">Vendedor: ${item.seller_username}</p>
-                          ${item.discount > 0 ? `
-                            <p class="text-xs line-through opacity-50">$${item.price.toFixed(2)} USDT</p>
-                            <p class="text-lg font-bold" style="color: ${config.secondary_button};">
-                              💰 $${item.final_price.toFixed(2)} USDT 
-                              <span class="text-xs bg-red-600 text-white px-2 py-1 rounded-full">-${item.discount}%</span>
-                            </p>
-                          ` : `
-                            <p class="text-lg font-bold" style="color: ${config.secondary_button};">💰 $${item.price.toFixed(2)} USDT</p>
-                          `}
-                        </div>
-
-                        <div class="flex flex-col justify-between items-end">
-                          <button onclick="removeFromCart(${index});" class="text-red-500 hover:text-red-700 font-bold">
-                            ❌
-                          </button>
-                          
-                          <div class="flex items-center gap-2">
-                            <button onclick="updateCartQuantity(${index}, -1);" class="w-8 h-8 rounded-lg font-bold transition" style="background-color: ${config.primary_button}; color: white;">
-                              -
-                            </button>
-                            <span class="w-12 text-center font-bold text-lg">${item.quantity}</span>
-                            <button onclick="updateCartQuantity(${index}, 1);" class="w-8 h-8 rounded-lg font-bold transition" style="background-color: ${config.primary_button}; color: white;">
-                              +
-                            </button>
-                          </div>
-                        </div>
-                      </div>
+                    `).join('')}
+                    <div class="border-t mt-6 pt-4 flex justify-between items-center text-2xl font-bold">
+                        <span>Total:</span>
+                        <span class="text-green-400">$${total.toFixed(2)} USDT</span>
                     </div>
-                  `).join('')}
+                    <button onclick="createOrder()" class="w-full py-4 mt-4 bg-green-600 rounded-lg text-xl font-bold hover:bg-green-700 transition text-white">✅ Confirmar Pedido</button>
+                    <button onclick="currentView='catalog'; render();" class="w-full mt-2 text-center opacity-70 hover:underline">Seguir Comprando</button>
                 </div>
-
-                <div class="lg:col-span-1">
-                  <div class="rounded-xl p-6 shadow-lg sticky top-4" style="background-color: ${config.card_background};">
-                    <h2 class="text-2xl font-bold mb-6">📋 Resumen del Pedido</h2>
-                    <div class="space-y-3 mb-6">
-                      <div class="flex justify-between">
-                        <span>Subtotal:</span>
-                        <span class="font-semibold">$${total.toFixed(2)} USDT</span>
-                      </div>
-                      <div class="flex justify-between text-sm opacity-70">
-                        <span>Items:</span>
-                        <span>${cart.reduce((sum, item) => sum + item.quantity, 0)}</span>
-                      </div>
-                      <div class="border-t pt-3 mt-3" style="border-color: rgba(255,255,255,0.1);">
-                        <div class="flex justify-between text-xl font-bold">
-                          <span>Total:</span>
-                          <span style="color: ${config.secondary_button};">💰 $${total.toFixed(2)} USDT</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <button onclick="createOrder();" class="w-full py-4 rounded-lg font-bold text-lg transition mb-3" style="background-color: ${config.secondary_button}; color: white;">
-                      ✅ Confirmar Pedido
-                    </button>
-                    
-                    <button onclick="clearCart();" class="w-full py-2 rounded-lg font-semibold transition bg-red-600 text-white">
-                      🗑️ Vaciar Carrito
-                    </button>
-
-                    <div class="mt-6 p-4 rounded-lg" style="background-color: rgba(59, 130, 246, 0.1);">
-                      <p class="text-sm opacity-80">
-                        💬 Después de confirmar, contacta al vendedor por Discord para coordinar la entrega
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
             `}
-          </main>
-        </div>
-      `;
+        </div>`;
     }
 
     function renderOrders() {
-      const config = getConfig();
-      const myOrders = allOrders.filter(o => o.buyer_username === currentUser.username);
-
-      return `
-        <div class="min-h-full" style="background-color: ${config.background_color}; color: ${config.text_color};">
-          <header class="shadow-lg" style="background-color: ${config.card_background};">
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-              <div class="flex justify-between items-center">
+        const config = window.elementSdk.config || defaultConfig;
+        const myOrders = allOrders.filter(o => o.buyer_username === currentUser.username);
+        return `
+        <div class="max-w-4xl mx-auto px-4 py-8">
+            <div class="flex justify-between mb-6">
                 <h1 class="text-3xl font-bold">📦 Mis Pedidos</h1>
-                <button onclick="currentView='catalog'; render();" class="px-4 py-2 rounded-lg font-semibold transition" style="background-color: ${config.primary_button}; color: white;">
-                  ← Volver al Catálogo
-                </button>
-              </div>
+                <button onclick="currentView='catalog'; render();" class="bg-blue-600 px-4 py-2 rounded text-white">Volver</button>
             </div>
-          </header>
-
-          <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            ${myOrders.length === 0 ? `
-              <div class="text-center py-20">
-                <p class="text-4xl mb-4">📦</p>
-                <p class="text-2xl opacity-60 mb-6">No tienes pedidos aún</p>
-                <button onclick="currentView='catalog'; render();" class="px-6 py-3 rounded-lg font-semibold transition" style="background-color: ${config.primary_button}; color: white;">
-                  Ver Productos
-                </button>
-              </div>
-            ` : `
-              <div class="space-y-4">
-                ${myOrders.map(order => {
-                  const isPending = order.order_status === 'pending';
-                  const isCompleted = order.order_status === 'completed';
-                  return `
-                    <div class="rounded-xl p-6 shadow-lg" style="background-color: ${config.card_background};">
-                      <div class="flex flex-col lg:flex-row justify-between gap-4">
-                        <div class="flex-1">
-                          <div class="flex items-center gap-3 mb-3">
-                            <h3 class="text-xl font-bold">Pedido #${order.id.substring(0, 8)}</h3>
-                            <span class="px-3 py-1 rounded-full text-xs font-semibold ${isCompleted ? 'bg-green-600' : 'bg-yellow-600'} text-white">
-                              ${isCompleted ? '✅ Completado' : '⏳ Pendiente'}
+            <div class="space-y-4">
+                ${myOrders.map(o => `
+                    <div class="p-6 rounded-lg shadow-lg border-l-4 ${o.order_status==='completed'?'border-green-500':'border-yellow-500'}" style="background-color: ${config.card_background};">
+                        <div class="flex justify-between mb-4">
+                            <h3 class="font-bold text-lg">Pedido #${o.id.slice(-6)}</h3>
+                            <span class="px-2 py-1 rounded text-xs font-bold ${o.order_status==='completed'?'bg-green-900 text-green-200':'bg-yellow-900 text-yellow-200'}">
+                                ${o.order_status==='completed'?'COMPLETADO':'PENDIENTE'}
                             </span>
-                          </div>
-                          
-                          <div class="space-y-2 mb-4">
-                            <p class="text-sm"><span class="font-semibold">Vendedor:</span> ${order.seller_username}</p>
-                            <p class="text-sm"><span class="font-semibold">Discord:</span> ${order.seller_discord}</p>
-                            <p class="text-sm"><span class="font-semibold">Fecha:</span> ${new Date(order.created_at).toLocaleDateString()}</p>
-                          </div>
-
-                          <div class="p-4 rounded-lg mb-4" style="background-color: rgba(0,0,0,0.2);">
-                            <p class="font-semibold mb-2">📦 Productos:</p>
-                            <p class="text-sm opacity-90">${order.items}</p>
-                          </div>
-
-                          <p class="text-2xl font-bold" style="color: ${config.secondary_button};">
-                            💰 Total: $${order.total.toFixed(2)} USDT
-                          </p>
-
-                          ${isPending ? `
-                            <div class="mt-4 p-3 rounded-lg" style="background-color: rgba(59, 130, 246, 0.1);">
-                              <p class="text-sm font-semibold mb-1">Estado de Confirmación:</p>
-                              <p class="text-xs">Vendedor: ${order.seller_confirmed ? '✅ Confirmado' : '⏳ Pendiente'}</p>
-                              <p class="text-xs">Comprador (tú): ${order.buyer_confirmed ? '✅ Confirmado' : '⏳ Pendiente'}</p>
-                            </div>
-                          ` : ''}
                         </div>
-
-                        <div class="flex flex-col justify-between gap-3">
-                          ${isPending ? `
-                            <button 
-                              onclick="confirmOrder('${order.__backendId}', false);" 
-                              ${order.buyer_confirmed ? 'disabled' : ''}
-                              class="px-6 py-3 rounded-lg font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed" 
-                              style="background-color: ${config.secondary_button}; color: white;">
-                              ${order.buyer_confirmed ? '✅ Ya Confirmaste' : '✅ Confirmar Recibido'}
-                            </button>
-                            <div class="p-3 rounded-lg text-center text-sm" style="background-color: rgba(59, 130, 246, 0.1);">
-                              💬 Contacta al vendedor por Discord
-                            </div>
-                          ` : `
-                            <div class="p-3 rounded-lg text-center" style="background-color: rgba(16, 185, 129, 0.2);">
-                              <p class="font-semibold text-green-400">✅ Pedido Completado</p>
-                              <p class="text-xs mt-1 opacity-70">Gracias por tu compra</p>
-                            </div>
-                          `}
+                        <p class="opacity-80 text-sm mb-2">🏪 Tienda: ${o.seller_username} (Discord: ${o.seller_discord})</p>
+                        <p class="font-bold mb-4">${o.items}</p>
+                        <div class="flex justify-between items-center">
+                            <span class="text-xl font-bold text-green-400">$${o.total.toFixed(2)}</span>
+                            ${o.order_status === 'pending' ? `
+                                <button onclick="confirmOrder('${o.__backendId}', false)" ${o.buyer_confirmed?'disabled':''} class="px-4 py-2 rounded bg-blue-600 text-white font-bold disabled:opacity-50">
+                                    ${o.buyer_confirmed ? 'Esperando Vendedor...' : '✅ Confirmar Recibido'}
+                                </button>
+                            ` : '<span class="text-green-500 font-bold">✅ Finalizado</span>'}
                         </div>
-                      </div>
                     </div>
-                  `;
-                }).join('')}
-              </div>
-            `}
-          </main>
-        </div>
-      `;
+                `).join('')}
+            </div>
+        </div>`;
     }
 
     function renderAdmin() {
-      const config = getConfig();
-      const userData = getCurrentUserData();
-      if (!userData) return '<div>Error: Usuario no encontrado</div>';
+        // Vista combinada para Admin y Vendedores
+        const config = window.elementSdk.config || defaultConfig;
+        const isAdm = currentUser.role === 'admin';
+        const myProds = isAdm ? allProducts : allProducts.filter(p => p.seller_username === currentUser.username);
+        const mySales = isAdm ? allOrders : allOrders.filter(o => o.seller_username === currentUser.username);
+        const pendingSales = mySales.filter(o => o.order_status === 'pending');
 
-      const userProducts = userData.role === 'admin' 
-        ? allProducts 
-        : allProducts.filter(p => p.seller_username === userData.username);
-      
-      const pendingResellers = allUsers.filter(u => u.role === 'reseller' && !u.approved);
-      
-      const myOrders = userData.role === 'admin'
-        ? allOrders
-        : allOrders.filter(o => o.seller_username === userData.username);
-
-      const myReviews = userData.role === 'admin'
-        ? []
-        : allReviews.filter(r => r.reviewed_seller === userData.username);
-
-      const rating = userData.role === 'admin' ? null : getSellerRating(userData.username);
-      
-      const completedOrders = allOrders.filter(o => o.order_status === 'completed');
-      
-      const activeUsers = allUsers;
-      
-      const stats = {
-        total: userProducts.length,
-        items: userProducts.filter(p => p.category === 'items').length,
-        wings: userProducts.filter(p => p.category === 'wings').length,
-        sets: userProducts.filter(p => p.category === 'sets').length,
-        resellers: allUsers.filter(u => u.role === 'reseller' && u.approved).length,
-        pendingOrders: myOrders.filter(o => o.order_status === 'pending').length,
-        completedOrders: currentUser.role === 'admin' ? completedOrders.length : myOrders.filter(o => o.order_status === 'completed').length,
-        totalUsers: allUsers.length,
-        onlineUsers: onlineUsers.size,
-        buyers: allUsers.filter(u => u.role === 'buyer').length,
-        admins: allUsers.filter(u => u.role === 'admin').length,
-      };
-
-      return `
-        <div class="min-h-full" style="background-color: ${config.background_color}; color: ${config.text_color};">
-          <header class="shadow-lg" style="background-color: ${config.card_background};">
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-              <div class="flex justify-between items-center">
-                <div class="flex items-center gap-4">
-                  ${userData.profile_picture ? `
-                    <img src="${userData.profile_picture}" alt="${userData.username}" class="w-20 h-20 rounded-full object-cover border-4 border-blue-500 shadow-lg" onerror="this.style.display='none';">
-                  ` : `
-                    <div class="w-20 h-20 rounded-full flex items-center justify-center text-4xl border-4 border-blue-500 shadow-lg" style="background-color: rgba(59, 130, 246, 0.2);">
-                      👤
-                    </div>
-                  `}
-                  <div>
-                    <h1 class="text-3xl font-bold">
-                      ${userData.role === 'admin' ? '⚙️ Panel de Administración' : '🏪 Mi Tienda'}
-                    </h1>
-                    <p class="opacity-70 mt-1">Bienvenido, ${userData.username}</p>
-                    ${rating && rating.count > 0 ? `
-                      <p class="mt-2 text-lg">
-                        ${renderStars(parseFloat(rating.average))} 
-                        <span class="font-semibold">${rating.average}</span> 
-                        <span class="text-sm opacity-70">(${rating.count} reseñas)</span>
-                      </p>
-                    ` : ''}
-                  </div>
-                </div>
+        return `
+        <div class="max-w-7xl mx-auto px-4 py-8">
+            <div class="flex justify-between items-center mb-8">
+                <h1 class="text-3xl font-bold">${isAdm ? '⚙️ Panel Admin' : '🏪 Mi Tienda'}</h1>
                 <div class="flex gap-2">
-                  <button onclick="currentView='catalog'; render();" class="px-4 py-2 rounded-lg font-semibold transition" style="background-color: ${config.primary_button}; color: white;">
-                    🏠 Inicio
-                  </button>
-                  <button onclick="logout();" class="px-4 py-2 rounded-lg font-semibold transition bg-red-600 text-white">
-                    🚪 Salir
-                  </button>
+                    <button onclick="exportData()" class="bg-gray-700 px-4 py-2 rounded text-white">📥 Backup</button>
+                    <label class="bg-gray-700 px-4 py-2 rounded text-white cursor-pointer">📤 Restaurar <input type="file" hidden onchange="importData(event)"></label>
+                    <button onclick="currentView='catalog'; render();" class="bg-blue-600 px-4 py-2 rounded text-white">🏠 Inicio</button>
                 </div>
-              </div>
-            </div>
-          </header>
-
-          <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            ${userData.role === 'admin' ? `
-              <div class="rounded-xl p-6 shadow-lg mb-6" style="background-color: ${config.card_background};">
-                <h2 class="text-2xl font-bold mb-4 text-center">💾 Gestión de Datos</h2>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                  <button onclick="exportData();" class="px-6 py-4 rounded-lg font-bold text-lg transition flex items-center justify-center gap-2" style="background-color: ${config.secondary_button}; color: white;">
-                    📥 Exportar Todos los Datos
-                  </button>
-                  <button onclick="document.getElementById('importFileInput').click();" class="px-6 py-4 rounded-lg font-bold text-lg transition flex items-center justify-center gap-2" style="background-color: ${config.primary_button}; color: white;">
-                    📤 Importar Datos
-                  </button>
-                  <button onclick="resetDatabase();" class="px-6 py-4 rounded-lg font-bold text-lg transition flex items-center justify-center gap-2 bg-red-600 text-white hover:bg-red-700">
-                    💣 Resetear DB
-                  </button>
-                  <input type="file" id="importFileInput" accept=".json" onchange="importData(event);" style="display: none;">
-                </div>
-                <div class="p-4 rounded-lg" style="background-color: rgba(59, 130, 246, 0.1);">
-                  <p class="text-sm opacity-90 mb-2">
-                    <strong>📥 Exportar:</strong> Descarga un archivo JSON con toda la información (usuarios, productos, pedidos).
-                  </p>
-                  <p class="text-sm opacity-90">
-                    <strong>📤 Importar:</strong> Carga un archivo JSON y actualiza en tiempo real.
-                  </p>
-                </div>
-              </div>
-
-              <div class="rounded-xl p-6 shadow-lg mb-6" style="background-color: ${config.card_background};">
-                <h2 class="text-2xl font-bold mb-4 text-center">👥 Estadísticas de Usuarios</h2>
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div class="rounded-lg p-4 text-center" style="background-color: rgba(59, 130, 246, 0.2);">
-                    <p class="text-3xl font-bold text-blue-400">${stats.totalUsers}</p>
-                    <p class="mt-1 text-sm opacity-70">Usuarios Registrados</p>
-                  </div>
-                  <div class="rounded-lg p-4 text-center" style="background-color: rgba(16, 185, 129, 0.2);">
-                    <p class="text-3xl font-bold text-green-400">${stats.onlineUsers}</p>
-                    <p class="mt-1 text-sm opacity-70">Usuarios En Línea</p>
-                  </div>
-                  <div class="rounded-lg p-4 text-center" style="background-color: rgba(245, 158, 11, 0.2);">
-                    <p class="text-3xl font-bold text-orange-400">${stats.buyers}</p>
-                    <p class="mt-1 text-sm opacity-70">Compradores</p>
-                  </div>
-                  <div class="rounded-lg p-4 text-center" style="background-color: rgba(168, 85, 247, 0.2);">
-                    <p class="text-3xl font-bold text-purple-400">${stats.admins}</p>
-                    <p class="mt-1 text-sm opacity-70">Administradores</p>
-                  </div>
-                </div>
-              </div>
-            ` : ''}
-
-            <div class="grid grid-cols-2 md:grid-cols-${userData.role === 'admin' ? '5' : '4'} gap-4 mb-8">
-              <div class="rounded-xl p-6 text-center shadow-lg" style="background-color: ${config.card_background};">
-                <p class="text-4xl font-bold" style="color: ${config.primary_button};">${stats.total}</p>
-                <p class="mt-2 opacity-70">Total Productos</p>
-              </div>
-              ${currentUser.role === 'admin' ? `
-                <div class="rounded-xl p-6 text-center shadow-lg" style="background-color: ${config.card_background};">
-                  <p class="text-4xl font-bold" style="color: ${config.secondary_button};">${stats.resellers}</p>
-                  <p class="mt-2 opacity-70">Vendedores Activos</p>
-                </div>
-              ` : ''}
-              <div class="rounded-xl p-6 text-center shadow-lg" style="background-color: ${config.card_background};">
-                <p class="text-4xl font-bold text-yellow-500">${stats.pendingOrders}</p>
-                <p class="mt-2 opacity-70">Pedidos Pendientes</p>
-              </div>
-              <div class="rounded-xl p-6 text-center shadow-lg" style="background-color: ${config.card_background};">
-                <p class="text-4xl font-bold text-green-500">${stats.completedOrders}</p>
-                <p class="mt-2 opacity-70">Pedidos Completados</p>
-              </div>
-              <div class="rounded-xl p-6 text-center shadow-lg" style="background-color: ${config.card_background};">
-                <p class="text-4xl font-bold" style="color: ${config.secondary_button};">⚔️ ${stats.items}</p>
-                <p class="mt-2 opacity-70">Items</p>
-              </div>
-              <div class="rounded-xl p-6 text-center shadow-lg" style="background-color: ${config.card_background};">
-                <p class="text-4xl font-bold" style="color: ${config.secondary_button};">🦅 ${stats.wings}</p>
-                <p class="mt-2 opacity-70">Alas</p>
-              </div>
             </div>
 
-            ${myOrders.length > 0 ? `
-              <div class="rounded-xl p-6 shadow-lg mb-8" style="background-color: ${config.card_background};">
-                <h2 class="text-2xl font-bold mb-4">📦 ${userData.role === 'admin' ? 'Todos los Pedidos' : 'Pedidos de Clientes'}</h2>
-                <div class="space-y-4">
-                  ${myOrders.map(order => {
-                    const isPending = order.order_status === 'pending';
-                    const isCompleted = order.order_status === 'completed';
-                    return `
-                      <div class="p-4 rounded-lg ${isPending ? 'border-2 border-yellow-500' : ''}" style="background-color: rgba(0,0,0,0.2);">
-                        <div class="flex flex-col lg:flex-row justify-between items-start gap-4 mb-3">
-                          <div class="flex-1">
-                            <div class="flex items-center gap-3 mb-2">
-                              <p class="font-bold text-lg">📦 Pedido #${order.id.substring(0, 8)}</p>
-                              <span class="px-3 py-1 rounded-full text-xs font-semibold ${isCompleted ? 'bg-green-600' : 'bg-yellow-600'} text-white">
-                                ${isCompleted ? '✅ Completado' : '⏳ Pendiente'}
-                              </span>
-                            </div>
-                            <p class="text-sm opacity-70">Cliente: ${order.buyer_username}</p>
-                            <p class="text-sm opacity-70">Discord: ${order.buyer_discord}</p>
-                            <p class="text-sm opacity-70">Fecha: ${new Date(order.created_at).toLocaleDateString()}</p>
-                          </div>
-                          ${isPending && (userData.role === 'reseller' || userData.role === 'admin') ? `
-                            <button 
-                              onclick="confirmOrder('${order.__backendId}', true);" 
-                              ${order.seller_confirmed ? 'disabled' : ''}
-                              class="px-6 py-3 rounded-lg font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed" 
-                              style="background-color: ${config.secondary_button}; color: white;">
-                              ${order.seller_confirmed ? '✅ Ya Confirmaste' : '✅ Confirmar Entrega'}
-                            </button>
-                          ` : ''}
-                        </div>
-                        <div class="p-3 rounded-lg mb-3" style="background-color: rgba(255,255,255,0.05);">
-                          <p class="text-sm font-semibold mb-1">Productos:</p>
-                          <p class="text-sm opacity-90">${order.items}</p>
-                        </div>
-                        <p class="text-xl font-bold mb-2" style="color: ${config.secondary_button};">
-                          💰 Total: $${order.total.toFixed(2)} USDT
-                        </p>
-                        ${isPending ? `
-                          <div class="p-3 rounded-lg" style="background-color: rgba(59, 130, 246, 0.1);">
-                            <p class="text-sm font-semibold mb-1">Estado de Confirmación:</p>
-                            <p class="text-xs">Vendedor: ${order.seller_confirmed ? '✅ Confirmado' : '⏳ Pendiente'}</p>
-                            <p class="text-xs">Comprador: ${order.buyer_confirmed ? '✅ Confirmado' : '⏳ Pendiente'}</p>
-                            ${currentUser.role === 'reseller' && !order.seller_confirmed ? `
-                              <p class="text-xs mt-2 opacity-70">💬 Contacta al cliente: <span class="font-bold">${order.buyer_discord}</span></p>
-                            ` : ''}
-                          </div>
-                        ` : ''}
-                      </div>
-                    `;
-                  }).join('')}
-                </div>
-              </div>
-            ` : ''}
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                <div class="bg-blue-900 p-4 rounded-lg text-center"><h3 class="text-2xl font-bold">${myProds.length}</h3><p class="text-xs">Productos</p></div>
+                <div class="bg-green-900 p-4 rounded-lg text-center"><h3 class="text-2xl font-bold">$${mySales.filter(o=>o.order_status==='completed').reduce((a,b)=>a+b.total,0).toFixed(0)}</h3><p class="text-xs">Ventas ($)</p></div>
+                <div class="bg-yellow-900 p-4 rounded-lg text-center"><h3 class="text-2xl font-bold">${pendingSales.length}</h3><p class="text-xs">Pendientes</p></div>
+                <div class="bg-purple-900 p-4 rounded-lg text-center"><h3 class="text-2xl font-bold">${getSellerRating(currentUser.username).average}⭐</h3><p class="text-xs">Rating</p></div>
+            </div>
 
-            ${userData.role === 'reseller' && myReviews.length > 0 ? `
-              <div class="rounded-xl p-6 shadow-lg mb-8" style="background-color: ${config.card_background};">
-                <h2 class="text-2xl font-bold mb-4">⭐ Reseñas de Clientes</h2>
-                <div class="space-y-3">
-                  ${myReviews.map(review => `
-                    <div class="p-4 rounded-lg" style="background-color: rgba(0,0,0,0.2);">
-                      <div class="flex justify-between items-start mb-2">
+            <div class="mb-8 p-6 rounded-lg shadow" style="background-color: ${config.card_background};">
+                <h2 class="text-xl font-bold mb-4">📦 Gestión de Pedidos</h2>
+                ${pendingSales.length===0 ? '<p class="opacity-50">No hay pedidos pendientes.</p>' : pendingSales.map(o => `
+                    <div class="flex justify-between items-center p-3 mb-2 bg-black bg-opacity-30 rounded">
                         <div>
-                          <p class="font-semibold">👤 ${review.buyer_username}</p>
-                          <p class="text-sm opacity-70">${new Date(review.created_at).toLocaleDateString()}</p>
-                          </div>
-                          <div class="text-xl">
-                          ${renderStars(review.rating)}
+                            <span class="font-bold text-yellow-500">#${o.id.slice(-6)}</span> 
+                            <span class="ml-2 text-sm">👤 ${o.buyer_username} (${o.buyer_discord})</span>
+                            <p class="text-xs opacity-70">${o.items}</p>
                         </div>
-                      </div>
-                      ${review.review_text ? `
-                        <p class="text-sm opacity-90 italic">"${review.review_text}"</p>
-                      ` : ''}
-                    </div>
-                  `).join('')}
-                </div>
-              </div>
-            ` : ''}
-
-            ${userData.role === 'admin' && pendingResellers.length > 0 ? `
-              <div class="rounded-xl p-6 shadow-lg mb-8" style="background-color: ${config.card_background};">
-                <h2 class="text-2xl font-bold mb-4">⏳ Solicitudes Pendientes (Borrado al rechazar)</h2>
-                <div class="space-y-3">
-                  ${pendingResellers.map(user => `
-                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-4 rounded-lg" style="background-color: rgba(0,0,0,0.2);">
-                      <div>
-                        <p class="font-bold">👤 ${user.username}</p>
-                        <p class="text-sm opacity-70">🏪 ${user.shop_name}</p>
-                        <p class="text-sm opacity-70">💬 ${user.discord_tag}</p>
-                      </div>
-                      <div class="flex gap-2">
-                        <button onclick="approveReseller('${user.__backendId}', true);" class="px-4 py-2 rounded-lg font-semibold transition text-white" style="background-color: ${config.secondary_button};">
-                          ✅ Aprobar
+                        <button onclick="confirmOrder('${o.__backendId}', true)" ${o.seller_confirmed?'disabled':''} class="bg-green-600 px-4 py-2 rounded font-bold text-white disabled:opacity-50">
+                            ${o.seller_confirmed ? 'Esperando Cliente' : '✅ Confirmar Entrega'}
                         </button>
-                        <button onclick="approveReseller('${user.__backendId}', false);" class="px-4 py-2 rounded-lg font-semibold transition bg-red-600 text-white">
-                          ❌ Rechazar (Borrar)
-                        </button>
-                      </div>
                     </div>
-                  `).join('')}
-                </div>
-              </div>
-            ` : ''}
-
-            ${userData.role === 'admin' ? `
-              <div class="rounded-xl p-6 shadow-lg mb-8" style="background-color: ${config.card_background};">
-                <h2 class="text-2xl font-bold mb-4">👥 Gestión de Usuarios Activos</h2>
-                
-                <div class="mb-6">
-                  <input 
-                    type="text" 
-                    id="userSearchInput"
-                    placeholder="🔍 Buscar usuario..."
-                    oninput="filterUsers(this.value)"
-                    class="w-full px-4 py-3 rounded-lg font-semibold"
-                    style="background-color: rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.2); color: ${config.text_color};">
-                </div>
-
-                <div class="overflow-x-auto">
-                  <table class="w-full text-sm">
-                    <thead>
-                      <tr class="border-b" style="border-color: rgba(255,255,255,0.1);">
-                        <th class="text-left py-3 px-4">Usuario</th>
-                        <th class="text-left py-3 px-4">Discord</th>
-                        <th class="text-left py-3 px-4">Rol Actual</th>
-                        <th class="text-left py-3 px-4">Estado</th>
-                        <th class="text-left py-3 px-4">Tienda</th>
-                        <th class="text-left py-3 px-4">Productos</th>
-                        <th class="text-left py-3 px-4">En Línea</th>
-                        <th class="text-left py-3 px-4">Acciones</th>
-                      </tr>
-                    </thead>
-                    <tbody id="usersTableBody">
-                      ${activeUsers.map(user => {
-                        const userProductCount = allProducts.filter(p => p.seller_username === user.username).length;
-                        const isOnline = onlineUsers.has(user.username);
-                        const isBanned = user.status === 'banned';
-                        return `
-                          <tr class="user-row border-b hover:bg-opacity-50" data-username="${user.username.toLowerCase()}" style="border-color: rgba(255,255,255,0.05); ${isBanned ? 'background-color: rgba(239, 68, 68, 0.1);' : ''}">
-                            <td class="py-3 px-4">
-                              <button 
-                                onclick="viewUserProfile('${user.__backendId}');"
-                                class="font-semibold hover:underline"
-                                style="color: ${config.primary_button};">
-                                👤 ${user.username}
-                              </button>
-                            </td>
-                            <td class="py-3 px-4 text-xs opacity-70">💬 ${user.discord_tag || '-'}</td>
-                            <td class="py-3 px-4">
-                              <span class="px-2 py-1 rounded-full text-xs font-semibold ${
-                                user.role === 'admin' ? 'bg-purple-600' : 
-                                user.role === 'reseller' ? 'bg-blue-600' : 
-                                'bg-green-600'
-                              } text-white">
-                                ${user.role === 'admin' ? '👑 Admin' : user.role === 'reseller' ? '🏪 Vendedor' : '🛒 Comprador'}
-                              </span>
-                            </td>
-                            <td class="py-3 px-4">
-                              <span class="px-2 py-1 rounded-full text-xs font-semibold ${
-                                isBanned ? 'bg-red-600' : user.approved ? 'bg-green-600' : 'bg-yellow-600'
-                              } text-white">
-                                ${isBanned ? '🚫 BAN' : user.approved ? '✅' : '⏳'}
-                              </span>
-                            </td>
-                            <td class="py-3 px-4 text-xs">${user.shop_name || '-'}</td>
-                            <td class="py-3 px-4 text-center">${userProductCount}</td>
-                            <td class="py-3 px-4 text-center">
-                              <span class="text-xl">${isOnline ? '🟢' : '⚫'}</span>
-                            </td>
-                            <td class="py-3 px-4">
-                              <div class="flex gap-2 items-center">
-                                <select 
-                                  onchange="if(this.value) changeUserRole('${user.__backendId}', this.value);" 
-                                  class="px-2 py-1 rounded text-xs font-semibold"
-                                  style="background-color: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.2); color: ${config.text_color};">
-                                  <option value="">Rol...</option>
-                                  <option value="buyer" ${user.role === 'buyer' ? 'disabled' : ''}>🛒 Comprador</option>
-                                  <option value="reseller" ${user.role === 'reseller' ? 'disabled' : ''}>🏪 Vendedor</option>
-                                  <option value="admin" ${user.role === 'admin' ? 'disabled' : ''}>👑 Admin</option>
-                                </select>
-                                
-                                <button onclick="banUser('${user.__backendId}')" title="${isBanned ? 'Desbanear' : 'Banear'}" class="p-1 rounded hover:bg-white hover:bg-opacity-10">
-                                    ${isBanned ? '✅' : '🚫'}
-                                </button>
-                                
-                                <button onclick="deleteUserAccount('${user.__backendId}')" title="Eliminar Cuenta" class="p-1 rounded hover:bg-red-600 text-red-500 hover:text-white transition">
-                                    🗑️
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        `;
-                      }).join('')}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            ` : ''}
-
-            <div class="rounded-xl p-6 shadow-lg mb-8" style="background-color: ${config.card_background};">
-              <h2 class="text-2xl font-bold mb-6">➕ Agregar Producto</h2>
-              
-              <div class="mb-6 p-4 rounded-lg" style="background-color: rgba(255, 215, 0, 0.1); border: 2px solid rgba(255, 215, 0, 0.3);">
-                <p class="text-center font-bold mb-2">💰 Recordatorio de Comisión</p>
-                <p class="text-sm text-center opacity-90">La plataforma cobra un <span class="font-bold text-xl" style="color: ${config.secondary_button};">10%</span> de todas tus ventas completadas</p>
-              </div>
-
-              <form onsubmit="handleAddProduct(event);" class="grid md:grid-cols-2 gap-4">
-                <div>
-                  <label class="block text-sm font-semibold mb-2" for="productName">Nombre del Producto</label>
-                  <input type="text" id="productName" required class="w-full px-4 py-2 rounded-lg" style="background-color: rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.1); color: ${config.text_color};">
-                </div>
-                
-                <div>
-                  <label class="block text-sm font-semibold mb-2" for="productCategory">Categoría</label>
-                  <select id="productCategory" required class="w-full px-4 py-2 rounded-lg" style="background-color: rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.1); color: ${config.text_color};">
-                    <option value="items">⚔️ Items</option>
-                    <option value="jewels">💎 Joyas</option>
-                    <option value="wings">🦅 Alas</option>
-                    <option value="sets">🛡️ Sets</option>
-                  </select>
-                </div>
-                
-                <div>
-                  <label class="block text-sm font-semibold mb-2" for="productPrice">Precio (USDT)</label>
-                  <input type="number" id="productPrice" step="0.01" min="0" required class="w-full px-4 py-2 rounded-lg" style="background-color: rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.1); color: ${config.text_color};">
-                </div>
-                
-                <div>
-                  <label class="block text-sm font-semibold mb-2" for="productStock">Stock</label>
-                  <input type="number" id="productStock" min="0" required class="w-full px-4 py-2 rounded-lg" style="background-color: rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.1); color: ${config.text_color};">
-                </div>
-                
-                <div>
-                  <label class="block text-sm font-semibold mb-2" for="productDiscount">Descuento (%) - Opcional</label>
-                  <input type="number" id="productDiscount" min="0" max="100" value="0" class="w-full px-4 py-2 rounded-lg" style="background-color: rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.1); color: ${config.text_color};">
-                  <p class="text-xs opacity-60 mt-1">0 = Sin descuento</p>
-                </div>
-                
-                <div class="md:col-span-2">
-                  <label class="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" id="productOnSale" class="w-5 h-5 rounded">
-                    <span class="font-semibold">🔥 Marcar como Promoción (aparecerá en categoría Promociones)</span>
-                  </label>
-                </div>
-                
-                <div class="md:col-span-2">
-                  <label class="block text-sm font-semibold mb-2" for="productDescription">Descripción</label>
-                  <textarea id="productDescription" rows="3" required class="w-full px-4 py-2 rounded-lg" style="background-color: rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.1); color: ${config.text_color};"></textarea>
-                </div>
-                
-                <div class="md:col-span-2">
-                  <label class="block text-sm font-semibold mb-2" for="productImage">URL de Imagen (opcional)</label>
-                  <input type="url" id="productImage" placeholder="https://..." class="w-full px-4 py-2 rounded-lg" style="background-color: rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.1); color: ${config.text_color};">
-                </div>
-                
-                <div class="md:col-span-2">
-                  <button type="submit" class="w-full py-3 rounded-lg font-bold text-lg transition" style="background-color: ${config.secondary_button}; color: white;">
-                    ➕ Agregar Producto
-                  </button>
-                </div>
-              </form>
-
-              <div class="mt-6 p-5 rounded-lg" style="background-color: rgba(59, 130, 246, 0.1); border: 2px solid rgba(59, 130, 246, 0.3);">
-                <h3 class="font-bold text-lg mb-3 flex items-center gap-2">
-                  📸 ¿Cómo subir imágenes para tus productos?
-                </h3>
-                <div class="space-y-3 text-sm opacity-90">
-                  <p><strong>Paso 1:</strong> Ve a <a href="https://imgur.com/upload" target="_blank" rel="noopener noreferrer" class="font-bold underline hover:opacity-80" style="color: ${config.primary_button};">Imgur.com/upload</a></p>
-                  <p><strong>Paso 2:</strong> Haz clic en "Browse" o arrastra tu imagen</p>
-                  <p><strong>Paso 3:</strong> Una vez subida, haz clic derecho en la imagen → "Copiar dirección de imagen"</p>
-                  <p><strong>Paso 4:</strong> Pega el link en el campo "URL de Imagen" arriba ⬆️</p>
-                  <div class="mt-3 p-3 rounded" style="background-color: rgba(16, 185, 129, 0.1);">
-                    <p class="text-xs">💡 <strong>Tip:</strong> El link debe terminar en .jpg, .png o .gif. Si no, agrega ".jpg" al final del link de Imgur.</p>
-                  </div>
-                </div>
-              </div>
+                `).join('')}
             </div>
 
-            <div class="rounded-xl p-6 shadow-lg" style="background-color: ${config.card_background};">
-              <h2 class="text-2xl font-bold mb-6">📦 Mis Productos</h2>
-              ${userProducts.length === 0 ? `
-                <p class="text-center py-8 opacity-60">No tienes productos aún</p>
-              ` : `
-                <div class="overflow-x-auto">
-                  <table class="w-full">
-                    <thead>
-                      <tr class="border-b" style="border-color: rgba(255,255,255,0.1);">
-                        <th class="text-left py-3 px-4">Producto</th>
-                        ${currentUser.role === 'admin' ? '<th class="text-left py-3 px-4">Vendedor</th>' : ''}
-                        <th class="text-left py-3 px-4">Categoría</th>
-                        <th class="text-left py-3 px-4">Precio</th>
-                        <th class="text-left py-3 px-4">Descuento</th>
-                        <th class="text-left py-3 px-4">Promo</th>
-                        <th class="text-left py-3 px-4">Stock</th>
-                        <th class="text-left py-3 px-4">Acción</th>
-                      </tr>
-                    </thead>
+            <div class="mb-8 p-6 rounded-lg shadow" style="background-color: ${config.card_background};">
+                <h2 class="text-xl font-bold mb-4">➕ Nuevo Producto</h2>
+                <form onsubmit="handleAddProduct(event)" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <input id="productName" required placeholder="Nombre Item" class="p-2 rounded bg-gray-700 text-white">
+                    <select id="productCategory" class="p-2 rounded bg-gray-700 text-white">
+                        <option value="items">Items</option><option value="sets">Sets</option><option value="wings">Alas</option><option value="jewels">Joyas</option>
+                    </select>
+                    <input id="productPrice" type="number" required placeholder="Precio" class="p-2 rounded bg-gray-700 text-white">
+                    <input id="productStock" type="number" required placeholder="Stock" class="p-2 rounded bg-gray-700 text-white">
+                    <input id="productDiscount" type="number" placeholder="% Descuento (0-100)" class="p-2 rounded bg-gray-700 text-white">
+                    <input id="productImage" placeholder="URL Imagen (Imgur)" class="p-2 rounded bg-gray-700 text-white">
+                    <textarea id="productDescription" placeholder="Descripción detallada..." class="md:col-span-2 p-2 rounded bg-gray-700 text-white"></textarea>
+                    <label class="flex items-center gap-2 md:col-span-2"><input type="checkbox" id="productOnSale"> <span class="font-bold text-red-400">🔥 Marcar como Promoción</span></label>
+                    <button type="submit" class="md:col-span-2 py-3 bg-blue-600 rounded font-bold text-white hover:bg-blue-700">Publicar Producto</button>
+                </form>
+            </div>
+
+            ${isAdm ? renderAdminUserManagement() : ''}
+        </div>`;
+    }
+
+    function renderAdminUserManagement() {
+        const pending = allUsers.filter(u => u.role === 'reseller' && !u.approved);
+        const active = allUsers;
+        return `
+        <div class="p-6 rounded-lg shadow mb-8 bg-gray-800">
+            <h2 class="text-xl font-bold mb-4">👥 Gestión de Usuarios (Admin)</h2>
+            
+            ${pending.length > 0 ? `
+                <div class="mb-6 bg-yellow-900 bg-opacity-20 p-4 rounded">
+                    <h3 class="font-bold text-yellow-500 mb-2">⏳ Solicitudes de Vendedor</h3>
+                    ${pending.map(u => `
+                        <div class="flex justify-between items-center mb-2">
+                            <span>${u.username} - ${u.shop_name}</span>
+                            <div class="flex gap-2">
+                                <button onclick="window.dataSdk.update({...allUsers.find(x=>x.__backendId==='${u.__backendId}'), approved:true, status:'approved'})" class="bg-green-600 px-2 py-1 rounded text-xs">Aprobar</button>
+                                <button onclick="window.dataSdk.delete(allUsers.find(x=>x.__backendId==='${u.__backendId}'))" class="bg-red-600 px-2 py-1 rounded text-xs">Rechazar</button>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            ` : ''}
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm text-left">
+                    <thead><tr class="border-b border-gray-600"><th>User</th><th>Rol</th><th>Estado</th><th>Acción</th></tr></thead>
                     <tbody>
-                      ${userProducts.map(product => `
-                        <tr class="border-b hover:bg-opacity-50" style="border-color: rgba(255,255,255,0.05);">
-                          <td class="py-3 px-4 font-semibold">${product.name}</td>
-                          ${currentUser.role === 'admin' ? `<td class="py-3 px-4 text-sm opacity-70">${product.seller_username}</td>` : ''}
-                          <td class="py-3 px-4">${getCategoryIcon(product.category)} ${getCategoryName(product.category)}</td>
-                          <td class="py-3 px-4">
-                            ${product.discount > 0 ? `
-                              <p class="text-xs line-through opacity-50">$${product.price.toFixed(2)}</p>
-                              <p class="font-bold" style="color: ${config.secondary_button};">$${product.final_price.toFixed(2)} USDT</p>
-                            ` : `
-                              <p class="font-bold" style="color: ${config.secondary_button};">$${product.price.toFixed(2)} USDT</p>
-                            `}
-                          </td>
-                          <td class="py-3 px-4">
-                            ${product.discount > 0 ? `<span class="px-2 py-1 rounded-full text-xs font-bold bg-red-600 text-white">-${product.discount}%</span>` : '-'}
-                          </td>
-                          <td class="py-3 px-4 text-center">
-                            ${product.on_sale ? '🔥' : '-'}
-                          </td>
-                          <td class="py-3 px-4">${product.stock}</td>
-                          <td class="py-3 px-4">
-                            <button onclick="deleteProduct('${product.__backendId}');" class="px-3 py-1 rounded-lg bg-red-600 text-white font-semibold hover:bg-red-700 transition">
-                              🗑️
-                            </button>
-                          </td>
-                        </tr>
-                      `).join('')}
+                        ${active.map(u => `
+                            <tr class="border-b border-gray-700">
+                                <td class="py-2">${u.username}</td>
+                                <td>${u.role}</td>
+                                <td>${u.status}</td>
+                                <td>
+                                    <button onclick="window.dataSdk.delete(allUsers.find(x=>x.__backendId==='${u.__backendId}'))" class="text-red-500 hover:underline">Eliminar</button>
+                                    ${u.status!=='banned' ? 
+                                        `<button onclick="window.dataSdk.update({...allUsers.find(x=>x.__backendId==='${u.__backendId}'), status:'banned'})" class="text-yellow-500 ml-2">Ban</button>` : 
+                                        `<button onclick="window.dataSdk.update({...allUsers.find(x=>x.__backendId==='${u.__backendId}'), status:'active'})" class="text-green-500 ml-2">Unban</button>`
+                                    }
+                                </td>
+                            </tr>
+                        `).join('')}
                     </tbody>
-                  </table>
-                </div>
-              `}
+                </table>
             </div>
-          </main>
-          <div id="modalContainer"></div>
-        </div>
-      `;
+        </div>`;
     }
 
     function renderModal() {
-      const config = getConfig();
-
-      if (showModal === 'login') {
-        return `
-          <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" onclick="if(event.target === this) { showModal = null; render(); }">
-            <div class="rounded-xl shadow-2xl w-full max-w-md p-8" style="background-color: ${config.card_background}; color: ${config.text_color};" onclick="event.stopPropagation();">
-              <h2 class="text-3xl font-bold mb-6 text-center">🔐 Iniciar Sesión</h2>
-              <form onsubmit="handleLogin(event);">
-                <div class="mb-4">
-                  <label class="block text-sm font-semibold mb-2" for="loginUsername">Usuario</label>
-                  <input type="text" id="loginUsername" required class="w-full px-4 py-3 rounded-lg" style="background-color: rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.1); color: ${config.text_color};">
-                </div>
-                <div class="mb-6">
-                  <label class="block text-sm font-semibold mb-2" for="loginPassword">Contraseña</label>
-                  <input type="password" id="loginPassword" required class="w-full px-4 py-3 rounded-lg" style="background-color: rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.1); color: ${config.text_color};">
-                </div>
-                <button type="submit" class="w-full py-3 rounded-lg font-bold text-lg transition mb-3" style="background-color: ${config.primary_button}; color: white;">
-                  Entrar
-                </button>
-                <button type="button" onclick="showModal = null; render();" class="w-full py-2 rounded-lg font-semibold transition" style="background-color: rgba(255,255,255,0.1); color: ${config.text_color};">
-                  Cancelar
-                </button>
-              </form>
+        const config = window.elementSdk.config || defaultConfig;
+        
+        // MODAL LOGIN
+        if (showModal === 'login') return `
+        <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" onclick="if(event.target===this) {showModal=null; render();}">
+            <div class="p-8 rounded-xl shadow-2xl w-full max-w-md" style="background-color: ${config.card_background};">
+                <h2 class="text-2xl font-bold mb-4 text-center">Login</h2>
+                <form onsubmit="handleLogin(event)">
+                    <input id="loginUsername" required class="w-full mb-3 p-3 rounded bg-gray-700 text-white" placeholder="Usuario">
+                    <input id="loginPassword" type="password" required class="w-full mb-6 p-3 rounded bg-gray-700 text-white" placeholder="Contraseña">
+                    <button class="w-full py-3 bg-blue-600 rounded font-bold text-white">Entrar</button>
+                </form>
             </div>
-          </div>
-        `;
-      }
+        </div>`;
 
-      if (showModal === 'register') {
-        return `
-          <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" onclick="if(event.target === this) { showModal = null; render(); }">
-            <div class="rounded-xl shadow-2xl w-full max-w-md p-8" style="background-color: ${config.card_background}; color: ${config.text_color};" onclick="event.stopPropagation();">
-              <h2 class="text-3xl font-bold mb-6 text-center">📝 Registro de Comprador</h2>
-              <form onsubmit="handleRegisterBuyer(event);">
-                <div class="mb-4">
-                  <label class="block text-sm font-semibold mb-2" for="buyerUsername">Usuario</label>
-                  <input type="text" id="buyerUsername" required class="w-full px-4 py-3 rounded-lg" style="background-color: rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.1); color: ${config.text_color};">
-                </div>
-                <div class="mb-4">
-                  <label class="block text-sm font-semibold mb-2" for="buyerPassword">Contraseña</label>
-                  <input type="password" id="buyerPassword" required class="w-full px-4 py-3 rounded-lg" style="background-color: rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.1); color: ${config.text_color};">
-                </div>
-                <div class="mb-6">
-                  <label class="block text-sm font-semibold mb-2" for="buyerDiscord">Discord Tag</label>
-                  <input type="text" id="buyerDiscord" placeholder="Usuario#1234" required class="w-full px-4 py-3 rounded-lg" style="background-color: rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.1); color: ${config.text_color};">
-                </div>
-                <button type="submit" class="w-full py-3 rounded-lg font-bold text-lg transition mb-3" style="background-color: ${config.secondary_button}; color: white;">
-                  Registrarse
-                </button>
-                <button type="button" onclick="showModal = null; render();" class="w-full py-2 rounded-lg font-semibold transition" style="background-color: rgba(255,255,255,0.1); color: ${config.text_color};">
-                  Cancelar
-                </button>
-              </form>
+        // MODAL REGISTRO
+        if (showModal === 'register') return `
+        <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" onclick="if(event.target===this) {showModal=null; render();}">
+            <div class="p-8 rounded-xl shadow-2xl w-full max-w-md" style="background-color: ${config.card_background};">
+                <h2 class="text-2xl font-bold mb-4 text-center">Registro Comprador</h2>
+                <form onsubmit="handleRegisterBuyer(event)">
+                    <input id="buyerUsername" required class="w-full mb-3 p-3 rounded bg-gray-700 text-white" placeholder="Usuario">
+                    <input id="buyerPassword" type="password" required class="w-full mb-3 p-3 rounded bg-gray-700 text-white" placeholder="Contraseña">
+                    <input id="buyerDiscord" required class="w-full mb-6 p-3 rounded bg-gray-700 text-white" placeholder="Discord Tag">
+                    <button class="w-full py-3 bg-green-600 rounded font-bold text-white">Registrarse</button>
+                </form>
             </div>
-          </div>
-        `;
-      }
+        </div>`;
 
-      if (showModal === 'registerReseller') {
-        return `
-          <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" onclick="if(event.target === this) { showModal = null; render(); }">
-            <div class="rounded-xl shadow-2xl w-full max-w-md p-8" style="background-color: ${config.card_background}; color: ${config.text_color};" onclick="event.stopPropagation();">
-              <h2 class="text-3xl font-bold mb-6 text-center">🏪 Abrir Tienda</h2>
-              <form onsubmit="handleRegisterReseller(event);">
-                <div class="mb-4">
-                  <label class="block text-sm font-semibold mb-2" for="resellerUsername">Usuario</label>
-                  <input type="text" id="resellerUsername" required class="w-full px-4 py-3 rounded-lg" style="background-color: rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.1); color: ${config.text_color};">
-                </div>
-                <div class="mb-4">
-                  <label class="block text-sm font-semibold mb-2" for="resellerPassword">Contraseña</label>
-                  <input type="password" id="resellerPassword" required class="w-full px-4 py-3 rounded-lg" style="background-color: rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.1); color: ${config.text_color};">
-                </div>
-                <div class="mb-4">
-                  <label class="block text-sm font-semibold mb-2" for="resellerShop">Nombre de Tienda</label>
-                  <input type="text" id="resellerShop" placeholder="Mi Tienda Épica" required class="w-full px-4 py-3 rounded-lg" style="background-color: rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.1); color: ${config.text_color};">
-                </div>
-                <div class="mb-6">
-                  <label class="block text-sm font-semibold mb-2" for="resellerDiscord">Discord Tag</label>
-                  <input type="text" id="resellerDiscord" placeholder="Usuario#1234" required class="w-full px-4 py-3 rounded-lg" style="background-color: rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.1); color: ${config.text_color};">
-                </div>
-                <div class="mb-6 p-4 rounded-lg" style="background-color: rgba(59, 130, 246, 0.1);">
-                  <p class="text-sm opacity-80">
-                    ⚠️ Tu solicitud será revisada por un administrador antes de ser aprobada.
-                  </p>
-                </div>
-                <button type="submit" class="w-full py-3 rounded-lg font-bold text-lg transition mb-3" style="background-color: ${config.primary_button}; color: white;">
-                  Enviar Solicitud
-                </button>
-                <button type="button" onclick="showModal = null; render();" class="w-full py-2 rounded-lg font-semibold transition" style="background-color: rgba(255,255,255,0.1); color: ${config.text_color};">
-                  Cancelar
-                </button>
-              </form>
-            </div>
-          </div>
-        `;
-      }
-
-      if (showModal === 'importConfirm' && selectedOrder) {
-        const importedData = selectedOrder;
-        return `
-          <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
-            <div class="rounded-xl shadow-2xl w-full max-w-md p-8" style="background-color: ${config.card_background}; color: ${config.text_color};">
-              <h2 class="text-3xl font-bold mb-4 text-center">📤 Confirmar Importación</h2>
-              
-              <div class="mb-6 p-4 rounded-lg" style="background-color: rgba(255, 215, 0, 0.1); border: 2px solid rgba(255, 215, 0, 0.3);">
-                <p class="text-center font-bold mb-2">⚠️ ¡Importante!</p>
-                <p class="text-sm text-center opacity-90">Esto importará los datos del archivo JSON en tiempo real.</p>
-              </div>
-
-              <div class="mb-6 p-4 rounded-lg" style="background-color: rgba(0,0,0,0.2);">
-                <p class="font-semibold mb-2">📄 Resumen del archivo:</p>
-                <p class="text-sm">👥 Usuarios: ${importedData.users?.length || 0}</p>
-                <p class="text-sm">📦 Productos: ${importedData.products?.length || 0}</p>
-                <p class="text-sm">🛒 Pedidos: ${importedData.orders?.length || 0}</p>
-                <p class="text-sm">⭐ Reseñas: ${importedData.reviews?.length || 0}</p>
-                <p class="text-xs opacity-70 mt-2">📅 Exportado: ${new Date(importedData.exportDate || Date.now()).toLocaleString()}</p>
-              </div>
-
-              <button id="confirmImportBtn" onclick="confirmImport();" class="w-full py-3 rounded-lg font-bold text-lg transition mb-3" style="background-color: ${config.secondary_button}; color: white;">
-                ✅ Confirmar Importación
-              </button>
-              
-              <button type="button" onclick="showModal = null; selectedOrder = null; render();" class="w-full py-2 rounded-lg font-semibold transition" style="background-color: rgba(255,255,255,0.1); color: ${config.text_color};">
-                Cancelar
-              </button>
-            </div>
-          </div>
-        `;
-      }
-
-      if (showModal === 'review' && selectedOrder && selectedOrder.order_status) {
-        return `
-          <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
-            <div class="rounded-xl shadow-2xl w-full max-w-md p-8" style="background-color: ${config.card_background}; color: ${config.text_color};" onclick="event.stopPropagation();">
-              <h2 class="text-3xl font-bold mb-4 text-center">⭐ Calificar Pedido</h2>
-              
-              <div class="mb-6 p-4 rounded-lg" style="background-color: rgba(255, 215, 0, 0.1); border: 2px solid rgba(255, 215, 0, 0.3);">
-                <p class="text-center font-bold mb-2">⚠️ ¡Calificación Obligatoria!</p>
-                <p class="text-sm text-center opacity-90">Debes calificar esta tienda para continuar usando el marketplace</p>
-              </div>
-
-              <div class="mb-6 p-4 rounded-lg" style="background-color: rgba(0,0,0,0.2);">
-                <p class="font-semibold mb-1">🏪 Tienda: ${selectedOrder.seller_username}</p>
-                <p class="text-sm opacity-70">💰 Total: $${selectedOrder.total.toFixed(2)} USDT</p>
-                <p class="text-sm opacity-70">📦 Pedido #${selectedOrder.id.substring(0, 8)}</p>
-              </div>
-
-              <form onsubmit="handleSubmitReview(event);">
-                <div class="mb-6">
-                  <label class="block text-sm font-semibold mb-3 text-center">Calificación *</label>
-                  <div class="flex justify-center gap-2">
-                    ${[1, 2, 3, 4, 5].map(star => `
-                      <label class="cursor-pointer">
-                        <input type="radio" name="rating" value="${star}" class="hidden" required>
-                        <span class="star text-4xl hover:scale-110 transition" onclick="this.parentElement.querySelector('input').checked = true;">
-                          ☆
-                        </span>
-                      </label>
-                    `).join('')}
-                  </div>
-                </div>
-
-                <div class="mb-6">
-                  <label class="block text-sm font-semibold mb-2" for="reviewText">Comentario (opcional)</label>
-                  <textarea id="reviewText" rows="4" placeholder="Comparte tu experiencia con esta tienda..." class="w-full px-4 py-3 rounded-lg" style="background-color: rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.1); color: ${config.text_color};"></textarea>
-                </div>
-
-                <button type="submit" class="w-full py-3 rounded-lg font-bold text-lg transition" style="background-color: ${config.secondary_button}; color: white;">
-                  ⭐ Enviar Reseña
-                </button>
-              </form>
-            </div>
-          </div>
-        `;
-      }
-
-      if (showModal === 'setupShop' && selectedOrder && !selectedOrder.order_status) {
-        const user = selectedOrder;
-        const isFromLogin = user.__backendId === currentUser?.__backendId;
-        return `
-          <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
-            <div class="rounded-xl shadow-2xl w-full max-w-md p-8" style="background-color: ${config.card_background}; color: ${config.text_color};" onclick="event.stopPropagation();">
-              <h2 class="text-3xl font-bold mb-4 text-center">🏪 Configurar Tienda</h2>
-              
-              <div class="mb-6 p-4 rounded-lg" style="background-color: ${isFromLogin ? 'rgba(255, 215, 0, 0.1); border: 2px solid rgba(255, 215, 0, 0.3)' : 'rgba(59, 130, 246, 0.1); border: 2px solid rgba(59, 130, 246, 0.3)'};">
-                <p class="text-center font-bold mb-2">${isFromLogin ? '⚠️ Configuración Obligatoria' : '📋 Información Requerida'}</p>
-                <p class="text-sm text-center opacity-90">${isFromLogin ? 'Debes configurar tu tienda para poder acceder al marketplace' : `El usuario <span class="font-bold">${user.username}</span> necesita configurar su tienda para ser vendedor`}</p>
-              </div>
-
-              <form onsubmit="handleSetupShop(event);">
-                <div class="mb-4">
-                  <label class="block text-sm font-semibold mb-2" for="setupShopName">Nombre de la Tienda *</label>
-                  <input 
-                    type="text" 
-                    id="setupShopName" 
-                    placeholder="Mi Tienda Épica"
-                    required 
-                    class="w-full px-4 py-3 rounded-lg" 
-                    style="background-color: rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.1); color: ${config.text_color};">
-                </div>
-
-                <div class="mb-6">
-                  <label class="block text-sm font-semibold mb-2" for="setupDiscord">Discord Tag *</label>
-                  <input 
-                    type="text" 
-                    id="setupDiscord" 
-                    placeholder="Usuario#1234"
-                    value="${user.discord_tag || ''}"
-                    required 
-                    class="w-full px-4 py-3 rounded-lg" 
-                    style="background-color: rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.1); color: ${config.text_color};">
-                </div>
-
-                <div class="mb-6 p-4 rounded-lg" style="background-color: rgba(16, 185, 129, 0.1);">
-                  <p class="text-sm opacity-80">
-                    ✅ Una vez configurada la tienda, ${isFromLogin ? 'podrás' : 'el usuario podrá'} agregar productos y vender
-                  </p>
-                </div>
-
-                <button type="submit" class="w-full py-3 rounded-lg font-bold text-lg transition mb-3" style="background-color: ${config.secondary_button}; color: white;">
-                  🏪 Crear Tienda
-                </button>
-                
-                ${!isFromLogin ? `
-                  <button type="button" onclick="showModal = null; selectedOrder = null; render();" class="w-full py-2 rounded-lg font-semibold transition" style="background-color: rgba(255,255,255,0.1); color: ${config.text_color};">
-                    Cancelar
-                  </button>
-                ` : ''}
-              </form>
-            </div>
-          </div>
-        `;
-      }
-
-      if (showModal === 'userProfile' && selectedOrder && !selectedOrder.order_status) {
-        const user = selectedOrder;
-        const userOrders = allOrders.filter(o => o.buyer_username === user.username || o.seller_username === user.username);
-        const completedOrders = userOrders.filter(o => o.order_status === 'completed');
-        const userProducts = allProducts.filter(p => p.seller_username === user.username);
-        const userReviews = allReviews.filter(r => r.reviewed_seller === user.username);
-        const rating = getSellerRating(user.username);
-        const isOnline = onlineUsers.has(user.username);
-
-        return `
-          <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4 overflow-y-auto" onclick="if(event.target === this) { showModal = null; selectedOrder = null; render(); }">
-            <div class="rounded-xl shadow-2xl w-full max-w-4xl my-8 p-8" style="background-color: ${config.card_background}; color: ${config.text_color};" onclick="event.stopPropagation();">
-              
-              <div class="flex justify-between items-start mb-6">
-                <div class="flex items-center gap-4">
-                  ${user.profile_picture ? `
-                    <img src="${user.profile_picture}" alt="${user.username}" class="w-24 h-24 rounded-full object-cover border-4 border-blue-500 shadow-lg" onerror="this.style.display='none'; this.parentElement.querySelector('.fallback-icon').style.display='flex';">
-                    <div class="fallback-icon w-24 h-24 rounded-full items-center justify-center text-5xl border-4 border-blue-500 shadow-lg hidden" style="background-color: rgba(59, 130, 246, 0.2);">
-                      👤
+        // MODAL REVIEW (CALIFICACIÓN)
+        if (showModal === 'review' && selectedOrder) return `
+        <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
+            <div class="p-8 rounded-xl shadow-2xl w-full max-w-md border-2 border-yellow-500 relative" style="background-color: ${config.card_background};">
+                <h2 class="text-2xl font-bold mb-2 text-center text-yellow-400">⭐ Califica tu Compra</h2>
+                <p class="text-center text-sm mb-4 opacity-80">Pedido completado con <b>${selectedOrder.seller_username}</b></p>
+                <form onsubmit="handleSubmitReview(event)">
+                    <div class="flex justify-center gap-2 mb-6">
+                        ${[1,2,3,4,5].map(n => `<label><input type="radio" name="rating" value="${n}" class="hidden" required><span class="text-4xl star" onclick="this.parentElement.querySelector('input').checked=true">☆</span></label>`).join('')}
                     </div>
-                  ` : `
-                    <div class="w-24 h-24 rounded-full flex items-center justify-center text-5xl border-4 border-blue-500 shadow-lg" style="background-color: rgba(59, 130, 246, 0.2);">
-                      👤
-                    </div>
-                  `}
-                  <div>
-                    <h2 class="text-3xl font-bold mb-2">
-                      ${user.username}
-                      <span class="text-xl ml-2">${isOnline ? '🟢 En Línea' : '⚫ Desconectado'}</span>
-                    </h2>
-                    <div class="space-y-1">
-                      <p class="opacity-70">💬 Discord: ${user.discord_tag || 'No especificado'}</p>
-                      <p class="opacity-70">📅 Registrado: ${new Date(user.created_at).toLocaleDateString()}</p>
-                      ${user.shop_name ? `<p class="opacity-70">🏪 Tienda: ${user.shop_name}</p>` : ''}
-                      <p class="opacity-70">
-                        🎭 Rol: 
-                        <span class="px-2 py-1 rounded-full text-xs font-semibold ${
-                          user.role === 'admin' ? 'bg-purple-600' : 
-                          user.role === 'reseller' ? 'bg-blue-600' : 
-                          'bg-green-600'
-                        } text-white ml-2">
-                          ${user.role === 'admin' ? '👑 Admin' : user.role === 'reseller' ? '🏪 Vendedor' : '🛒 Comprador'}
-                        </span>
-                      </p>
-                      ${rating.count > 0 ? `
-                        <p class="text-lg mt-2">
-                          ${renderStars(parseFloat(rating.average))} 
-                          <span class="font-semibold">${rating.average}</span> 
-                          <span class="text-sm opacity-70">(${rating.count} reseñas)</span>
-                        </p>
-                      ` : ''}
-                    </div>
-                  </div>
-                </div>
-                <button onclick="showModal = null; selectedOrder = null; render();" class="text-3xl hover:scale-110 transition">
-                  ❌
-                </button>
-              </div>
-
-              <div class="grid grid-cols-3 gap-4 mb-6">
-                <div class="rounded-lg p-4 text-center" style="background-color: rgba(59, 130, 246, 0.2);">
-                  <p class="text-3xl font-bold text-blue-400">${userOrders.length}</p>
-                  <p class="text-sm opacity-70">Pedidos Totales</p>
-                </div>
-                <div class="rounded-lg p-4 text-center" style="background-color: rgba(16, 185, 129, 0.2);">
-                  <p class="text-3xl font-bold text-green-400">${completedOrders.length}</p>
-                  <p class="text-sm opacity-70">Completados</p>
-                </div>
-                <div class="rounded-lg p-4 text-center" style="background-color: rgba(245, 158, 11, 0.2);">
-                  <p class="text-3xl font-bold text-orange-400">${userProducts.length}</p>
-                  <p class="text-sm opacity-70">Productos</p>
-                </div>
-              </div>
-
-              ${completedOrders.length > 0 ? `
-                <div class="mb-6">
-                  <h3 class="text-2xl font-bold mb-4">📊 Historial de Pedidos Completados</h3>
-                  <div class="max-h-96 overflow-y-auto rounded-lg" style="background-color: rgba(0,0,0,0.2);">
-                    <table class="w-full text-sm">
-                      <thead class="sticky top-0" style="background-color: ${config.card_background};">
-                        <tr class="border-b" style="border-color: rgba(255,255,255,0.2);">
-                          <th class="text-left py-3 px-4">Pedido</th>
-                          <th class="text-left py-3 px-4">Vendedor</th>
-                          <th class="text-left py-3 px-4">Comprador</th>
-                          <th class="text-left py-3 px-4">Total</th>
-                          <th class="text-left py-3 px-4">Fecha</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        ${completedOrders.map(order => `
-                          <tr class="border-b hover:bg-opacity-50" style="border-color: rgba(255,255,255,0.05);">
-                            <td class="py-3 px-4 font-semibold">📦 #${order.id.substring(0, 8)}</td>
-                            <td class="py-3 px-4">🏪 ${order.seller_username}</td>
-                            <td class="py-3 px-4">👤 ${order.buyer_username}</td>
-                            <td class="py-3 px-4 font-bold" style="color: ${config.secondary_button};">$${order.total.toFixed(2)} USDT</td>
-                            <td class="py-3 px-4 opacity-70">${new Date(order.created_at).toLocaleDateString()}</td>
-                          </tr>
-                        `).join('')}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              ` : `
-                <div class="mb-6 p-8 rounded-lg text-center" style="background-color: rgba(0,0,0,0.2);">
-                  <p class="text-xl opacity-60">📦 Sin pedidos completados</p>
-                </div>
-              `}
-
-              ${userReviews.length > 0 ? `
-                <div class="mb-6">
-                  <h3 class="text-2xl font-bold mb-4">⭐ Reseñas Recibidas</h3>
-                  <div class="space-y-3 max-h-64 overflow-y-auto">
-                    ${userReviews.map(review => `
-                      <div class="p-4 rounded-lg" style="background-color: rgba(0,0,0,0.2);">
-                        <div class="flex justify-between items-start mb-2">
-                          <div>
-                            <p class="font-semibold">👤 ${review.buyer_username}</p>
-                            <p class="text-sm opacity-70">${new Date(review.created_at).toLocaleDateString()}</p>
-                          </div>
-                          <div class="text-xl">
-                            ${renderStars(review.rating)}
-                          </div>
-                        </div>
-                        ${review.review_text ? `
-                          <p class="text-sm opacity-90 italic">"${review.review_text}"</p>
-                        ` : ''}
-                      </div>
-                    `).join('')}
-                  </div>
-                </div>
-              ` : ''}
-
-              <button 
-                onclick="showModal = null; selectedOrder = null; render();" 
-                class="w-full py-3 rounded-lg font-bold text-lg transition" 
-                style="background-color: ${config.primary_button}; color: white;">
-                ✅ Cerrar Perfil
-              </button>
+                    <textarea id="reviewText" rows="3" class="w-full p-3 rounded bg-gray-700 text-white mb-4" placeholder="¿Qué tal el servicio?"></textarea>
+                    <button class="w-full py-3 bg-yellow-600 hover:bg-yellow-500 rounded font-bold text-white">Enviar Calificación</button>
+                </form>
             </div>
-          </div>
-        `;
-      }
-      return '';
+        </div>`;
+
+        // Otros modales (Setup Shop, Import, etc) se pueden mantener con lógica similar...
+        if (showModal === 'setupShop') return `
+        <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
+             <div class="p-8 rounded-xl shadow-2xl w-full max-w-md" style="background-color: ${config.card_background};">
+                <h2 class="text-2xl font-bold mb-4">Configurar Tienda</h2>
+                <form onsubmit="const u = currentUser; u.shop_name=document.getElementById('sName').value; u.discord_tag=document.getElementById('sDisc').value; u.role='reseller'; u.status='approved'; u.approved=true; window.dataSdk.update(u); showModal=null; currentView='admin'; render(); return false;">
+                    <input id="sName" required class="w-full mb-3 p-3 rounded bg-gray-700 text-white" placeholder="Nombre Tienda">
+                    <input id="sDisc" required class="w-full mb-6 p-3 rounded bg-gray-700 text-white" placeholder="Discord">
+                    <button class="w-full py-3 bg-blue-600 rounded font-bold text-white">Guardar</button>
+                </form>
+             </div>
+        </div>`;
+
+        // Reseller Registration Modal
+        if (showModal === 'registerReseller') return `
+         <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" onclick="if(event.target===this) {showModal=null; render();}">
+            <div class="p-8 rounded-xl shadow-2xl w-full max-w-md" style="background-color: ${config.card_background};">
+                <h2 class="text-2xl font-bold mb-4 text-center">Solicitud Vendedor</h2>
+                <form onsubmit="handleRegisterReseller(event)">
+                    <input id="resellerUsername" required class="w-full mb-3 p-3 rounded bg-gray-700 text-white" placeholder="Usuario">
+                    <input id="resellerPassword" type="password" required class="w-full mb-3 p-3 rounded bg-gray-700 text-white" placeholder="Contraseña">
+                    <input id="resellerShop" required class="w-full mb-3 p-3 rounded bg-gray-700 text-white" placeholder="Nombre Tienda">
+                    <input id="resellerDiscord" required class="w-full mb-6 p-3 rounded bg-gray-700 text-white" placeholder="Discord Tag">
+                    <button class="w-full py-3 bg-purple-600 rounded font-bold text-white">Enviar Solicitud</button>
+                </form>
+            </div>
+        </div>`;
+
+        return '';
+    }
+    
+    // Import Functions
+    function exportData() {
+        const dataStr = JSON.stringify({ users: allUsers, products: allProducts, orders: allOrders, reviews: allReviews });
+        const blob = new Blob([dataStr], {type: "application/json"});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = "backup.json"; a.click();
+    }
+    function importData(e) {
+        const reader = new FileReader();
+        reader.onload = async (ev) => {
+            const d = JSON.parse(ev.target.result);
+            // Reset & Load
+            window.mockDb.data = [];
+            for(const k in d) for(const i of d[k]) await window.dataSdk.create({...i});
+            showToast('Datos Restaurados');
+        };
+        reader.readAsText(e.target.files[0]);
     }
 
     init();
