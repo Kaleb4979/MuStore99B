@@ -3,7 +3,7 @@
  <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mu Online 99B Marketplace - V24 (Ranking por Ventas)</title>
+  <title>Mu Online 99B Marketplace - V25 (Sincronización Reforzada)</title>
  
   <script src="https://cdn.tailwindcss.com"></script>
  
@@ -131,7 +131,7 @@
       }
     }
     
-    /* Animación Bounce In para reseñas (Mantenida por si se usa en otro modal) */
+    /* Animación Bounce In */
     @keyframes bounceIn {
         0% { transform: scale(0.8); opacity: 0; }
         60% { transform: scale(1.05); opacity: 1; }
@@ -339,7 +339,6 @@
     let allProducts = [];
     let allUsers = [];
     let allOrders = [];
-    // let allReviews = []; // ELIMINADO: No se necesitan para el ranking ni forzar calificación
     
     // Carrito
     let cart = JSON.parse(localStorage.getItem('mu_cart_v22') || '[]');
@@ -378,7 +377,6 @@
         allProducts = data.filter(item => item.type === 'product') || [];
         allUsers = data.filter(item => item.type === 'user') || [];
         allOrders = data.filter(item => item.type === 'order') || [];
-        // allReviews = data.filter(item => item.type === 'review') || []; // ELIMINADO
         const activityRecords = data.filter(item => item.type === 'activity') || [];
         
         // Notificaciones en tiempo real
@@ -1118,7 +1116,6 @@
           order_status: 'pending',
           seller_confirmed: false,
           buyer_confirmed: false,
-          // needs_review: false, // ELIMINADO
           created_at: new Date().toISOString()
         };
 
@@ -1169,7 +1166,7 @@
           // SI AMBOS CONFIRMARON, RESTAR STOCK Y FINALIZAR
           if (result.item.seller_confirmed && result.item.buyer_confirmed && result.item.order_status !== 'completed') {
               
-              const completedOrder = {...result.item, order_status: 'completed' /* needs_review: true ELIMINADO */ };
+              const completedOrder = {...result.item, order_status: 'completed'};
               
               try {
                 const itemsData = JSON.parse(completedOrder.items_data);
@@ -1179,27 +1176,30 @@
                   const product = allProducts.find(p => p.__backendId === item.backendId);
                   if (product) {
                     const updatedProduct = {...product, stock: Math.max(0, product.stock - item.quantity)};
-                    await window.dataSdk.update(updatedProduct); 
+                    // Disparamos la actualización de producto, pero no esperamos para no demorar la orden.
+                    window.dataSdk.update(updatedProduct); 
                   }
                 }
                 
                 // 2. Actualizar el estado de la orden a completada
                 await window.dataSdk.update(completedOrder); 
                 
+                showToast('¡Pedido completado y Stock actualizado! Tienda entra en el Ranking.');
+                
+                // 🚨 OPTIMIZACIÓN CRÍTICA: Forzar recarga completa de datos del BIN
+                // Esto asegura que allOrders se actualice con el pedido 'completed' antes del render()
+                await window.dataSdk.read(); 
+
               } catch (e) { 
                 console.error("Error al procesar stock o actualizar orden final:", e);
                 showToast("Error crítico al finalizar la orden. Stock no actualizado.");
               }
-
-              showToast('¡Pedido completado y Stock actualizado! Tienda entra en el Ranking.');
           } else {
               showToast('Confirmación registrada.');
           }
       }
       render();
     }
-
-    // FUNCIONES DE RESEÑA ELIMINADAS
 
     // FUNCIONES DE IMPORTAR/EXPORTAR
     function downloadBackup() {
@@ -1251,11 +1251,9 @@
     function getTopShops() {
       const resellers = allUsers.filter(u => u.role === 'reseller' && u.approved);
       const shopsStats = resellers.map(seller => {
-        // const reviews = allReviews.filter(r => r.reviewed_seller === seller.username); // ELIMINADO
-        // const avg = reviews.length ? (reviews.reduce((a,b)=>a+b.rating,0)/reviews.length).toFixed(1) : 0; // ELIMINADO
+        // Solo cuenta los pedidos con order_status === 'completed'
         const sales = allOrders.filter(o => o.seller_username === seller.username && o.order_status === 'completed').length;
-        // return { ...seller, rating: parseFloat(avg), reviewCount: reviews.length, salesCount: sales }; // ELIMINADO
-        return { ...seller, salesCount: sales }; // SOLO VENTAS
+        return { ...seller, salesCount: sales }; 
       });
       // OPTIMIZACIÓN: Ranking basado SOLO en Ventas.
       return shopsStats.filter(s => s.salesCount > 0)
@@ -1346,7 +1344,7 @@
           <header class="shadow-lg sticky top-0 z-40 bg-slate-800 border-b border-slate-700 p-4">
             <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
                 <div class="text-center md:text-left">
-                  <h1 class="text-2xl font-bold text-blue-400 tracking-tight">MU MARKET <span class="text-white text-xs bg-blue-600 px-1 rounded">V24</span></h1>
+                  <h1 class="text-2xl font-bold text-blue-400 tracking-tight">MU MARKET <span class="text-white text-xs bg-blue-600 px-1 rounded">V25</span></h1>
                   <p class="text-xs mt-1 opacity-60">${config.contact_info}</p>
                 </div>
                 <div class="flex flex-wrap gap-2 justify-center items-center">
@@ -2172,9 +2170,6 @@
                 </div>
             </div>`;
         }
-
-        // MODAL: RESEÑA (ELIMINADO)
-        // if(showModal === 'review') { /* ... */ }
 
         return '';
     }
