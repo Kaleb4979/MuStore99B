@@ -4,13 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Mu Online 99B Marketplace - V22 FINAL (Conexión JSONBin)</title>
- 
+  
   <script src="https://cdn.tailwindcss.com"></script>
- 
+  
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet">
- 
+  
   <style>
     /* Configuración Base */
     body {
@@ -149,8 +149,9 @@
     // ---------------------------------------------------------
     // 1. CONFIGURACIÓN CRÍTICA (REEMPLAZAR ESTAS LÍNEAS)
     // ---------------------------------------------------------
-    const BIN_ID = '691ddaa6ae596e708f6321c9'; // ⬅️ REEMPLAZA ESTO CON TU ID REAL DE JSONBIN
-    const SECRET_KEY = '$2a$10$6.Y19X/sB3np.3CIJmbJZesuwRVxU77ns.FyAdL2dUc46k1vWFG9S'; // ⬅️ REEMPLAZA ESTO CON TU LLAVE MAESTRA REAL
+    // *** 🚨 VERIFICA TUS CREDENCIALES AQUÍ 🚨 ***
+    const BIN_ID = '691ddaa6ae596e708f6321c9'; 
+    const SECRET_KEY = '$2a$10$6.Y19X/sB3np.3CIJmbJZesuwRVxU77ns.FyAdL2dUc46k1vWFG9S'; 
     const JSONBIN_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
 
     const DB_KEY = 'mu_marketplace_db_v22_final'; 
@@ -160,7 +161,6 @@
     window.mockDb = {
       data: [], 
       handler: null,
-      // La notificación ahora es manejada por el SDK después de una operación de red exitosa.
       notify() {} 
     };
 
@@ -188,13 +188,12 @@
         // FUNCIÓN DE LECTURA: Obtiene todos los datos del BIN
         read: async () => {
             if (!BIN_ID || !SECRET_KEY || BIN_ID.includes('AQUI')) {
-                 console.error("JSONBin Config Error: BIN_ID o SECRET_KEY no configurados.");
-                 showToast('❌ Error de Config: BIN ID o Key faltantes.');
-                 // Forzar a usar localStorage si no hay configuración de BIN
-                 const localData = localStorage.getItem(DB_KEY);
-                 window.mockDb.data = localData ? JSON.parse(localData) : [];
-                 window.mockDb.handler.onDataChanged(window.mockDb.data);
-                 return { isOk: false };
+                console.error("JSONBin Config Error: BIN_ID o SECRET_KEY no configurados.");
+                showToast('❌ Error de Config: BIN ID o Key faltantes.');
+                const localData = localStorage.getItem(DB_KEY);
+                window.mockDb.data = localData ? JSON.parse(localData) : [];
+                window.mockDb.handler.onDataChanged(window.mockDb.data);
+                return { isOk: false };
             }
 
             try {
@@ -205,16 +204,16 @@
                     }
                 });
 
-                if (!response.ok) throw new Error('Error al leer el BIN');
+                if (!response.ok) {
+                   const errorText = await response.text();
+                   throw new Error(`Error ${response.status}: ${errorText}`);
+                }
 
                 const json = await response.json();
-                // JSONBin devuelve los datos dentro de una clave 'record'
                 const data = json.record || []; 
                 
-                // Almacenar en localStorage como fallback local y para velocidad
                 localStorage.setItem(DB_KEY, JSON.stringify(data));
                 
-                // Actualizar la DB local y notificar
                 window.mockDb.data = data;
                 window.mockDb.handler.onDataChanged(data); 
                 return { isOk: true };
@@ -222,7 +221,6 @@
             } catch (error) {
                 console.error("JSONBin READ Error:", error);
                 showToast('❌ Error al cargar datos remotos. Usando datos locales (LocalStorage).');
-                // Si falla la red, usar el último backup local
                 const localData = localStorage.getItem(DB_KEY);
                 window.mockDb.data = localData ? JSON.parse(localData) : [];
                 window.mockDb.handler.onDataChanged(window.mockDb.data);
@@ -233,13 +231,13 @@
         // FUNCIÓN DE ESCRITURA: Actualiza TODOS los datos en el BIN
         write: async (newData) => {
             if (!BIN_ID || !SECRET_KEY || BIN_ID.includes('AQUI')) {
-                 showToast('❌ Error de Config: BIN ID o Key faltantes.');
-                 return { isOk: false };
+                showToast('❌ Error de Config: BIN ID o Key faltantes.');
+                return { isOk: false };
             }
             
             try {
                 const response = await fetch(JSONBIN_URL, {
-                    method: 'PUT', // PUT se usa para reemplazar todo el contenido
+                    method: 'PUT', 
                     headers: {
                         'Content-Type': 'application/json',
                         'X-Master-Key': SECRET_KEY
@@ -247,9 +245,12 @@
                     body: JSON.stringify(newData)
                 });
 
-                if (!response.ok) throw new Error('Error al escribir en el BIN');
+                if (!response.ok) {
+                   const errorText = await response.text();
+                   throw new Error(`Error ${response.status}: ${errorText}`);
+                }
                 
-                // Si la escritura es exitosa, actualizamos localStorage y notificamos
+                // Forzar re-lectura local para que el handler se ejecute
                 localStorage.setItem(DB_KEY, JSON.stringify(newData));
                 window.mockDb.data = newData;
                 window.mockDb.handler.onDataChanged(newData);
@@ -273,7 +274,11 @@
         // ACTUALIZAR: Modifica un item y reescribe todo el BIN
         update: async (item) => {
             const index = window.mockDb.data.findIndex(i => i.__backendId === item.__backendId);
-            if (index === -1) return { isOk: false };
+            if (index === -1) {
+                console.error("No se encontró el item para actualizar:", item);
+                showToast('❌ Error: No se encontró el registro para actualizar.');
+                return { isOk: false };
+            }
 
             const newData = [...window.mockDb.data];
             newData[index] = {...item};
@@ -292,7 +297,7 @@
  </head>
  <body>
   <div id="app" class="min-h-full"></div>
- 
+  
   <script>
     // ---------------------------------------------------------
     // 1. CONFIGURACIÓN Y CONSTANTES
@@ -318,13 +323,12 @@
     // 2. ESTADO GLOBAL (VARIABLES EN MEMORIA)
     // ---------------------------------------------------------
     let currentUser = null;
-    let currentView = 'catalog'; // 'catalog', 'cart', 'orders', 'admin'
+    let currentView = 'catalog'; 
     let selectedCategory = 'all';
     let selectedShopFilter = null;
     
-    // Variables para el "Modo Dios" del Admin
-    let adminViewTarget = null; // Si no es null, el admin está editando la tienda de este usuario
-    let selectedProductToEdit = null; // Producto seleccionado para editar en el modal
+    let adminViewTarget = null; 
+    let selectedProductToEdit = null; 
 
     // Arrays de datos (Poblados por dataSdk.read)
     let allProducts = [];
@@ -336,8 +340,8 @@
     let cart = JSON.parse(localStorage.getItem('mu_cart_v22') || '[]');
     
     // Control de Modales
-    let showModal = null; // 'login', 'register', 'editProduct', 'dataTools', etc.
-    let selectedOrder = null; // Para reseñas o detalles
+    let showModal = null; 
+    let selectedOrder = null; 
 
     // Categorías del Mu Online
     const CATEGORIES = [
@@ -399,8 +403,8 @@
         
         // Funciones de refresco
         checkPendingReviews();
-        validateCart(); // Chequear si algo en el carrito cambió de precio o stock
-        render(); // Volver a pintar la pantalla
+        validateCart(); 
+        render(); 
       }
     };
 
@@ -419,7 +423,7 @@
       setupAutoLogout();
 
       // Conectar a la "Base de Datos" (JSONBin)
-      const initResult = await window.dataSdk.init(dataHandler);
+      await window.dataSdk.init(dataHandler);
       
       // Configurar SDK visual
       if (window.elementSdk) {
@@ -482,7 +486,7 @@
             username, 
             role: 'admin', 
             __backendId: 'admin',
-            discord_tag: ADMIN_CREDENTIALS.discord_tag // Asegurar Discord del Admin
+            discord_tag: ADMIN_CREDENTIALS.discord_tag 
         };
         localStorage.setItem(SESSION_KEY, JSON.stringify(currentUser));
         showModal = null;
@@ -511,14 +515,14 @@
           username: user.username,
           role: user.role,
           shop_name: user.shop_name,
-          discord_tag: user.discord_tag || 'No Informado', // PROTECCIÓN DISCORD UNDEFINED
+          discord_tag: user.discord_tag || 'No Informado', 
           __backendId: user.__backendId
         };
         localStorage.setItem(SESSION_KEY, JSON.stringify(currentUser));
         
         // Si es vendedor nuevo sin configurar
-        if (user.role === 'reseller' && (!user.shop_name || !user.discord_tag)) {
-          selectedOrder = user;
+        if (user.role === 'reseller' && (!user.shop_name || !user.discord_tag || user.status === 'pending')) {
+          selectedOrder = user; 
           showModal = 'setupShop';
           showToast('Por favor configura tu tienda para continuar');
           render();
@@ -532,8 +536,7 @@
         showToast(`Bienvenido ${username}`);
         
         await updateUserActivity();
-        // 🚀 APLICACIÓN DEL FIX: Chequear reseñas pendientes al hacer login
-        checkPendingReviews(); 
+        checkPendingReviews();
         render();
       } else {
         showToast('Usuario o contraseña incorrectos');
@@ -556,7 +559,7 @@
         type: 'user',
         username,
         password,
-        discord_tag: discord || 'No Informado', // FIX DISCORD
+        discord_tag: discord || 'No Informado', 
         profile_picture: '',
         role: 'buyer',
         approved: true,
@@ -591,18 +594,18 @@
         type: 'user',
         username,
         password,
-        discord_tag: discord || 'No Informado', // FIX DISCORD
+        discord_tag: discord || 'No Informado', 
         shop_name: shopName,
         profile_picture: '',
         role: 'reseller',
-        approved: false,
-        status: 'pending',
+        approved: false, 
+        status: 'pending', 
         created_at: new Date().toISOString()
       };
 
       const result = await window.dataSdk.create(userData);
       if (result.isOk) {
-        showToast('Solicitud enviada! Espera aprobación del admin');
+        showToast('Solicitud enviada! Espera aprobación del admin.');
         showModal = null;
         render();
       } else {
@@ -613,27 +616,20 @@
     async function updateUserActivity() {
       if (!currentUser) return;
       
-      // La lógica de actividad debería ser más inteligente y no usar CREATE/UPDATE
-      // tan seguido en un backend remoto, pero lo mantendremos simple aquí:
-      
       const activityRecords = window.mockDb.data.filter(item => item.type === 'activity');
       const existingActivity = activityRecords.find(a => a.username === currentUser.username);
       
-      const now = Date.now();
-      
-      // Esto es solo un placeholder, las operaciones de red aquí son costosas y lentas
-      // Debería usarse un endpoint específico para actividad, pero por simplicidad de JSONBin:
       if (existingActivity) {
-           const updatedActivity = {...existingActivity, last_activity: new Date().toISOString()};
-           await window.dataSdk.update(updatedActivity);
+          const updatedActivity = {...existingActivity, last_activity: new Date().toISOString()};
+          await window.dataSdk.update(updatedActivity);
       } else {
-           const activityData = {
+          const activityData = {
             id: 'activity_' + currentUser.username,
             type: 'activity',
             username: currentUser.username,
             last_activity: new Date().toISOString()
-           };
-           await window.dataSdk.create(activityData);
+          };
+          await window.dataSdk.create(activityData);
       }
       
       if (userActivityTimeout) clearTimeout(userActivityTimeout);
@@ -649,10 +645,58 @@
       cart = [];
       localStorage.setItem('mu_cart_v22', '[]');
       selectedShopFilter = null;
-      adminViewTarget = null; // Resetear modo gestión
+      adminViewTarget = null; 
       showToast(auto ? '💤 Sesión cerrada por inactividad' : 'Sesión cerrada');
       render();
     }
+    
+    // Función para completar la configuración de tienda (Admin lo activa o Vendedor lo completa)
+    async function handleSetupShop(e) {
+      e.preventDefault();
+      const user = selectedOrder; 
+      if(!user) return;
+      
+      const setupShopNameInput = document.getElementById('setupShopName');
+      const setupDiscordInput = document.getElementById('setupDiscord');
+      
+      if (!setupShopNameInput || !setupDiscordInput) {
+          showToast('Error: Campos de formulario no encontrados.');
+          return;
+      }
+      
+      const shopName = setupShopNameInput.value.trim();
+      const discord = setupDiscordInput.value.trim();
+      
+      if(allUsers.find(u => u.discord_tag === discord && u.__backendId !== user.__backendId)) {
+          showToast('Este Discord ya está en uso por otro usuario.');
+          return;
+      }
+      
+      const updatedUser = {
+          ...user,
+          shop_name: shopName,
+          discord_tag: discord || 'No Informado',
+          approved: true, 
+          status: 'active' 
+      };
+      
+      const result = await window.dataSdk.update(updatedUser);
+      
+      if (result.isOk) {
+          if(currentUser && user.__backendId === currentUser.__backendId) {
+              currentUser = updatedUser;
+              localStorage.setItem(SESSION_KEY, JSON.stringify(currentUser));
+              currentView = 'admin'; 
+          }
+          showModal = null;
+          selectedOrder = null;
+          showToast('✅ Configuración de tienda guardada.');
+          render(); 
+      } else {
+          showToast('Error al actualizar la configuración de la tienda.');
+      }
+    }
+
 
     // ---------------------------------------------------------
     // 6. GESTIÓN DE PRODUCTOS (CRUD COMPLETO)
@@ -776,11 +820,28 @@
     // 7. GESTIÓN DE USUARIOS (ADMIN)
     // ---------------------------------------------------------
     async function approveUser(backendId) {
+        // 🚨 CRÍTICO: Usar el objeto fresco de allUsers (sincronizado por loadAdminView)
         const user = allUsers.find(u => u.__backendId === backendId);
-        if (!user) return;
+        if (!user) {
+            showToast('❌ Usuario no encontrado o ID no válido. Intenta recargar la página.');
+            return;
+        }
+        
+        if (user.role === 'reseller' && (!user.shop_name || !user.discord_tag || user.status === 'pending')) {
+            selectedOrder = user;
+            showModal = 'setupShop';
+            showToast('El vendedor necesita completar la configuración de su tienda para activarla.');
+            render();
+            return;
+        }
+        
         const updatedUser = { ...user, status: 'active', approved: true };
-        await window.dataSdk.update(updatedUser);
-        showToast('✅ Usuario ACEPTADO y activado');
+        const result = await window.dataSdk.update(updatedUser);
+        if (result.isOk) {
+            showToast('✅ Usuario ACEPTADO y activado');
+        } else {
+            showToast('❌ Error al actualizar usuario. Verifica el estado del BIN.');
+        }
     }
 
     async function rejectUser(backendId) {
@@ -828,6 +889,26 @@
     function exitShopManagement() {
         adminViewTarget = null;
         showToast('🔙 Volviendo a vista global');
+        render();
+    }
+    
+    // 🚨 Función crítica para solucionar la sincronización 🚨
+    async function loadAdminView() {
+        showToast('🔄 Sincronizando datos remotos para ver usuarios recientes...');
+        const btn = document.querySelector('button[onclick="loadAdminView()"]');
+        if (btn) btn.disabled = true;
+        
+        const result = await window.dataSdk.read();
+        
+        if (btn) btn.disabled = false;
+        
+        if (result.isOk) {
+             showToast('✅ Sincronización completa. Recargando panel.');
+        } else {
+             showToast('⚠️ No se pudo sincronizar la lista de usuarios del BIN. Verificando configuración.');
+        }
+        
+        currentView = 'admin';
         render();
     }
 
@@ -1093,8 +1174,6 @@
     }
     
     // FUNCIONES DE IMPORTAR/EXPORTAR
-    // NOTA: Estas funciones usan LOCALSTORAGE, NO JSONBIN, para evitar reemplazar
-    // todo el BIN de forma accidental. Solo exportan/importan el estado local.
     function downloadBackup() {
         // Usa los datos que ya están en memoria (sincronizados con el BIN)
         const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(window.mockDb.data));
@@ -1128,7 +1207,7 @@
                             showToast('✅ Datos restaurados en JSONBin exitosamente. Recargando...');
                             setTimeout(() => window.location.reload(), 1500);
                         } else {
-                             showToast('❌ Error al subir y restaurar los datos en JSONBin.');
+                            showToast('❌ Error al subir y restaurar los datos en JSONBin.');
                         }
                     }
                 } else {
@@ -1150,9 +1229,8 @@
         const sales = allOrders.filter(o => o.seller_username === seller.username && o.order_status === 'completed').length;
         return { ...seller, rating: parseFloat(avg), reviewCount: reviews.length, salesCount: sales };
       });
-      // 🚀 APLICACIÓN DEL FIX: Priorizar Ventas, luego Rating, luego cantidad de Reviews
       return shopsStats.filter(s => s.salesCount > 0 || s.reviewCount > 0)
-            .sort((a, b) => b.salesCount - a.salesCount || b.rating - a.rating || b.reviewCount - a.reviewCount).slice(0, 3); 
+            .sort((a, b) => b.salesCount - a.salesCount || b.reviewCount - a.reviewCount || b.rating - a.rating).slice(0, 3); 
     }
 
     function getCategoryIcon(id) {
@@ -1169,7 +1247,6 @@
     }
 
     function getConfig() {
-      // Intentar cargar la configuración de un objeto de configuración si existe
       const configItem = window.mockDb.data.find(item => item.type === 'config');
       if (configItem) return configItem.config;
       
@@ -1222,37 +1299,37 @@
           // 1. Calcular estadísticas de la tienda seleccionada
           const shopOwner = allUsers.find(u => u.shop_name === selectedShopFilter);
           if (shopOwner) {
-                const reviews = allReviews.filter(r => r.reviewed_seller === shopOwner.username);
-                const avg = reviews.length ? (reviews.reduce((a,b)=>a+b.rating,0)/reviews.length).toFixed(1) : 0;
-                const sales = allOrders.filter(o => o.seller_username === shopOwner.username && o.order_status === 'completed').length;
-                shopStats = { owner: shopOwner, rating: parseFloat(avg), reviewCount: reviews.length, salesCount: sales };
-                
-                // 2. Generar HTML de reseñas
-                if (reviews.length > 0) {
-                    shopReviewsHTML = `
-                        <div class="max-w-7xl mx-auto px-4 py-8 border-t border-slate-700 mt-8">
-                            <h3 class="text-2xl font-bold text-yellow-400 mb-6">⭐ Opiniones de los Clientes (${reviews.length})</h3>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                ${reviews.map(r => `
-                                    <div class="bg-slate-800 p-4 rounded-lg border border-slate-700 shadow-md">
-                                        <div class="flex justify-between items-center mb-2">
-                                            <span class="font-bold text-white">${r.buyer_username}</span>
-                                            <div class="text-yellow-400">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</div>
-                                        </div>
-                                        <p class="text-slate-300 text-sm italic">"${r.review_text || 'Sin comentario escrito'}"</p>
-                                        <p class="text-xs text-slate-500 mt-2 text-right">${new Date(r.created_at).toLocaleDateString()}</p>
-                                    </div>
-                                `).join('')}
-                            </div>
-                        </div>
-                    `;
-                } else {
-                    shopReviewsHTML = `
-                        <div class="max-w-7xl mx-auto px-4 py-8 border-t border-slate-700 mt-8 text-center opacity-50">
-                            <p>Esta tienda aún no tiene reseñas.</p>
-                        </div>
-                    `;
-                }
+              const reviews = allReviews.filter(r => r.reviewed_seller === shopOwner.username);
+              const avg = reviews.length ? (reviews.reduce((a,b)=>a+b.rating,0)/reviews.length).toFixed(1) : 0;
+              const sales = allOrders.filter(o => o.seller_username === shopOwner.username && o.order_status === 'completed').length;
+              shopStats = { owner: shopOwner, rating: parseFloat(avg), reviewCount: reviews.length, salesCount: sales };
+              
+              // 2. Generar HTML de reseñas
+              if (reviews.length > 0) {
+                  shopReviewsHTML = `
+                      <div class="max-w-7xl mx-auto px-4 py-8 border-t border-slate-700 mt-8">
+                          <h3 class="text-2xl font-bold text-yellow-400 mb-6">⭐ Opiniones de los Clientes (${reviews.length})</h3>
+                          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              ${reviews.map(r => `
+                                  <div class="bg-slate-800 p-4 rounded-lg border border-slate-700 shadow-md">
+                                      <div class="flex justify-between items-center mb-2">
+                                          <span class="font-bold text-white">${r.buyer_username}</span>
+                                          <div class="text-yellow-400">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</div>
+                                      </div>
+                                      <p class="text-slate-300 text-sm italic">"${r.review_text || 'Sin comentario escrito'}"</p>
+                                      <p class="text-xs text-slate-500 mt-2 text-right">${new Date(r.created_at).toLocaleDateString()}</p>
+                                  </div>
+                              `).join('')}
+                          </div>
+                      </div>
+                  `;
+              } else {
+                  shopReviewsHTML = `
+                      <div class="max-w-7xl mx-auto px-4 py-8 border-t border-slate-700 mt-8 text-center opacity-50">
+                          <p>Esta tienda aún no tiene reseñas.</p>
+                      </div>
+                  `;
+              }
           }
       } else {
           filteredProducts = selectedCategory === 'all' 
@@ -1282,7 +1359,7 @@
                       📦 Mis Pedidos
                     </button>
                     ${currentUser.role !== 'buyer' ? `
-                      <button onclick="currentView='admin'; render();" class="px-4 py-2 rounded-lg font-bold transition border border-blue-500 bg-slate-800 text-blue-400 text-sm hover:bg-blue-900/30">
+                      <button onclick="loadAdminView();" class="px-4 py-2 rounded-lg font-bold transition border border-blue-500 bg-slate-800 text-blue-400 text-sm hover:bg-blue-900/30">
                         ⚙️ Panel Tienda
                       </button>
                     ` : ''}
@@ -1366,13 +1443,13 @@
                 </div>
             ` : `
                 <div class="flex flex-wrap gap-3 justify-center">
-                  ${CATEGORIES.map(cat => `
-                    <button 
-                      onclick="selectedCategory='${cat.id}'; render();" 
-                      class="category-btn px-6 py-3 rounded-lg font-bold shadow-md border border-transparent ${selectedCategory === cat.id ? 'bg-blue-600 ring-2 ring-blue-400 border-blue-300' : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'}">
-                      ${cat.icon} ${cat.name}
-                    </button>
-                  `).join('')}
+                    ${CATEGORIES.map(cat => `
+                      <button 
+                        onclick="selectedCategory='${cat.id}'; render();" 
+                        class="category-btn px-6 py-3 rounded-lg font-bold shadow-md border border-transparent ${selectedCategory === cat.id ? 'bg-blue-600 ring-2 ring-blue-400 border-blue-300' : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'}">
+                        ${cat.icon} ${cat.name}
+                      </button>
+                    `).join('')}
                 </div>
             `}
           </div>
@@ -1552,7 +1629,7 @@
                                 <div class="text-xs text-slate-500 font-mono mt-1">ID: ${o.id}</div>
                             </div>
                             <span class="px-3 py-1 rounded text-sm font-bold uppercase tracking-wider ${o.order_status==='completed'?'bg-green-900 text-green-200 border border-green-700':'bg-yellow-900 text-yellow-200 border border-yellow-700 animate-pulse'}">
-                                ${o.order_status === 'completed' ? (o.needs_review ? 'Completado (Pendiente Review)' : 'Completado') : 'Pendiente'}
+                                ${o.order_status === 'completed' ? 'Completado' : 'Pendiente'}
                             </span>
                         </div>
                         
@@ -1584,12 +1661,7 @@
                                 </button>
                             ` : `
                                 <div class="flex items-center gap-2 text-green-400 font-bold bg-green-900/20 px-4 py-2 rounded-lg border border-green-900/50">
-                                    <span>⭐ Pedido Finalizado</span>
-                                    ${o.needs_review ? `
-                                        <button onclick="selectedOrder = myOrders.find(order => order.__backendId === '${o.__backendId}'); showModal = 'review'; render();" class="bg-yellow-600 hover:bg-yellow-500 text-white px-3 py-1 rounded text-xs font-bold transition transform hover:scale-105">
-                                            CALIFICAR AHORA
-                                        </button>
-                                    ` : ''}
+                                    <span>${o.needs_review ? '⭐ PENDIENTE DE CALIFICAR' : '⭐ Pedido Finalizado'}</span>
                                 </div>
                             `}
                         </div>
@@ -1602,31 +1674,23 @@
     // --- VISTA ADMIN / RESELLER (PANEL COMPLETO) ---
     function renderAdmin() {
       const user = currentUser;
-      // Lógica de Modo Dios: Si hay adminViewTarget, suplantamos la identidad visual
       const viewingAs = adminViewTarget || user.username;
       const viewingUser = allUsers.find(u => u.username === viewingAs) || user;
       
-      // Filtros de datos según quién estemos viendo
       const myProducts = allProducts.filter(p => p.seller_username === viewingAs);
       const myOrders = allOrders.filter(o => o.seller_username === viewingAs);
       const pending = myOrders.filter(o => o.order_status === 'pending');
       
-      // LOG DE PEDIDOS COMPLETADOS
       const completedOrdersLog = allOrders.filter(o => o.order_status === 'completed').reverse();
       
-      // FILTRADO ROBUSTO DE USUARIOS 
       const displayUsers = allUsers.sort((a, b) => {
-          // Priorizar los pendientes al inicio (para el admin)
           if (a.status === 'pending' && b.status !== 'pending') return -1;
           if (a.status !== 'pending' && b.status === 'pending') return 1;
-          // Mostrar el admin al final (siempre)
           if (a.role === 'admin') return 1;
           if (b.role === 'admin') return -1;
-          // Ordenar alfabéticamente el resto
           return a.username.localeCompare(b.username);
       });
 
-      // Estadísticas
       const stats = {
           total: myProducts.length,
           sales: myOrders.filter(o => o.order_status === 'completed').length,
@@ -1654,6 +1718,9 @@
                                 💾 RESPALDO SYSTEM
                             </button>
                         ` : ''}
+                        <button onclick="loadAdminView()" class="bg-slate-700 px-6 py-2 rounded font-bold shadow hover:bg-slate-600 transition border border-slate-500 text-blue-400 border-blue-500/50">
+                            🔄 REFRESCAR DATOS
+                        </button>
                         <button onclick="currentView='catalog';render()" class="bg-blue-600 px-6 py-2 rounded font-bold shadow hover:bg-blue-500 transition">
                             🏠 Volver al Inicio
                         </button>
@@ -1673,7 +1740,7 @@
                         <div class="text-3xl font-bold text-yellow-400">${pending.length}</div>
                         <div class="text-xs opacity-70 font-bold uppercase tracking-wide">Pedidos Pendientes</div>
                     </div>
-                     <div class="bg-slate-800 p-6 rounded-xl border-t-4 border-blue-500 shadow-lg">
+                      <div class="bg-slate-800 p-6 rounded-xl border-t-4 border-blue-500 shadow-lg">
                         <div class="text-xs opacity-70 font-bold uppercase tracking-wide mb-1">Discord Tienda</div>
                         <div class="text-sm font-bold font-mono text-blue-300 truncate bg-slate-900/50 p-1 rounded">${viewingUser.discord_tag}</div>
                     </div>
@@ -1751,7 +1818,7 @@
                     `).join('')}
                 </div>
 
-                <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
+                <div class="bg-slate-800 p-6 rounded-xl mb-8 border border-slate-700 shadow-lg">
                     <h2 class="text-xl font-bold mb-6 text-blue-400 border-b border-slate-700 pb-2">🛍️ Gestión de Inventario</h2>
                     
                     <div class="mb-8 p-5 bg-slate-900 rounded-lg border border-slate-600">
@@ -2026,7 +2093,6 @@
             <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" ${close}>
                 <div class="${box}" onclick="event.stopPropagation()">
                     <h2 class="text-2xl font-bold text-center mb-6 text-purple-400">Solicitud Vendedor</h2>
-                    <p class="text-center text-slate-400 text-sm mb-4">La cuenta estará pendiente de aprobación por el Admin.</p>
                     <form onsubmit="handleRegisterReseller(event)">
                         <input id="resellerUsername" placeholder="Usuario" class="w-full mb-3 p-3 rounded bg-slate-700 text-white border border-slate-600" required>
                         <input id="resellerPassword" type="password" placeholder="Contraseña" class="w-full mb-3 p-3 rounded bg-slate-700 text-white border border-slate-600" required>
@@ -2038,21 +2104,22 @@
             </div>`;
         }
 
-        // MODAL: SETUP TIENDA (Post-Login)
-        if(showModal === 'setupShop') {
+        // MODAL: SETUP TIENDA (Post-Login o Post-Aprobación)
+        if(showModal === 'setupShop' && selectedOrder) {
             return `
-            <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
-                <div class="${box}">
-                    <h2 class="text-2xl font-bold text-center mb-4">Configura tu Tienda</h2>
-                    <p class="text-center text-slate-400 text-sm mb-6">Necesitamos estos datos para activar tu panel.</p>
+            <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" onclick="logout(false); showToast('Cierre de sesión forzado por configuración incompleta.');">
+                <div class="${box}" onclick="event.stopPropagation()">
+                    <h2 class="text-2xl font-bold text-center mb-4 text-blue-400">Configura tu Tienda</h2>
+                    <p class="text-center text-slate-400 text-sm mb-6">Necesitas completar estos datos para activar tu panel de vendedor.</p>
                     <form onsubmit="handleSetupShop(event)">
                         <label class="text-xs text-slate-400 font-bold uppercase mb-1 block">Nombre de la Tienda</label>
-                        <input id="setupShopName" placeholder="Ej: Kaleb Store" class="w-full mb-4 p-3 rounded bg-slate-700 text-white border border-slate-600" required>
+                        <input id="setupShopName" placeholder="Ej: Kaleb Store" value="${selectedOrder.shop_name||''}" class="w-full mb-4 p-3 rounded bg-slate-700 text-white border border-slate-600" required>
                         
                         <label class="text-xs text-slate-400 font-bold uppercase mb-1 block">Tu Discord</label>
-                        <input id="setupDiscord" placeholder="User#0000" value="${currentUser.discord_tag||''}" class="w-full mb-6 p-3 rounded bg-slate-700 text-white border border-slate-600" required>
+                        <input id="setupDiscord" placeholder="User#0000" value="${selectedOrder.discord_tag||''}" class="w-full mb-6 p-3 rounded bg-slate-700 text-white border border-slate-600" required>
                         
                         <button class="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded font-bold text-white shadow-lg transition">GUARDAR Y ENTRAR</button>
+                        <p class="text-center mt-4 text-xs text-red-500">Nota: Al cerrar esta ventana, se cerrará tu sesión.</p>
                     </form>
                 </div>
             </div>`;
@@ -2084,52 +2151,9 @@
         return '';
     }
 
-    // Helpers de Modales
-    async function handleSetupShop(e) {
-      e.preventDefault();
-      const user = selectedOrder; // Variable temporal usada para guardar el usuario en proceso
-      if(!user) return;
-      const shopName = document.getElementById('setupShopName').value.trim();
-      const discord = document.getElementById('setupDiscord').value.trim();
-      
-      // Validar discord unico
-      if(allUsers.find(u => u.discord_tag === discord && u.__backendId !== user.__backendId)) {
-          showToast('Este Discord ya está en uso por otro usuario.');
-          return;
-      }
-      
-      const updatedUser = {
-          ...user,
-          role: 'reseller',
-          shop_name: shopName,
-          discord_tag: discord || 'No Informado',
-          approved: true,
-          status: 'approved'
-      };
-      
-      const result = await window.dataSdk.update(updatedUser);
-      
-      if (result.isOk) {
-          // Actualizar sesión local si es el usuario actual
-          if(currentUser && user.__backendId === currentUser.__backendId) {
-              currentUser = updatedUser;
-              localStorage.setItem(SESSION_KEY, JSON.stringify(currentUser));
-              currentView = 'admin';
-          }
-      } else {
-          showToast('Error al actualizar la configuración de la tienda.');
-          return;
-      }
-      
-      showModal = null;
-      selectedOrder = null;
-      // La llamada a render() ocurre internamente en el flujo de dataSdk.update
-    }
-
     // ---------------------------------------------------------
     // 11. INICIO DE LA APLICACIÓN
     // ---------------------------------------------------------
-    // Ejecutar inicialización
     init();
   </script>
  </body>
