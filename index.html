@@ -3,7 +3,7 @@
  <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mu Online 99B Marketplace - V27 (Ventas en Tabla Global Admin)</title>
+  <title>Mu Online 99B Marketplace - V28 (Final)</title>
  
   <script src="https://cdn.tailwindcss.com"></script>
  
@@ -339,13 +339,14 @@
     let allProducts = [];
     let allUsers = [];
     let allOrders = [];
+    let allReviews = []; // <-- RESTAURADO: Base de datos de reseñas
     
     // Carrito
     let cart = JSON.parse(localStorage.getItem('mu_cart_v22') || '[]');
     
     // Control de Modales
-    let showModal = null; // 'login', 'register', 'editProduct', 'dataTools', 'manageUser' etc.
-    let selectedOrder = null; // Para setup de tienda
+    let showModal = null; // 'login', 'register', 'editProduct', 'dataTools', 'manageUser', 'review' etc.
+    let selectedOrder = null; // Para setup de tienda o dejar reseña
 
     // Categorías del Mu Online
     const CATEGORIES = [
@@ -377,6 +378,7 @@
         allProducts = data.filter(item => item.type === 'product') || [];
         allUsers = data.filter(item => item.type === 'user') || [];
         allOrders = data.filter(item => item.type === 'order') || [];
+        allReviews = data.filter(item => item.type === 'review') || []; // <-- RESTAURADO
         const activityRecords = data.filter(item => item.type === 'activity') || [];
         
         // Notificaciones en tiempo real
@@ -1116,6 +1118,7 @@
           order_status: 'pending',
           seller_confirmed: false,
           buyer_confirmed: false,
+          needs_review: false, // <-- RESTAURADO (Inicialmente en false)
           created_at: new Date().toISOString()
         };
 
@@ -1155,13 +1158,13 @@
       let updatedOrder = {...order};
 
       if (isSeller) {
-        // Vendedor confirma entrega
+        // Vendedor confirma entrega (PRIMER PASO)
         updatedOrder.seller_confirmed = true;
         showToast('Vendedor confirma entrega. ¡Ahora el comprador debe confirmar recepción!');
       } else {
-        // Comprador confirma recepción. Solo se permite si el vendedor ya entregó.
+        // Comprador confirma recepción (SEGUNDO PASO)
         if (!order.seller_confirmed) {
-            showToast('⚠️ Error: El vendedor aún no ha marcado el pedido como entregado.');
+            showToast('⚠️ Error: El vendedor aún no ha marcado el pedido como entregado. Esto es obligatorio para confirmar la recepción.');
             return;
         }
         updatedOrder.buyer_confirmed = true;
@@ -1173,7 +1176,7 @@
           // SI AMBOS CONFIRMARON, RESTAR STOCK Y FINALIZAR
           if (result.item.seller_confirmed && result.item.buyer_confirmed && result.item.order_status !== 'completed') {
               
-              const completedOrder = {...result.item, order_status: 'completed'};
+              const completedOrder = {...result.item, order_status: 'completed', needs_review: true}; // <-- needs_review activado
               
               try {
                 const itemsData = JSON.parse(completedOrder.items_data);
@@ -1183,7 +1186,7 @@
                   const product = allProducts.find(p => p.__backendId === item.backendId);
                   if (product) {
                     const updatedProduct = {...product, stock: Math.max(0, product.stock - item.quantity)};
-                    // Disparamos la actualización de producto, pero no esperamos para no demorar la orden.
+                    // Disparamos la actualización de producto, pero no esperamos.
                     window.dataSdk.update(updatedProduct); 
                   }
                 }
@@ -1194,7 +1197,6 @@
                 showToast('✅ ¡Pedido completado y Stock actualizado! Tienda entra en el Ranking.');
                 
                 // 🚨 OPTIMIZACIÓN CRÍTICA: Forzar recarga completa de datos del BIN
-                // Esto asegura que allOrders se actualice con el pedido 'completed' antes del render()
                 await window.dataSdk.read(); 
 
               } catch (e) { 
@@ -1210,7 +1212,67 @@
       render();
     }
 
-    // FUNCIONES DE IMPORTAR/EXPORTAR
+    // ---------------------------------------------------------
+    // 9. FUNCIONES DE RESEÑA (RESTAURADAS)
+    // ---------------------------------------------------------
+    function getShopRating(username) {
+        const reviews = allReviews.filter(r => r.reviewed_seller === username);
+        const avg = reviews.length ? (reviews.reduce((a,b)=>a+b.rating,0)/reviews.length).toFixed(1) : 0;
+        return { rating: parseFloat(avg), reviewCount: reviews.length };
+    }
+
+    function getStarHtml(rating) {
+        const fullStars = Math.floor(rating);
+        let html = '';
+        // Usamos un emoji de estrella simple para la visualización
+        for (let i = 0; i < fullStars; i++) {
+            html += '⭐';
+        }
+        // Si el rating es 0 y hay reviews, mostrar N/A o un mensaje neutral.
+        return html || (rating > 0 ? 'N/A' : 'Sin calificar'); 
+    }
+
+    async function handleSubmitReview(e) {
+        e.preventDefault();
+        if (!selectedOrder) return;
+        
+        const rating = parseInt(document.getElementById('reviewRating').value);
+        const comment = document.getElementById('reviewComment').value.trim();
+        
+        if (rating < 1 || rating > 5) {
+            showToast('La calificación debe ser entre 1 y 5.');
+            return;
+        }
+        
+        const reviewData = {
+            id: Date.now().toString(),
+            type: 'review',
+            reviewed_order: selectedOrder.__backendId,
+            reviewed_seller: selectedOrder.seller_username,
+            reviewer: currentUser.username,
+            rating: rating,
+            comment: comment,
+            created_at: new Date().toISOString()
+        };
+        
+        const reviewResult = await window.dataSdk.create(reviewData);
+        
+        if (reviewResult.isOk) {
+            // Marcar la orden como revisada
+            const updatedOrder = {...selectedOrder, needs_review: false};
+            await window.dataSdk.update(updatedOrder);
+            
+            showToast('✅ ¡Reseña enviada! Gracias por tu feedback.');
+            showModal = null;
+            selectedOrder = null;
+        } else {
+            showToast('❌ Error al enviar la reseña.');
+        }
+    }
+
+    // ---------------------------------------------------------
+    // 10. UTILIDADES DE RENDERIZADO
+    // ---------------------------------------------------------
     function downloadBackup() {
         const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(window.mockDb.data));
         const downloadAnchorNode = document.createElement('a');
@@ -1256,15 +1318,22 @@
         reader.readAsText(file);
     }
 
-    // UTILIDADES DE RENDERIZADO
     function getTopShops() {
       const resellers = allUsers.filter(u => u.role === 'reseller' && u.approved);
       const shopsStats = resellers.map(seller => {
-        // Solo cuenta los pedidos con order_status === 'completed'
+        // 1. Obtener stats de reviews
+        const { rating, reviewCount } = getShopRating(seller.username);
+        // 2. Contar ventas
         const sales = allOrders.filter(o => o.seller_username === seller.username && o.order_status === 'completed').length;
-        return { ...seller, salesCount: sales }; 
+        
+        return { 
+            ...seller, 
+            salesCount: sales, // Métrica principal de ranking
+            rating: rating,     // Para visibilidad
+            reviewCount: reviewCount // Para visibilidad
+        }; 
       });
-      // OPTIMIZACIÓN: Ranking basado SOLO en Ventas.
+      // Ranking basado SOLO en Ventas (salesCount)
       return shopsStats.filter(s => s.salesCount > 0)
             .sort((a, b) => b.salesCount - a.salesCount).slice(0, 3); 
     }
@@ -1301,7 +1370,7 @@
     }
 
     // ---------------------------------------------------------
-    // 9. RENDERIZADO PRINCIPAL (EL CÓDIGO VISUAL)
+    // 11. RENDERIZADO PRINCIPAL (EL CÓDIGO VISUAL)
     // ---------------------------------------------------------
     function render() {
       const app = document.getElementById('app');
@@ -1346,7 +1415,8 @@
           const shopOwner = allUsers.find(u => u.shop_name === selectedShopFilter);
           if (shopOwner) {
                 const sales = allOrders.filter(o => o.seller_username === shopOwner.username && o.order_status === 'completed').length;
-                shopStats = { owner: shopOwner, salesCount: sales };
+                const { rating, reviewCount } = getShopRating(shopOwner.username);
+                shopStats = { owner: shopOwner, salesCount: sales, rating, reviewCount };
           }
       } else {
           filteredProducts = selectedCategory === 'all' 
@@ -1364,7 +1434,7 @@
           <header class="shadow-lg sticky top-0 z-40 bg-slate-800 border-b border-slate-700 p-4">
             <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
                 <div class="text-center md:text-left">
-                  <h1 class="text-2xl font-bold text-blue-400 tracking-tight">MU MARKET <span class="text-white text-xs bg-blue-600 px-1 rounded">V27</span></h1>
+                  <h1 class="text-2xl font-bold text-blue-400 tracking-tight">MU MARKET <span class="text-white text-xs bg-blue-600 px-1 rounded">V28</span></h1>
                   <p class="text-xs mt-1 opacity-60">${config.contact_info}</p>
                 </div>
                 <div class="flex flex-wrap gap-2 justify-center items-center">
@@ -1416,6 +1486,11 @@
                           <p class="text-xl font-bold text-green-400">${shop.salesCount}</p>
                           <p class="text-xs opacity-70 uppercase">Ventas</p>
                         </div>
+                        <div class="border-l border-slate-700/50 mx-2"></div>
+                        <div class="text-center px-4">
+                          <p class="text-xl font-bold text-yellow-400">${getStarHtml(shop.rating)}</p>
+                          <p class="text-xs opacity-70 uppercase">(${shop.reviewCount} Reviews)</p>
+                        </div>
                     </div>
                   </div>
                 `).join('')}
@@ -1438,6 +1513,11 @@
                             <div class="px-3">
                                 <p class="text-xl font-bold text-green-400">${shopStats.salesCount}</p>
                                 <p class="text-xs opacity-70">Ventas Totales</p>
+                            </div>
+                            <div class="border-l border-slate-700/50 mx-2"></div>
+                             <div class="px-3">
+                                <p class="text-xl font-bold text-yellow-400">${getStarHtml(shopStats.rating)}</p>
+                                <p class="text-xs opacity-70">(${shopStats.reviewCount} Reviews)</p>
                             </div>
                         </div>
                     ` : `<p class="text-center text-sm opacity-60 py-2">Cargando estadísticas o tienda sin datos aún.</p>`}
@@ -1623,12 +1703,12 @@
 
                 ${myOrders.map((o, index) => {
                     const statusText = o.order_status === 'completed' 
-                        ? 'Completado' 
+                        ? (o.needs_review ? 'Completado (Pendiente de Reseña)' : 'Completado') 
                         : o.seller_confirmed 
                             ? 'Pendiente de tu Confirmación' 
                             : 'Esperando Entrega del Vendedor';
                     const statusClass = o.order_status === 'completed'
-                        ? 'bg-green-900 text-green-200 border border-green-700'
+                        ? (o.needs_review ? 'bg-red-900 text-red-200 border border-red-700 animate-pulse' : 'bg-green-900 text-green-200 border border-green-700')
                         : o.seller_confirmed 
                             ? 'bg-orange-900 text-orange-200 border border-orange-700 animate-pulse'
                             : 'bg-yellow-900 text-yellow-200 border border-yellow-700 animate-pulse';
@@ -1666,7 +1746,17 @@
                                 Total: <span class="text-green-400">$${o.total.toFixed(2)}</span>
                             </div>
                             
-                            ${o.order_status === 'pending' ? `
+                            ${o.order_status === 'completed' ? `
+                                ${o.needs_review ? `
+                                    <button onclick="selectedOrder = allOrders.find(ord => ord.__backendId === '${o.__backendId}'); showModal='review'; render();" class="bg-red-600 hover:bg-red-500 px-6 py-3 rounded-lg font-bold text-white shadow transition transform hover:scale-105">
+                                        ⭐ DEJAR RESEÑA
+                                    </button>
+                                ` : `
+                                    <div class="flex items-center gap-2 text-green-400 font-bold bg-green-900/20 px-4 py-2 rounded-lg border border-green-900/50">
+                                        <span>✅ Pedido Finalizado</span>
+                                    </div>
+                                `}
+                            ` : `
                                 ${o.seller_confirmed ? `
                                     <button onclick="confirmOrder('${o.__backendId}', false)" ${o.buyer_confirmed ? 'disabled' : ''} 
                                         class="w-full sm:w-auto bg-green-600 hover:bg-green-500 px-6 py-3 rounded-lg font-bold text-white shadow transition transform active:scale-95">
@@ -1677,10 +1767,6 @@
                                         ⏳ Esperando que el Vendedor Entregue/Confirme
                                     </button>
                                 `}
-                            ` : `
-                                <div class="flex items-center gap-2 text-green-400 font-bold bg-green-900/20 px-4 py-2 rounded-lg border border-green-900/50">
-                                    <span>✅ Pedido Finalizado</span>
-                                </div>
                             `}
                         </div>
                     </div>
@@ -1701,7 +1787,7 @@
       
       const completedOrdersLog = allOrders.filter(o => o.order_status === 'completed').reverse();
       
-      // 1. Calcular las ventas de todos los revendedores
+      // 1. Calcular las ventas de todos los revendedores (para la tabla global)
       const sellerSalesMap = getSellerSalesMap();
 
       const displayUsers = allUsers.sort((a, b) => {
@@ -2011,21 +2097,22 @@
     }
 
     // ---------------------------------------------------------
-    // 10. RENDERIZADO DE MODALES (HTML FORMS)
+    // 12. RENDERIZADO DE MODALES (HTML FORMS)
     // ---------------------------------------------------------
     function renderModal() {
-        const close = `onclick="showModal=null;selectedProductToEdit=null;managedUser=null;render()"`;
+        const close = `onclick="showModal=null;selectedProductToEdit=null;managedUser=null;selectedOrder=null;render()"`;
         const box = "bg-slate-800 p-8 rounded-xl shadow-2xl max-w-md w-full border border-slate-600 relative transform transition-all scale-100";
         
-        // --- MODAL: GESTIÓN DE USUARIO (NUEVO) ---
+        // --- MODAL: GESTIÓN DE USUARIO (ADMIN) ---
         if(showModal === 'manageUser' && managedUser) {
              const u = managedUser;
              const userOrders = allOrders.filter(o => o.buyer_username === u.username || o.seller_username === u.username);
              const userProducts = allProducts.filter(p => p.seller_username === u.username);
              
-             // Recalcular las ventas para este modal
+             // Recalcular las ventas y rating para este modal
              const sellerSalesMap = getSellerSalesMap();
              const salesCount = sellerSalesMap[u.username] || 0;
+             const { rating, reviewCount } = getShopRating(u.username);
              
              return `
             <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
@@ -2058,6 +2145,10 @@
                              <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
                                 <p class="text-xs uppercase text-slate-500 font-bold">Ventas Completadas</p>
                                 <p class="font-bold text-green-400 text-xl">${salesCount}</p>
+                            </div>
+                            <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
+                                <p class="text-xs uppercase text-slate-500 font-bold">Rating / Reviews</p>
+                                <p class="font-bold text-yellow-400 text-lg">${rating} ${getStarHtml(rating)} (${reviewCount})</p>
                             </div>
                         ` : ''}
                         <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
@@ -2244,12 +2335,45 @@
                 </div>
             </div>`;
         }
+        
+        // MODAL: RESEÑA (RESTAURADO)
+        if(showModal === 'review' && selectedOrder) {
+            return `
+            <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4 animate-bounce-in" ${close}>
+                <div class="${box} max-w-lg" onclick="event.stopPropagation()">
+                    <h2 class="text-2xl font-bold text-center mb-2 text-yellow-400">¿Cómo fue tu experiencia?</h2>
+                    <p class="text-center text-slate-400 mb-6">Evalúa al vendedor: <span class="font-bold text-white">${selectedOrder.seller_username}</span></p>
+
+                    <form onsubmit="handleSubmitReview(event)">
+                        <div class="mb-6 text-center">
+                            <label class="text-xs text-slate-400 font-bold uppercase mb-1 block">Calificación (1 a 5)</label>
+                            <select id="reviewRating" class="w-full p-3 rounded bg-slate-700 text-white border border-slate-600 text-center font-bold text-lg" required>
+                                <option value="5">⭐⭐⭐⭐⭐ Excelente</option>
+                                <option value="4">⭐⭐⭐⭐ Muy Bueno</option>
+                                <option value="3">⭐⭐⭐ Neutral</option>
+                                <option value="2">⭐⭐ Malo</option>
+                                <option value="1">⭐ Pésimo</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-6">
+                            <label class="text-xs text-slate-400 font-bold uppercase mb-1 block">Comentario (Opcional)</label>
+                            <textarea id="reviewComment" rows="3" placeholder="Comparte tu opinión sobre la entrega y el servicio..." class="w-full p-3 rounded bg-slate-700 text-white border border-slate-600 resize-none"></textarea>
+                        </div>
+
+                        <button type="submit" class="w-full bg-green-600 hover:bg-green-500 py-3 rounded font-bold text-white shadow-lg transition transform active:scale-95">
+                            ENVIAR RESEÑA
+                        </button>
+                    </form>
+                </div>
+            </div>`;
+        }
 
         return '';
     }
 
     // ---------------------------------------------------------
-    // 11. INICIO DE LA APLICACIÓN
+    // 13. INICIO DE LA APLICACIÓN
     // ---------------------------------------------------------
     init();
   </script>
