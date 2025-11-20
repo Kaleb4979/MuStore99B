@@ -2,6 +2,8 @@
 // == 1. CONFIGURACIÓN Y ESTADO GLOBAL (Variables de App) ==
 // =========================================================
 
+// NOTA: SESSION_KEY y DB_KEY deben ser definidas en dataSdk.js
+// y se accede a ellas globalmente.
 
 const defaultConfig = {
     site_title: "Mu Online 99B Marketplace",
@@ -12,7 +14,10 @@ const defaultConfig = {
     primary_button: "#3b82f6", // Blue-500
     secondary_button: "#10b981", // Emerald-500
     font_family: "Inter",
-    font_size: 16
+    font_size: 16,
+    // NUEVA CONFIGURACIÓN DE PÁGINA (Añadida para configuración visual)
+    header_logo: "Marketplace Logo",
+    footer_text: "© 2024 Mu Online Marketplace. Todos los derechos reservados."
 };
 
 // Variables de Timeout para Auto-Logout
@@ -21,28 +26,29 @@ const TIMEOUT_LIMIT = 5 * 60 * 1000; // 5 minutos
 
 // Estado Global
 let currentUser = null;
-let currentView = 'catalog'; // 'catalog', 'cart', 'orders', 'admin'
+let currentView = 'catalog'; // 'catalog', 'cart', 'orders', 'admin', 'settings' // <-- AÑADIDO 'settings'
 let selectedCategory = 'all';
 let selectedShopFilter = null;
-let adminViewTarget = null; 
-let selectedProductToEdit = null; 
-let managedUser = null; 
+let adminViewTarget = null;
+let selectedProductToEdit = null;
+let managedUser = null;
 
 // Arrays de datos (Poblados por dataSdk.read)
 let allProducts = [];
 let allUsers = [];
 let allOrders = [];
-let allReviews = []; 
+let allReviews = [];
+let appConfig = null; // <-- AÑADIDA variable para la configuración remota
 
 // Carrito
 let cart = JSON.parse(localStorage.getItem('mu_cart_v22') || '[]');
 
 // Control de Modales
-let showModal = null; 
-let selectedOrder = null; 
+let showModal = null;
+let selectedOrder = null;
 
 // ESTADO DEL CHAT
-let chatTargetOrder = null; 
+let chatTargetOrder = null;
 let chatMessages = []; // Almacena mensajes
 
 // Constantes
@@ -71,21 +77,30 @@ const dataHandler = {
         allProducts = data.filter(item => item.type === 'product') || [];
         allUsers = data.filter(item => item.type === 'user') || [];
         allOrders = data.filter(item => item.type === 'order') || [];
-        allReviews = data.filter(item => item.type === 'review') || []; 
+        allReviews = data.filter(item => item.type === 'review') || [];
         const activityRecords = data.filter(item => item.type === 'activity') || [];
+        
+        // --- AÑADIDO: Cargar configuración remota ---
+        const configItem = data.find(item => item.type === 'config');
+        if (configItem && configItem.config) {
+            appConfig = configItem.config;
+        } else {
+            appConfig = defaultConfig; // Usar la configuración local si no hay remota
+        }
         
         // Lógica de notificaciones y actividad
         if (currentUser) {
              const newOrderAlert = activityRecords.find(a => 
-                a.type === 'activity' && a.message && !a.dismissed && 
-                (a.username === currentUser.username || currentUser.role === 'admin') 
-            );
+                 a.type === 'activity' && a.message && !a.dismissed && 
+                 (a.username === currentUser.username || currentUser.role === 'admin') 
+             );
 
-            if (newOrderAlert) {
-                showToast(`🔔 ${newOrderAlert.message}`);
-                const updatedAlert = {...newOrderAlert, dismissed: true};
-                window.dataSdk.update(updatedAlert); 
-            }
+             if (newOrderAlert) {
+                 showToast(`🔔 ${newOrderAlert.message}`);
+                 // Marcar como dismiss (ocultado) para que no vuelva a saltar
+                 const updatedAlert = {...newOrderAlert, dismissed: true};
+                 window.dataSdk.update(updatedAlert); 
+             }
         }
         
         // Actualizar la lista de usuarios online
@@ -128,7 +143,7 @@ window.app = { showToast };
 
 
 // =========================================================
-// == 3. FUNCIONES DE UTILIDAD (Toast, Config, Audio)      ==
+// == 3. FUNCIONES DE UTILIDAD (Toast, Config, Audio)     ==
 // =========================================================
 function showToast(message) {
     const toast = document.createElement('div');
@@ -139,9 +154,8 @@ function showToast(message) {
 }
 
 function getConfig() {
-    const configItem = window.mockDb.data.find(item => item.type === 'config');
-    if (configItem) return configItem.config;
-    return window.elementSdk ? window.elementSdk.config : defaultConfig;
+    // Retorna la configuración remota (si existe) o la local
+    return appConfig || defaultConfig; 
 }
 
 function getCategoryIcon(id) {
@@ -158,7 +172,7 @@ function getTopShops() {
         return { 
             ...seller, 
             salesCount: sales, 
-            rating: rating,     
+            rating: rating, 
             reviewCount: reviewCount
         }; 
       });
@@ -216,6 +230,10 @@ async function handleLogin(e) {
     const user = allUsers.find(u => u.username === username && u.password === password);
     
     if (user) {
+        if (user.role === 'banned') { // NUEVO: Verificar baneo
+             showToast('🚫 Tu cuenta ha sido baneada. Contacta al administrador.');
+             return;
+        }
         currentUser = user;
         localStorage.setItem(SESSION_KEY, JSON.stringify(user));
         currentView = user.role === 'admin' ? 'admin' : 'catalog';
@@ -301,7 +319,7 @@ async function handleRegisterReseller(e) {
 }
 
 async function updateUserActivity() {
-    if (!currentUser || currentUser.role === 'admin') return; 
+    if (!currentUser) return; 
 
     // Limpiar timeout anterior
     if (userActivityTimeout) clearTimeout(userActivityTimeout);
@@ -370,6 +388,60 @@ async function handleSetupShop(e) {
     }
     render();
 }
+
+// --- NUEVAS FUNCIONES DE CONFIGURACIÓN DE PÁGINA (ADMIN) ---
+
+// AÑADIDA: Función para guardar la configuración visual
+async function handleSaveSettings(e) {
+    e.preventDefault();
+    const form = e.target;
+
+    const newConfig = {
+        site_title: form.site_title.value,
+        contact_info: form.contact_info.value,
+        background_color: form.background_color.value,
+        card_background: form.card_background.value,
+        text_color: form.text_color.value,
+        primary_button: form.primary_button.value,
+        secondary_button: form.secondary_button.value,
+        font_family: form.font_family.value,
+        font_size: parseInt(form.font_size.value),
+        header_logo: form.header_logo.value,
+        footer_text: form.footer_text.value
+    };
+
+    // La configuración siempre se almacena como un solo registro en la tabla 'config'.
+    const existingConfigItem = window.mockDb.data.find(item => item.type === 'config');
+
+    let result;
+    if (existingConfigItem) {
+        // Si existe, actualizamos
+        const updatedConfig = { ...existingConfigItem, config: newConfig };
+        result = await window.dataSdk.update(updatedConfig);
+    } else {
+        // Si no existe, creamos
+        const newConfigItem = { type: 'config', config: newConfig };
+        result = await window.dataSdk.create(newConfigItem);
+    }
+
+    if (result.isOk) {
+        showToast('✅ Configuración guardada y aplicada.');
+    } else {
+        showToast('❌ Error al guardar la configuración.');
+    }
+    render();
+}
+
+// Función para cargar la vista de configuración
+function loadSettingsView() {
+    if (currentUser && currentUser.role === 'admin') {
+        currentView = 'settings';
+        render();
+    } else {
+        showToast('❌ Acceso denegado. Solo administradores.');
+    }
+}
+
 
 // --- Productos / Admin ---
 function openProductManagement(username) {
@@ -458,9 +530,9 @@ function openManageUserModal(username) {
     render();
 }
 
+// CORREGIDO: Usar dataSdk.delete para eliminar registros individuales
 async function clearCompletedOrdersLog() {
     if (!confirm('¿Estás seguro de que quieres ELIMINAR permanentemente todas las órdenes completadas?')) return;
-    const ordersToKeep = allOrders.filter(o => o.order_status !== 'completed');
     const ordersToDelete = allOrders.filter(o => o.order_status === 'completed');
 
     if (ordersToDelete.length === 0) {
@@ -468,18 +540,30 @@ async function clearCompletedOrdersLog() {
         return;
     }
 
-    const newData = window.mockDb.data.filter(item => 
-        item.type !== 'order' || item.order_status !== 'completed'
+    showToast(`⏳ Eliminando ${ordersToDelete.length} órdenes...`);
+    let successfulDeletions = 0;
+    
+    // Usamos Promise.all para hacer las eliminaciones en paralelo
+    const deletionPromises = ordersToDelete.map(order => 
+        window.dataSdk.delete(order).then(result => {
+            if (result.isOk) successfulDeletions++;
+            return result;
+        })
     );
     
-    const result = await window.dataSdk.write(newData);
-
-    if (result.isOk) {
-        showToast(`✅ ${ordersToDelete.length} órdenes completadas eliminadas del log.`);
+    await Promise.all(deletionPromises);
+    
+    // Una vez que todas las promesas se resuelven, dataSdk.readAllTables() se llama
+    // dentro de dataSdk.delete para refrescar la lista.
+    
+    if (successfulDeletions > 0) {
+        showToast(`✅ ${successfulDeletions} órdenes completadas eliminadas del log.`);
     } else {
-        showToast('❌ Error al limpiar el log.');
+        showToast('❌ Error al limpiar el log (cero eliminaciones exitosas).');
     }
+    render();
 }
+
 
 async function approveUser(backendId) {
     const userToUpdate = allUsers.find(u => u.__backendId === backendId);
@@ -793,11 +877,11 @@ async function openChatModal(orderId) {
     
     // Forzar el renderizado de mensajes iniciales y el scroll
     setTimeout(() => {
-         const messagesContainer = document.querySelector('.chat-messages');
-         if (messagesContainer) {
-             renderChatMessages(messagesContainer);
-             messagesContainer.scrollTop = messagesContainer.scrollHeight;
-         }
+          const messagesContainer = document.querySelector('.chat-messages');
+          if (messagesContainer) {
+              renderChatMessages(messagesContainer);
+              messagesContainer.scrollTop = messagesContainer.scrollHeight;
+          }
     }, 50);
 }
 
@@ -853,21 +937,26 @@ function renderChatMessages(container) {
 
 
 // =========================================================
-// == 5. RENDERIZADO VISUAL Y FUNCIONES DE INICIO          ==
+// == 5. RENDERIZADO VISUAL Y FUNCIONES DE INICIO         ==
 // =========================================================
 
 function render() {
     const app = document.getElementById('app');
-    const config = getConfig();
+    const config = getConfig(); // Obtiene la config remota o local
+    
+    // Aplica estilos al body desde la configuración
     document.body.style.backgroundColor = config.background_color;
     document.body.style.color = config.text_color;
+    document.body.style.fontSize = `${config.font_size}px`;
+    document.body.style.fontFamily = config.font_family;
+
 
     let content = '';
     if (currentView === 'catalog') content = renderCatalog();
     else if (currentView === 'cart') content = renderCart();
     else if (currentView === 'orders') content = renderOrders();
     else if (currentView === 'admin') content = renderAdmin();
-    else if (currentView === 'shopManagement') content = renderShopManagement();
+    else if (currentView === 'settings') content = renderSettings(); // <-- NUEVO: Vista de Configuración
 
     app.innerHTML = content;
 
@@ -896,6 +985,11 @@ function renderHeader(config) {
     const adminButton = (currentUser && currentUser.role === 'admin')
         ? `<button onclick="loadAdminView()" class="bg-yellow-500 hover:bg-yellow-600 text-gray-900 font-bold py-2 px-4 rounded transition ml-2">Admin</button>`
         : '';
+        
+    const settingsButton = (currentUser && currentUser.role === 'admin') // <-- BOTÓN DE CONFIGURACIÓN
+        ? `<button onclick="loadSettingsView()" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded transition ml-2">⚙️ Config</button>`
+        : '';
+
 
     const cartButton = (currentUser && currentUser.role === 'buyer') 
         ? `<button onclick="currentView = 'cart'; render()" class="relative bg-teal-500 hover:bg-teal-600 text-white font-bold py-2 px-4 rounded transition ml-2">
@@ -914,9 +1008,10 @@ function renderHeader(config) {
         <header class="sticky top-0 z-10 p-4 shadow-xl" style="background-color: ${config.card_background};">
             <div class="max-w-7xl mx-auto flex justify-between items-center">
                 <h1 class="text-3xl font-extrabold cursor-pointer" onclick="currentView = 'catalog'; render()" style="color: ${config.primary_button};">
-                    ${config.site_title}
+                    ${config.header_logo || config.site_title}
                 </h1>
                 <div class="flex items-center">
+                    ${settingsButton}
                     ${ordersButton}
                     ${cartButton}
                     ${adminButton}
@@ -927,7 +1022,97 @@ function renderHeader(config) {
     `;
 }
 
+// --- NUEVO: Renderizado de la Vista de Configuración ---
+function renderSettings() {
+    const config = getConfig();
+
+    if (!currentUser || currentUser.role !== 'admin') {
+        return `<div class="p-6 text-center text-red-500">Acceso denegado.</div>`;
+    }
+    
+    const currentSettings = config;
+
+    return `
+        ${renderHeader(config)}
+        <div class="max-w-4xl mx-auto p-6">
+            <h2 class="text-3xl font-bold mb-6">⚙️ Configuración Visual y General</h2>
+            <form onsubmit="handleSaveSettings(event)" class="space-y-4 p-6 rounded-xl shadow-xl" style="background-color: ${config.card_background};">
+                
+                <h3 class="text-xl font-bold border-b pb-2 mb-4">Información General</h3>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Título del Sitio</label>
+                        <input type="text" name="site_title" value="${currentSettings.site_title}" required class="w-full p-2 rounded bg-slate-800 border border-slate-700">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Logo / Texto Header</label>
+                        <input type="text" name="header_logo" value="${currentSettings.header_logo || ''}" class="w-full p-2 rounded bg-slate-800 border border-slate-700">
+                    </div>
+                    <div class="col-span-2">
+                        <label class="block text-sm font-medium mb-1">Información de Contacto</label>
+                        <input type="text" name="contact_info" value="${currentSettings.contact_info}" required class="w-full p-2 rounded bg-slate-800 border border-slate-700">
+                    </div>
+                    <div class="col-span-2">
+                        <label class="block text-sm font-medium mb-1">Texto de Footer</label>
+                        <textarea name="footer_text" class="w-full p-2 rounded bg-slate-800 border border-slate-700">${currentSettings.footer_text || ''}</textarea>
+                    </div>
+                </div>
+
+                <h3 class="text-xl font-bold border-b pb-2 pt-4 mb-4">Colores</h3>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div class="flex flex-col items-start">
+                        <label class="text-sm font-medium mb-1">Fondo Principal</label>
+                        <input type="color" name="background_color" value="${currentSettings.background_color}" class="h-10 w-full rounded">
+                        <span class="text-xs mt-1 opacity-70">${currentSettings.background_color}</span>
+                    </div>
+                    <div class="flex flex-col items-start">
+                        <label class="text-sm font-medium mb-1">Fondo de Tarjeta</label>
+                        <input type="color" name="card_background" value="${currentSettings.card_background}" class="h-10 w-full rounded">
+                        <span class="text-xs mt-1 opacity-70">${currentSettings.card_background}</span>
+                    </div>
+                    <div class="flex flex-col items-start">
+                        <label class="text-sm font-medium mb-1">Color de Texto</label>
+                        <input type="color" name="text_color" value="${currentSettings.text_color}" class="h-10 w-full rounded">
+                        <span class="text-xs mt-1 opacity-70">${currentSettings.text_color}</span>
+                    </div>
+                    <div class="flex flex-col items-start">
+                        <label class="text-sm font-medium mb-1">Botón Primario</label>
+                        <input type="color" name="primary_button" value="${currentSettings.primary_button}" class="h-10 w-full rounded">
+                        <span class="text-xs mt-1 opacity-70">${currentSettings.primary_button}</span>
+                    </div>
+                </div>
+
+                <h3 class="text-xl font-bold border-b pb-2 pt-4 mb-4">Tipografía</h3>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Fuente (CSS)</label>
+                        <input type="text" name="font_family" value="${currentSettings.font_family}" required class="w-full p-2 rounded bg-slate-800 border border-slate-700">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Tamaño Base (px)</label>
+                        <input type="number" name="font_size" value="${currentSettings.font_size}" min="10" max="24" required class="w-full p-2 rounded bg-slate-800 border border-slate-700">
+                    </div>
+                </div>
+
+                <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded transition mt-6">
+                    💾 Guardar y Aplicar Configuración
+                </button>
+            </form>
+            
+            <div class="mt-8 p-4 rounded-xl shadow-xl" style="background-color: ${config.card_background};">
+                 <h3 class="text-xl font-bold mb-3">Contacto Rápido</h3>
+                 <p class="text-gray-400">${config.contact_info}</p>
+            </div>
+            
+            <footer class="text-center text-gray-500 text-sm mt-6 p-4">
+                ${config.footer_text || ''}
+            </footer>
+        </div>
+    `;
+}
+
 function renderCatalog() {
+    // ... (El resto del código de renderCatalog se mantiene igual)
     const config = getConfig();
     const availableProducts = allProducts.filter(p => p.available && (currentUser && currentUser.role === 'reseller' ? p.seller === currentUser.username : true));
     
@@ -949,8 +1134,8 @@ function renderCatalog() {
 
         return `
             <div onclick="filterByShop('${shop.username}')" 
-                 class="shop-badge flex flex-col items-center justify-center p-3 m-1 rounded-lg border-2 text-sm bg-slate-700 hover:bg-indigo-700 ${rankClass}"
-                 style="background-color: ${config.card_background}; border-color: ${rankClass ? '' : config.primary_button};">
+                class="shop-badge flex flex-col items-center justify-center p-3 m-1 rounded-lg border-2 text-sm bg-slate-700 hover:bg-indigo-700 ${rankClass}"
+                style="background-color: ${config.card_background}; border-color: ${rankClass ? '' : config.primary_button};">
                 <div class="font-bold text-lg">${index + 1}</div>
                 <div class="text-xs">${shop.shop_name || shop.username}</div>
                 <div class="text-[10px] text-yellow-400">${getStarHtml(shop.rating)} (${shop.reviewCount})</div>
@@ -976,7 +1161,7 @@ function renderCatalog() {
 
         return `
             <div class="product-card flex flex-col justify-between rounded-xl shadow-2xl p-4 animate-bounce-in" 
-                 style="background-color: ${config.card_background};">
+                style="background-color: ${config.card_background};">
                 <div>
                     <img src="${p.image_url || 'https://via.placeholder.com/150'}" alt="${p.name}" class="w-full h-32 object-contain rounded-lg mb-3">
                     <h3 class="text-xl font-bold mb-1 truncate">${p.name}</h3>
@@ -1040,13 +1225,17 @@ function renderCatalog() {
             <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                 ${productsHtml.length > 0 ? productsHtml : `<div class="col-span-full text-center py-10 text-gray-400">No hay productos en esta categoría.</div>`}
             </div>
+            
+            <footer class="text-center text-gray-500 text-sm mt-6 p-4">
+                ${config.footer_text || ''}
+            </footer>
         </div>
     `;
 }
 
 function renderCart() {
     const config = getConfig();
-    
+    // ... (El resto del código de renderCart se mantiene igual)
     if (!currentUser || currentUser.role !== 'buyer') {
         return `<div class="p-6 text-center text-red-500">Acceso denegado.</div>`;
     }
@@ -1117,6 +1306,7 @@ function renderCart() {
 }
 
 function renderOrders() {
+    // ... (El resto del código de renderOrders se mantiene igual)
     const config = getConfig();
 
     if (!currentUser || (currentUser.role !== 'buyer' && currentUser.role !== 'reseller')) {
@@ -1141,7 +1331,7 @@ function renderOrders() {
                 statusClass = 'bg-yellow-800 text-yellow-300';
                 statusText = 'Pendiente de Aceptación';
                 if (isBuyer) {
-                     buttonAction = `<span class="text-sm text-gray-400">Esperando al vendedor...</span>`;
+                    buttonAction = `<span class="text-sm text-gray-400">Esperando al vendedor...</span>`;
                 } else { // Vendedor
                     buttonAction = `<button onclick="confirmOrder('${order.__backendId}', true)" class="bg-green-500 hover:bg-green-600 text-white font-bold py-1 px-3 rounded transition">Aceptar Orden</button>`;
                 }
@@ -1236,6 +1426,7 @@ function renderOrders() {
 }
 
 function renderAdmin() {
+    // ... (El resto del código de renderAdmin se mantiene igual)
     const config = getConfig();
 
     if (!currentUser || currentUser.role !== 'admin') {
@@ -1331,6 +1522,7 @@ function renderAdmin() {
 }
 
 function renderShopManagement() {
+    // ... (El resto del código de renderShopManagement se mantiene igual)
     const config = getConfig();
     const targetUser = allUsers.find(u => u.username === adminViewTarget);
 
@@ -1432,8 +1624,9 @@ function renderModal() {
             modalContent = `
                 <form onsubmit="handleLogin(event)" class="space-y-4">
                     <input type="text" name="username" placeholder="Usuario" required class="w-full p-3 rounded bg-slate-800 border border-slate-700">
-                    <input type="password" name="password" placeholder="Contraseña" required class="w-full p-3 rounded bg-slate-800 border border-slate-700">
-                    <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded transition">
+                    <input type="password" name="password" placeholder="Contraseña" required 
+                           class="w-full p-3 rounded bg-slate-800 border border-slate-700"
+                           autocomplete="current-password"> <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded transition">
                         Iniciar Sesión
                     </button>
                 </form>
@@ -1450,12 +1643,13 @@ function renderModal() {
             `;
             break;
         case 'registerBuyer':
-             title = 'Registro de Comprador';
-             modalContent = `
+            title = 'Registro de Comprador';
+            modalContent = `
                 <form onsubmit="handleRegisterBuyer(event)" class="space-y-4">
                     <input type="text" name="username" placeholder="Usuario" required class="w-full p-3 rounded bg-slate-800 border border-slate-700">
-                    <input type="password" name="password" placeholder="Contraseña" required class="w-full p-3 rounded bg-slate-800 border border-slate-700">
-                    <input type="text" name="contact" placeholder="Contacto (Discord/WhatsApp)" required class="w-full p-3 rounded bg-slate-800 border border-slate-700">
+                    <input type="password" name="password" placeholder="Contraseña" required 
+                           class="w-full p-3 rounded bg-slate-800 border border-slate-700"
+                           autocomplete="new-password"> <input type="text" name="contact" placeholder="Contacto (Discord/WhatsApp)" required class="w-full p-3 rounded bg-slate-800 border border-slate-700">
                     <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded transition">
                         Registrar y Acceder
                     </button>
@@ -1471,8 +1665,9 @@ function renderModal() {
                 <form onsubmit="handleRegisterReseller(event)" class="space-y-4">
                     <p class="text-sm text-yellow-400">Tu cuenta requerirá aprobación del Administrador.</p>
                     <input type="text" name="username" placeholder="Usuario" required class="w-full p-3 rounded bg-slate-800 border border-slate-700">
-                    <input type="password" name="password" placeholder="Contraseña" required class="w-full p-3 rounded bg-slate-800 border border-slate-700">
-                    <input type="text" name="contact" placeholder="Contacto (Discord/WhatsApp)" required class="w-full p-3 rounded bg-slate-800 border border-slate-700">
+                    <input type="password" name="password" placeholder="Contraseña" required 
+                           class="w-full p-3 rounded bg-slate-800 border border-slate-700"
+                           autocomplete="new-password"> <input type="text" name="contact" placeholder="Contacto (Discord/WhatsApp)" required class="w-full p-3 rounded bg-slate-800 border border-slate-700">
                     <button type="submit" class="w-full bg-yellow-600 hover:bg-yellow-700 text-gray-900 font-bold py-3 rounded transition">
                         Enviar Solicitud
                     </button>
@@ -1483,6 +1678,7 @@ function renderModal() {
             `;
             break;
         case 'setupShop':
+            // ... (El resto de modales se mantiene igual, sin cambios críticos)
             title = 'Configurar mi Tienda';
             modalContent = `
                 <form onsubmit="handleSetupShop(event)" class="space-y-4">
@@ -1495,6 +1691,7 @@ function renderModal() {
             `;
             break;
         case 'editProduct':
+            // ... (Sin cambios críticos en la lógica de este modal)
             if (!selectedProductToEdit) return '';
             title = `Editar: ${selectedProductToEdit.name}`;
             modalContent = `
@@ -1541,6 +1738,7 @@ function renderModal() {
             `;
             break;
         case 'manageUser':
+            // ... (Sin cambios críticos en la lógica de este modal)
             if (!managedUser) return '';
             const userStatus = managedUser.approved 
                 ? (managedUser.role === 'reseller' ? 'Aprobado' : 'Activo')
@@ -1584,6 +1782,7 @@ function renderModal() {
             `;
             break;
         case 'review':
+            // ... (Sin cambios críticos en la lógica de este modal)
             if (!selectedOrder) return '';
             const orderToReview = allOrders.find(o => o.__backendId === selectedOrder);
             if (!orderToReview) return '';
@@ -1614,6 +1813,7 @@ function renderModal() {
             `;
             break;
         case 'chat':
+            // ... (Sin cambios críticos en la lógica de este modal)
             if (!chatTargetOrder) return '';
             const isOrderBuyer = chatTargetOrder.buyer_username === currentUser.username;
             const chatPartner = isOrderBuyer ? chatTargetOrder.seller_username : chatTargetOrder.buyer_username;
@@ -1630,7 +1830,6 @@ function renderModal() {
                     </form>
                 </div>
             `;
-            // El renderizado de mensajes se hace después de la suscripción en openChatModal
             break;
     }
 
@@ -1663,24 +1862,22 @@ async function init() {
 
     setupAutoLogout();
 
-    // Iniciar SDK de Datos (lee de JSONBin y notifica a dataHandler)
+    // Iniciar SDK de Datos (lee de Supabase y notifica a dataHandler)
     await window.dataSdk.init(dataHandler);
     
-    // Iniciar SDK de Elementos (para manejar configuración dinámica)
-    if (window.elementSdk) {
-      window.elementSdk.init({
-        defaultConfig,
-        onConfigChange: async (config) => {
-          document.body.style.backgroundColor = config.background_color || defaultConfig.background_color;
-          document.body.style.color = config.text_color || defaultConfig.text_color;
-          const baseSize = config.font_size || defaultConfig.font_size;
-          document.body.style.fontSize = `${baseSize}px`;
-          render();
-        }
-      });
-    }
+    // El SDK de Elementos ya no es necesario, la configuración se lee desde Supabase (dataHandler)
+    // Se elimina la llamada a window.elementSdk.init
     
-    if (currentUser) updateUserActivity();
+    if (currentUser) {
+        // Si el usuario ya está logueado, verifica si fue baneado (nueva lógica)
+        const userCheck = allUsers.find(u => u.username === currentUser.username);
+        if (userCheck && userCheck.role === 'banned') {
+            logout(); // Cierra la sesión si está baneado
+            showToast('🚫 Sesión cerrada: tu cuenta fue baneada.');
+            return; 
+        }
+        updateUserActivity();
+    }
     render();
 }
 
@@ -1698,7 +1895,6 @@ function resetTimer() {
 }
 
 // =========================================================
-// == 6. INICIO DE LA APLICACIÓN                            ==
+// == 6. INICIO DE LA APLICACIÓN                          ==
 // =========================================================
 init();
-
