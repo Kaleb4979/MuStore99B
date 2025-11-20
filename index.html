@@ -3,7 +3,7 @@
  <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mu Online 99B Marketplace - V26 (Flujo Confirmación Secuencial)</title>
+  <title>Mu Online 99B Marketplace - V27 (Ventas en Tabla Global Admin)</title>
  
   <script src="https://cdn.tailwindcss.com"></script>
  
@@ -1268,6 +1268,17 @@
       return shopsStats.filter(s => s.salesCount > 0)
             .sort((a, b) => b.salesCount - a.salesCount).slice(0, 3); 
     }
+    
+    // Función para obtener el conteo de ventas de todos los vendedores
+    function getSellerSalesMap() {
+        const salesMap = {};
+        allOrders.forEach(order => {
+            if (order.order_status === 'completed' && order.seller_username) {
+                salesMap[order.seller_username] = (salesMap[order.seller_username] || 0) + 1;
+            }
+        });
+        return salesMap;
+    }
 
     function getCategoryIcon(id) {
       const cat = CATEGORIES.find(c => c.id === id);
@@ -1353,7 +1364,7 @@
           <header class="shadow-lg sticky top-0 z-40 bg-slate-800 border-b border-slate-700 p-4">
             <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
                 <div class="text-center md:text-left">
-                  <h1 class="text-2xl font-bold text-blue-400 tracking-tight">MU MARKET <span class="text-white text-xs bg-blue-600 px-1 rounded">V26</span></h1>
+                  <h1 class="text-2xl font-bold text-blue-400 tracking-tight">MU MARKET <span class="text-white text-xs bg-blue-600 px-1 rounded">V27</span></h1>
                   <p class="text-xs mt-1 opacity-60">${config.contact_info}</p>
                 </div>
                 <div class="flex flex-wrap gap-2 justify-center items-center">
@@ -1690,6 +1701,9 @@
       
       const completedOrdersLog = allOrders.filter(o => o.order_status === 'completed').reverse();
       
+      // 1. Calcular las ventas de todos los revendedores
+      const sellerSalesMap = getSellerSalesMap();
+
       const displayUsers = allUsers.sort((a, b) => {
           if (a.status === 'pending' && b.status !== 'pending') return -1;
           if (a.status !== 'pending' && b.status === 'pending') return 1;
@@ -1934,7 +1948,7 @@
                                         <th class="p-4">Usuario (Tienda)</th>
                                         <th class="p-4">Rol</th>
                                         <th class="p-4">Estado</th>
-                                        <th class="p-4">Discord</th>
+                                        <th class="p-4 text-center">VENTAS</th> <th class="p-4">Discord</th>
                                         <th class="p-4 text-right">Acciones</th>
                                     </tr>
                                 </thead>
@@ -1956,6 +1970,9 @@
                                                 <span class="px-2 py-1 rounded text-xs font-bold ${u.status==='banned'?'bg-red-900/30 text-red-400':u.status==='pending'?'bg-yellow-900/30 text-yellow-400':'bg-green-900/30 text-green-400'}">
                                                     ${u.status.toUpperCase()}
                                                 </span>
+                                            </td>
+                                            <td class="p-4 text-center">
+                                                ${u.role === 'reseller' ? `<span class="font-bold text-green-400">${sellerSalesMap[u.username] || 0}</span>` : 'N/A'}
                                             </td>
                                             <td class="p-4 font-mono text-xs text-blue-300">
                                                 ${u.discord_tag}
@@ -2006,6 +2023,10 @@
              const userOrders = allOrders.filter(o => o.buyer_username === u.username || o.seller_username === u.username);
              const userProducts = allProducts.filter(p => p.seller_username === u.username);
              
+             // Recalcular las ventas para este modal
+             const sellerSalesMap = getSellerSalesMap();
+             const salesCount = sellerSalesMap[u.username] || 0;
+             
              return `
             <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
                 <div class="${box} max-w-2xl w-full" onclick="event.stopPropagation()">
@@ -2033,6 +2054,10 @@
                             <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
                                 <p class="text-xs uppercase text-slate-500 font-bold">Items Publicados</p>
                                 <p class="font-bold text-white text-xl">${userProducts.length}</p>
+                            </div>
+                             <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
+                                <p class="text-xs uppercase text-slate-500 font-bold">Ventas Completadas</p>
+                                <p class="font-bold text-green-400 text-xl">${salesCount}</p>
                             </div>
                         ` : ''}
                         <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
