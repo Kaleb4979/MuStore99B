@@ -3,7 +3,7 @@
  <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mu Online 99B Marketplace - V25 (Sincronización Reforzada)</title>
+  <title>Mu Online 99B Marketplace - V26 (Flujo Confirmación Secuencial)</title>
  
   <script src="https://cdn.tailwindcss.com"></script>
  
@@ -1141,7 +1141,7 @@
           return;
       }
 
-      showToast('Pedido(s) creado(s) exitosamente!');
+      showToast('Pedido(s) creado(s) exitosamente! Esperando confirmación del vendedor.');
       cart = [];
       updateCartStorage();
       currentView = 'orders';
@@ -1155,8 +1155,15 @@
       let updatedOrder = {...order};
 
       if (isSeller) {
+        // Vendedor confirma entrega
         updatedOrder.seller_confirmed = true;
+        showToast('Vendedor confirma entrega. ¡Ahora el comprador debe confirmar recepción!');
       } else {
+        // Comprador confirma recepción. Solo se permite si el vendedor ya entregó.
+        if (!order.seller_confirmed) {
+            showToast('⚠️ Error: El vendedor aún no ha marcado el pedido como entregado.');
+            return;
+        }
         updatedOrder.buyer_confirmed = true;
       }
 
@@ -1184,7 +1191,7 @@
                 // 2. Actualizar el estado de la orden a completada
                 await window.dataSdk.update(completedOrder); 
                 
-                showToast('¡Pedido completado y Stock actualizado! Tienda entra en el Ranking.');
+                showToast('✅ ¡Pedido completado y Stock actualizado! Tienda entra en el Ranking.');
                 
                 // 🚨 OPTIMIZACIÓN CRÍTICA: Forzar recarga completa de datos del BIN
                 // Esto asegura que allOrders se actualice con el pedido 'completed' antes del render()
@@ -1194,8 +1201,10 @@
                 console.error("Error al procesar stock o actualizar orden final:", e);
                 showToast("Error crítico al finalizar la orden. Stock no actualizado.");
               }
-          } else {
-              showToast('Confirmación registrada.');
+          } else if (result.item.buyer_confirmed) {
+              showToast('✅ Recepción de items confirmada. Esperando finalización de la venta.');
+          } else if (result.item.seller_confirmed) {
+             // El vendedor ya confirmó, el toast ya se mostró arriba.
           }
       }
       render();
@@ -1344,7 +1353,7 @@
           <header class="shadow-lg sticky top-0 z-40 bg-slate-800 border-b border-slate-700 p-4">
             <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
                 <div class="text-center md:text-left">
-                  <h1 class="text-2xl font-bold text-blue-400 tracking-tight">MU MARKET <span class="text-white text-xs bg-blue-600 px-1 rounded">V25</span></h1>
+                  <h1 class="text-2xl font-bold text-blue-400 tracking-tight">MU MARKET <span class="text-white text-xs bg-blue-600 px-1 rounded">V26</span></h1>
                   <p class="text-xs mt-1 opacity-60">${config.contact_info}</p>
                 </div>
                 <div class="flex flex-wrap gap-2 justify-center items-center">
@@ -1601,15 +1610,27 @@
                     </div>
                 ` : ''}
 
-                ${myOrders.map((o, index) => `
-                    <div class="bg-slate-800 p-6 rounded-xl mb-6 border-l-4 shadow-lg transition hover:bg-slate-800/80 ${o.order_status==='completed'?'border-green-500':o.buyer_confirmed?'border-orange-500':'border-yellow-500'}">
+                ${myOrders.map((o, index) => {
+                    const statusText = o.order_status === 'completed' 
+                        ? 'Completado' 
+                        : o.seller_confirmed 
+                            ? 'Pendiente de tu Confirmación' 
+                            : 'Esperando Entrega del Vendedor';
+                    const statusClass = o.order_status === 'completed'
+                        ? 'bg-green-900 text-green-200 border border-green-700'
+                        : o.seller_confirmed 
+                            ? 'bg-orange-900 text-orange-200 border border-orange-700 animate-pulse'
+                            : 'bg-yellow-900 text-yellow-200 border border-yellow-700 animate-pulse';
+
+                    return `
+                    <div class="bg-slate-800 p-6 rounded-xl mb-6 border-l-4 shadow-lg transition hover:bg-slate-800/80 ${o.order_status==='completed'?'border-green-500':o.seller_confirmed?'border-orange-500':'border-yellow-500'}">
                         <div class="flex justify-between items-start border-b border-slate-700 pb-4 mb-4">
                             <div>
                                 <span class="font-bold text-xl text-white">PEDIDO #${myOrders.length - index}</span>
                                 <div class="text-xs text-slate-500 font-mono mt-1">ID: ${o.id}</div>
                             </div>
-                            <span class="px-3 py-1 rounded text-sm font-bold uppercase tracking-wider ${o.order_status==='completed'?'bg-green-900 text-green-200 border border-green-700':o.buyer_confirmed?'bg-orange-900 text-orange-200 border border-orange-700':'bg-yellow-900 text-yellow-200 border border-yellow-700 animate-pulse'}">
-                                ${o.order_status === 'completed' ? 'Completado' : (o.buyer_confirmed ? 'Esperando Vendedor' : 'Pendiente')}
+                            <span class="px-3 py-1 rounded text-sm font-bold uppercase tracking-wider ${statusClass}">
+                                ${statusText}
                             </span>
                         </div>
                         
@@ -1635,10 +1656,16 @@
                             </div>
                             
                             ${o.order_status === 'pending' ? `
-                                <button onclick="confirmOrder('${o.__backendId}', false)" ${o.buyer_confirmed ? 'disabled' : ''} 
-                                    class="w-full sm:w-auto bg-blue-600 hover:bg-blue-500 px-6 py-3 rounded-lg font-bold text-white disabled:opacity-50 disabled:cursor-not-allowed shadow transition transform active:scale-95">
-                                    ${o.buyer_confirmed ? '⏳ Esperando confirmación del Vendedor...' : '✅ CONFIRMAR QUE RECIBÍ LOS ITEMS'}
-                                </button>
+                                ${o.seller_confirmed ? `
+                                    <button onclick="confirmOrder('${o.__backendId}', false)" ${o.buyer_confirmed ? 'disabled' : ''} 
+                                        class="w-full sm:w-auto bg-green-600 hover:bg-green-500 px-6 py-3 rounded-lg font-bold text-white shadow transition transform active:scale-95">
+                                        ✅ CONFIRMAR QUE RECIBÍ LOS ITEMS
+                                    </button>
+                                ` : `
+                                    <button disabled class="w-full sm:w-auto bg-yellow-700/50 px-6 py-3 rounded-lg font-bold text-white disabled:opacity-100 disabled:cursor-wait">
+                                        ⏳ Esperando que el Vendedor Entregue/Confirme
+                                    </button>
+                                `}
                             ` : `
                                 <div class="flex items-center gap-2 text-green-400 font-bold bg-green-900/20 px-4 py-2 rounded-lg border border-green-900/50">
                                     <span>✅ Pedido Finalizado</span>
@@ -1646,7 +1673,7 @@
                             `}
                         </div>
                     </div>
-                `).join('')}
+                `}).join('')}
             </div>
         </div>`;
     }
@@ -1659,7 +1686,7 @@
       
       const myProducts = allProducts.filter(p => p.seller_username === viewingAs);
       const myOrders = allOrders.filter(o => o.seller_username === viewingAs);
-      const pending = myOrders.filter(o => o.order_status === 'pending');
+      const pending = myOrders.filter(o => o.order_status === 'pending').reverse();
       
       const completedOrdersLog = allOrders.filter(o => o.order_status === 'completed').reverse();
       
@@ -1772,12 +1799,35 @@
                         <div class="text-center py-8 opacity-50">
                             <p class="italic">No tienes pedidos pendientes. ¡Buen trabajo!</p>
                         </div>
-                    ` : pending.map((o, i) => `
+                    ` : pending.map((o, i) => {
+                        const sellerConfirmed = o.seller_confirmed;
+                        const buyerConfirmed = o.buyer_confirmed;
+                        
+                        let buttonText, buttonClass, buttonAction;
+                        
+                        if (buyerConfirmed) {
+                             buttonText = 'Cliente CONFIRMADO';
+                             buttonClass = 'bg-orange-700/50 disabled:opacity-100 disabled:cursor-wait';
+                             buttonAction = 'disabled';
+                        } else if (sellerConfirmed) {
+                            buttonText = '⏳ Esperando Cliente';
+                            buttonClass = 'bg-yellow-600/50 disabled:opacity-100 disabled:cursor-wait';
+                            buttonAction = 'disabled';
+                        } else {
+                            buttonText = '✅ MARCAR ENTREGADO';
+                            buttonClass = 'bg-green-600 hover:bg-green-500';
+                            buttonAction = `onclick="confirmOrder('${o.__backendId}', true)"`;
+                        }
+                        
+                        const statusBadgeText = buyerConfirmed ? 'Cliente Confirmó' : (sellerConfirmed ? 'Tú Confirmaste (Esperando Cliente)' : 'Pendiente de tu Entrega');
+                        const statusBadgeClass = buyerConfirmed ? 'bg-orange-900 text-orange-200' : (sellerConfirmed ? 'bg-yellow-900 text-yellow-200' : 'bg-red-900 text-red-200');
+
+                        return `
                         <div class="bg-slate-900 p-5 rounded-lg mb-4 border border-slate-600 flex flex-col md:flex-row justify-between gap-6 shadow-sm hover:bg-slate-900/80 transition">
                             <div class="flex-1">
                                 <div class="flex items-center gap-3 mb-2">
-                                    <span class="font-bold text-lg text-blue-300">PEDIDO #${i + 1}</span>
-                                    <span class="text-xs text-slate-500 font-mono bg-slate-800 px-2 py-1 rounded">ID: ${o.id.slice(-8)}</span>
+                                    <span class="font-bold text-lg text-blue-300">PEDIDO #${pending.length - i}</span>
+                                    <span class="px-2 py-1 rounded text-xs font-bold ${statusBadgeClass} whitespace-nowrap">${statusBadgeText}</span>
                                 </div>
                                 <div class="mb-1">Cliente: <span class="font-bold text-white">${o.buyer_username}</span></div>
                                 <div class="inline-block bg-purple-900/30 text-purple-300 px-2 py-1 rounded text-xs font-mono border border-purple-500/30 mb-3">
@@ -1792,13 +1842,12 @@
                                     <p class="text-xs text-slate-500 uppercase">Total a Cobrar</p>
                                     <div class="text-3xl font-bold text-green-400">$${o.total.toFixed(2)}</div>
                                 </div>
-                                <button onclick="confirmOrder('${o.__backendId}', true)" ${o.seller_confirmed ? 'disabled' : ''} 
-                                    class="w-full mt-4 bg-green-600 hover:bg-green-500 px-4 py-2 rounded font-bold text-sm shadow transition disabled:opacity-50 disabled:cursor-wait">
-                                    ${o.seller_confirmed ? '⏳ Esperando Cliente...' : '✅ MARCAR ENTREGADO'}
+                                <button ${buttonAction} class="w-full mt-4 ${buttonClass} px-4 py-2 rounded font-bold text-sm shadow transition text-white">
+                                    ${buttonText}
                                 </button>
                             </div>
                         </div>
-                    `).join('')}
+                    `}).join('')}
                 </div>
 
                 <div class="bg-slate-800 p-6 rounded-xl mb-8 border border-slate-700 shadow-lg">
