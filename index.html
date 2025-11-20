@@ -74,7 +74,7 @@
     .star-rating {
       display: flex;
       justify-content: center;
-      flex-direction: row-reverse; /* Revertir el orden para que la primera estrella sea la 5 */
+      flex-direction: row-reverse;
     }
     .star-rating > label {
       cursor: pointer;
@@ -88,7 +88,7 @@
     .star-rating > input:checked ~ label:before,
     .star-rating > label:hover ~ label:before,
     .star-rating > label:hover:before {
-      color: #FFD700; /* Color dorado */
+      color: #FFD700;
     }
     .top-shop-card {
       transition: all 0.3s ease;
@@ -100,7 +100,7 @@
   <style>@view-transition { navigation: auto; }</style>
 
   <script>
-    const DB_KEY = 'mu_marketplace_db_v2'; // Actualizado version DB
+    const DB_KEY = 'mu_marketplace_db_v2';
 
     // Inicializar DB en memoria desde LocalStorage o vacío
     let savedData = localStorage.getItem(DB_KEY);
@@ -126,14 +126,14 @@
         item.__backendId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
         window.mockDb.data.push(item);
         window.mockDb.notify();
-        return { isOk: true, item: item }; // Agregado item para consistencia
+        return { isOk: true, item: item };
       },
       update: async (item) => {
         const index = window.mockDb.data.findIndex(i => i.__backendId === item.__backendId);
         if (index !== -1) {
           window.mockDb.data[index] = item;
           window.mockDb.notify();
-          return { isOk: true, item: item }; // Agregado item para consistencia
+          return { isOk: true, item: item };
         }
         return { isOk: false };
       },
@@ -188,7 +188,7 @@
     let allUsers = [];
     let allOrders = [];
     let allReviews = [];
-    let cart = JSON.parse(localStorage.getItem('mu_cart_v2') || '[]'); // Mantener carrito en localStorage
+    let cart = JSON.parse(localStorage.getItem('mu_cart_v2') || '[]');
     let showModal = null;
     let selectedOrder = null;
 
@@ -208,7 +208,7 @@
 
     let onlineUsers = new Set();
     let userActivityTimeout = null;
-    let isReviewModalOpen = false; // Bandera para controlar la apertura del modal de reseña
+    let isReviewModalOpen = false;
 
     // Data SDK Handler
     const dataHandler = {
@@ -286,13 +286,13 @@
       if (pendingOrder) {
         selectedOrder = pendingOrder;
         showModal = 'review';
-        isReviewModalOpen = true; // Establecer bandera
+        isReviewModalOpen = true;
       }
     }
 
     // Export/Import Functions
-    async function exportData() {
-      const btn = event?.target;
+    async function exportData(event) {
+      const btn = event.target;
       if (btn) {
         btn.disabled = true;
         btn.innerHTML = '<div class="loading-spinner mx-auto"></div>';
@@ -343,12 +343,12 @@
       reader.onload = async (e) => {
         try {
           const importedData = JSON.parse(e.target.result);
-          if (!importedData.products && !importedData.users) { // Check relajado para permitir parciales
+          if (!importedData.products && !importedData.users) {
             showToast('❌ Archivo JSON inválido');
             return;
           }
+          selectedOrder = importedData;
           showModal = 'importConfirm';
-          selectedOrder = importedData; // Uso temporal de variable
           render();
         } catch (error) {
           showToast('❌ Error al leer el archivo JSON');
@@ -368,24 +368,18 @@
         btn.disabled = true;
       }
 
-      // Import logic (Iterate via DataSDK to trigger Updates)
-      // ATENCIÓN: Esta implementación es para LocalStorage mock, NO para JSONBin.
-      // Para evitar duplicados en LocalStorage, limpiamos y re-insertamos.
-      
       const newFullData = [];
       const collections = ['users', 'products', 'orders', 'reviews', 'activity'];
       
       for (const col of collections) {
           if(importedData[col]) {
               for(const item of importedData[col]) {
-                  // Regenerar __backendId por si se importan datos de otra fuente/sesión
                   item.__backendId = item.__backendId || (Date.now().toString() + Math.random().toString(36).substr(2, 9));
                   newFullData.push(item);
               }
           }
       }
       
-      // Reemplazar la data en memoria y notificar
       window.mockDb.data = newFullData;
       window.mockDb.notify();
 
@@ -413,7 +407,6 @@
 
       const user = allUsers.find(u => u.username === username && u.password === password);
       if (user) {
-        // VERIFICAR SI ESTÁ BANEADO
         if (user.status === 'banned') {
             showToast('🚫 Tu cuenta ha sido suspendida/baneada.');
             return;
@@ -552,7 +545,7 @@
       currentUser = null;
       currentView = 'catalog';
       cart = [];
-      localStorage.removeItem('mu_cart_v2'); // Limpiar carrito en localStorage al salir
+      localStorage.removeItem('mu_cart_v2');
       showToast('Sesión cerrada');
       render();
     }
@@ -957,7 +950,7 @@
           if (!isSeller) {
             selectedOrder = order;
             showModal = 'review';
-            isReviewModalOpen = true; // Establecer bandera
+            isReviewModalOpen = true;
             render();
           }
         } else {
@@ -973,7 +966,6 @@
       e.preventDefault();
       if (!selectedOrder) return;
 
-      // Corregido: Obtener la calificación de los radios ocultos.
       const ratingInput = document.querySelector('.star-rating input:checked');
       const rating = parseInt(ratingInput?.value || '0');
       const reviewText = document.getElementById('reviewText').value.trim();
@@ -1000,14 +992,13 @@
       const reviewResult = await window.dataSdk.create(reviewData);
       
       if (reviewResult.isOk) {
-        // Marcar orden como revisada
         selectedOrder.needs_review = false;
         await window.dataSdk.update(selectedOrder);
         
         showToast('¡Gracias por tu reseña!');
         showModal = null;
         selectedOrder = null;
-        isReviewModalOpen = false; // Restablecer bandera
+        isReviewModalOpen = false;
         render();
       } else {
         showToast('Error al guardar reseña');
@@ -1018,7 +1009,6 @@
     }
 
     // Review Functions
-    // CORREGIDO: Devuelve 0.0 y 0 si no hay reseñas para que el Top funcione.
     function getSellerRating(sellerUsername) {
       const sellerReviews = allReviews.filter(r => r.reviewed_seller === sellerUsername);
       if (sellerReviews.length === 0) return { average: 0.0, count: 0 };
@@ -1030,7 +1020,6 @@
       };
     }
 
-    // CORREGIDO: Quitado el filtro que eliminaba las tiendas con 0 reseñas
     function getTopShops() {
       const resellers = allUsers.filter(u => u.role === 'reseller' && u.approved);
       const shopsWithRatings = resellers.map(seller => {
@@ -1040,7 +1029,7 @@
           rating: parseFloat(rating.average),
           reviewCount: rating.count
         };
-      }); /* .filter(shop => shop.reviewCount > 0); */ // <-- FILTRO ELIMINADO
+      });
 
       return shopsWithRatings.sort((a, b) => {
         if (b.rating !== a.rating) return b.rating - a.rating;
@@ -1048,7 +1037,6 @@
       }).slice(0, 3);
     }
 
-    // MEJORADO: Renderizado de estrellas (usa Math.round para simplificar)
     function renderStars(rating) {
       const roundedRating = Math.round(rating);
       let stars = '';
@@ -1115,7 +1103,7 @@
                           <h1 class="text-2xl font-bold">❌ Error en el Renderizado de la Vista</h1>
                           <p class="mt-4">La vista falló al dibujarse. El error es: ${error.message}</p>
                         </div>`;
-        return; // Detener la ejecución del render de modal si la vista principal falló
+        return;
       }
       
       // Asegurar que el modal se renderice en el DOM
@@ -1130,9 +1118,163 @@
         modalContainer.innerHTML = renderModal();
       } else {
         modalContainer.innerHTML = '';
-        isReviewModalOpen = false; // Asegurar que la bandera se desactive al cerrar el modal
+        isReviewModalOpen = false;
+      }
+      
+      // --- DELEGACIÓN DE EVENTOS (Nuevo para solucionar CSP) ---
+      attachEventListeners();
+    }
+    
+    // Funciòn de mapeo de eventos
+    function attachEventListeners() {
+      // Remover handlers anteriores para evitar duplicados si se llamó render() antes
+      document.removeEventListener('click', delegateClick);
+      document.removeEventListener('change', delegateChange);
+      
+      // Delegación de clicks
+      document.addEventListener('click', delegateClick);
+      
+      // Delegación de cambios (para el filtro de usuarios)
+      document.addEventListener('change', delegateChange);
+
+      // Asegurar formularios
+      const forms = document.querySelectorAll('form[data-handler]');
+      forms.forEach(form => {
+        form.onsubmit = function(event) {
+          event.preventDefault();
+          const handler = form.getAttribute('data-handler');
+          if (window[handler]) {
+            window[handler](event);
+          }
+        };
+      });
+      
+      // Asegurar el input de importación
+      const importInput = document.getElementById('importFileInput');
+      if (importInput) {
+        importInput.onchange = importData;
+      }
+      
+      // Asegurar el input de búsqueda de usuarios
+      const userSearchInput = document.getElementById('userSearchInput');
+      if (userSearchInput) {
+        userSearchInput.oninput = function(event) {
+          filterUsers(event.target.value);
+        };
+      }
+
+      // Asegurar el modal-backdrop para que se pueda cerrar
+      const modalBackdrop = document.querySelector('.modal-backdrop');
+      if (modalBackdrop && showModal !== 'review' && showModal !== 'setupShop') {
+        modalBackdrop.onclick = function(event) {
+          if (event.target === this) {
+            showModal = null;
+            render();
+          }
+        }
       }
     }
+    
+    function delegateClick(event) {
+      let target = event.target;
+      
+      // Buscar el botón o elemento con data-action
+      while (target && target !== document.body) {
+        const action = target.getAttribute('data-action');
+        if (action) {
+          event.preventDefault();
+          const param1 = target.getAttribute('data-param1');
+          const param2 = target.getAttribute('data-param2');
+          
+          switch (action) {
+            case 'setView':
+              currentView = param1;
+              render();
+              break;
+            case 'setCategory':
+              selectedCategory = param1;
+              render();
+              break;
+            case 'showModal':
+              showModal = param1;
+              render();
+              break;
+            case 'closeModal':
+              showModal = null;
+              if (param1 === 'review') isReviewModalOpen = false;
+              render();
+              break;
+            case 'logout':
+              logout();
+              break;
+            case 'addToCart':
+              addToCart(param1);
+              break;
+            case 'updateCartQuantity':
+              updateCartQuantity(parseInt(param1), parseInt(param2));
+              break;
+            case 'removeFromCart':
+              removeFromCart(parseInt(param1));
+              break;
+            case 'clearCart':
+              clearCart();
+              break;
+            case 'createOrder':
+              createOrder();
+              break;
+            case 'confirmOrder':
+              confirmOrder(param1, param2 === 'true');
+              break;
+            case 'exportData':
+              exportData(event);
+              break;
+            case 'triggerImportInput':
+              document.getElementById('importFileInput').click();
+              break;
+            case 'approveReseller':
+              approveReseller(param1, param2 === 'true');
+              break;
+            case 'deleteProduct':
+              deleteProduct(param1);
+              break;
+            case 'viewUserProfile':
+              viewUserProfile(param1);
+              break;
+            case 'banUser':
+              banUser(param1);
+              break;
+            case 'deleteUserAccount':
+              deleteUserAccount(param1);
+              break;
+            case 'confirmImport':
+              confirmImport();
+              break;
+            case 'modalBackdropClose':
+              showModal = null;
+              selectedOrder = null;
+              render();
+              break;
+            default:
+              console.warn('Action not handled:', action);
+          }
+          return;
+        }
+        target = target.parentElement;
+      }
+    }
+    
+    function delegateChange(event) {
+      const target = event.target;
+      
+      if (target.matches('select[data-action="changeRole"]')) {
+        const newRole = target.value;
+        const backendId = target.getAttribute('data-id');
+        if (newRole && backendId) {
+          changeUserRole(backendId, newRole);
+        }
+      }
+    }
+
 
     function renderCatalog() {
       const config = getConfig();
@@ -1157,29 +1299,29 @@
                 </div>
                 <div class="flex flex-wrap gap-2 justify-center">
                   ${currentUser ? `
-                    <button onclick="currentView='cart'; render();" class="relative px-4 py-2 rounded-lg font-semibold transition" style="background-color: ${config.primary_button}; color: white;">
+                    <button data-action="setView" data-param1="cart" class="relative px-4 py-2 rounded-lg font-semibold transition" style="background-color: ${config.primary_button}; color: white;">
                       🛒 Carrito
                       ${cartCount > 0 ? `<span class="cart-badge">${cartCount}</span>` : ''}
                     </button>
-                    <button onclick="currentView='orders'; render();" class="px-4 py-2 rounded-lg font-semibold transition bg-purple-600 text-white">
+                    <button data-action="setView" data-param1="orders" class="px-4 py-2 rounded-lg font-semibold transition bg-purple-600 text-white">
                       📦 Mis Pedidos
                     </button>
                     ${currentUser.role !== 'buyer' ? `
-                      <button onclick="currentView='admin'; render();" class="px-4 py-2 rounded-lg font-semibold transition" style="background-color: ${config.secondary_button}; color: white;">
+                      <button data-action="setView" data-param1="admin" class="px-4 py-2 rounded-lg font-semibold transition" style="background-color: ${config.secondary_button}; color: white;">
                         ${currentUser.role === 'admin' ? '⚙️ Admin' : '🏪 Mi Tienda'}
                       </button>
                     ` : ''}
-                    <button onclick="logout();" class="px-4 py-2 rounded-lg font-semibold transition bg-red-600 text-white">
+                    <button data-action="logout" class="px-4 py-2 rounded-lg font-semibold transition bg-red-600 text-white">
                       🚪 Salir
                     </button>
                   ` : `
-                    <button onclick="showModal='register'; render();" class="px-4 py-2 rounded-lg font-semibold transition" style="background-color: ${config.secondary_button}; color: white;">
+                    <button data-action="showModal" data-param1="register" class="px-4 py-2 rounded-lg font-semibold transition" style="background-color: ${config.secondary_button}; color: white;">
                       📝 Registrarse
                     </button>
-                    <button onclick="showModal='registerReseller'; render();" class="px-4 py-2 rounded-lg font-semibold transition" style="background-color: ${config.primary_button}; color: white;">
+                    <button data-action="showModal" data-param1="registerReseller" class="px-4 py-2 rounded-lg font-semibold transition" style="background-color: ${config.primary_button}; color: white;">
                       🏪 Abrir Tienda
                     </button>
-                    <button onclick="showModal='login'; render();" class="px-4 py-2 rounded-lg font-semibold transition bg-purple-600 text-white">
+                    <button data-action="showModal" data-param1="login" class="px-4 py-2 rounded-lg font-semibold transition bg-purple-600 text-white">
                       🔐 Login
                     </button>
                   `}
@@ -1214,7 +1356,8 @@
             <div class="flex flex-wrap gap-3 justify-center">
               ${CATEGORIES.map(cat => `
                 <button 
-                  onclick="selectedCategory='${cat.id}'; render();" 
+                  data-action="setCategory"
+                  data-param1="${cat.id}"
                   class="category-btn px-6 py-3 rounded-lg font-semibold shadow-md ${selectedCategory === cat.id ? 'ring-4 ring-blue-400' : ''}"
                   style="background-color: ${selectedCategory === cat.id ? config.primary_button : config.card_background}; color: ${config.text_color};">
                   ${cat.icon} ${cat.name}
@@ -1287,7 +1430,8 @@
                           `}
                         </div>
                         <button 
-                          onclick="addToCart('${product.__backendId}')" 
+                          data-action="addToCart"
+                          data-param1="${product.__backendId}"
                           ${product.stock <= 0 ? 'disabled' : ''}
                           class="px-4 py-2 rounded-lg font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed"
                           style="background-color: ${config.secondary_button}; color: white;">
@@ -1317,7 +1461,7 @@
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
               <div class="flex justify-between items-center">
                 <h1 class="text-3xl font-bold">🛒 Mi Carrito</h1>
-                <button onclick="currentView='catalog'; render();" class="px-4 py-2 rounded-lg font-semibold transition" style="background-color: ${config.primary_button}; color: white;">
+                <button data-action="setView" data-param1="catalog" class="px-4 py-2 rounded-lg font-semibold transition" style="background-color: ${config.primary_button}; color: white;">
                   ← Volver al Catálogo
                 </button>
               </div>
@@ -1329,7 +1473,7 @@
               <div class="text-center py-20">
                 <p class="text-4xl mb-4">🛒</p>
                 <p class="text-2xl opacity-60 mb-6">Tu carrito está vacío</p>
-                <button onclick="currentView='catalog'; render();" class="px-6 py-3 rounded-lg font-semibold transition" style="background-color: ${config.primary_button}; color: white;">
+                <button data-action="setView" data-param1="catalog" class="px-6 py-3 rounded-lg font-semibold transition" style="background-color: ${config.primary_button}; color: white;">
                   Ver Productos
                 </button>
               </div>
@@ -1360,16 +1504,16 @@
                         </div>
 
                         <div class="flex flex-col justify-between items-end">
-                          <button onclick="removeFromCart(${index});" class="text-red-500 hover:text-red-700 font-bold">
+                          <button data-action="removeFromCart" data-param1="${index}" class="text-red-500 hover:text-red-700 font-bold">
                             ❌
                           </button>
                           
                           <div class="flex items-center gap-2">
-                            <button onclick="updateCartQuantity(${index}, -1);" class="w-8 h-8 rounded-lg font-bold transition" style="background-color: ${config.primary_button}; color: white;">
+                            <button data-action="updateCartQuantity" data-param1="${index}" data-param2="-1" class="w-8 h-8 rounded-lg font-bold transition" style="background-color: ${config.primary_button}; color: white;">
                               -
                             </button>
                             <span class="w-12 text-center font-bold text-lg">${item.quantity}</span>
-                            <button onclick="updateCartQuantity(${index}, 1);" class="w-8 h-8 rounded-lg font-bold transition" style="background-color: ${config.primary_button}; color: white;">
+                            <button data-action="updateCartQuantity" data-param1="${index}" data-param2="1" class="w-8 h-8 rounded-lg font-bold transition" style="background-color: ${config.primary_button}; color: white;">
                               +
                             </button>
                           </div>
@@ -1399,11 +1543,11 @@
                       </div>
                     </div>
 
-                    <button onclick="createOrder();" class="w-full py-4 rounded-lg font-bold text-lg transition mb-3" style="background-color: ${config.secondary_button}; color: white;">
+                    <button data-action="createOrder" class="w-full py-4 rounded-lg font-bold text-lg transition mb-3" style="background-color: ${config.secondary_button}; color: white;">
                       ✅ Confirmar Pedido
                     </button>
                     
-                    <button onclick="clearCart();" class="w-full py-2 rounded-lg font-semibold transition bg-red-600 text-white">
+                    <button data-action="clearCart" class="w-full py-2 rounded-lg font-semibold transition bg-red-600 text-white">
                       🗑️ Vaciar Carrito
                     </button>
 
@@ -1412,7 +1556,6 @@
                         💬 Después de confirmar, contacta al vendedor por Discord para coordinar la entrega
                       </p>
                     </div>
-                  </div>
                 </div>
               </div>
             `}
@@ -1431,7 +1574,7 @@
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
               <div class="flex justify-between items-center">
                 <h1 class="text-3xl font-bold">📦 Mis Pedidos</h1>
-                <button onclick="currentView='catalog'; render();" class="px-4 py-2 rounded-lg font-semibold transition" style="background-color: ${config.primary_button}; color: white;">
+                <button data-action="setView" data-param1="catalog" class="px-4 py-2 rounded-lg font-semibold transition" style="background-color: ${config.primary_button}; color: white;">
                   ← Volver al Catálogo
                 </button>
               </div>
@@ -1443,7 +1586,7 @@
               <div class="text-center py-20">
                 <p class="text-4xl mb-4">📦</p>
                 <p class="text-2xl opacity-60 mb-6">No tienes pedidos aún</p>
-                <button onclick="currentView='catalog'; render();" class="px-6 py-3 rounded-lg font-semibold transition" style="background-color: ${config.primary_button}; color: white;">
+                <button data-action="setView" data-param1="catalog" class="px-6 py-3 rounded-lg font-semibold transition" style="background-color: ${config.primary_button}; color: white;">
                   Ver Productos
                 </button>
               </div>
@@ -1490,7 +1633,9 @@
                         <div class="flex flex-col justify-between gap-3">
                           ${isPending ? `
                             <button 
-                              onclick="confirmOrder('${order.__backendId}', false);" 
+                              data-action="confirmOrder"
+                              data-param1="${order.__backendId}"
+                              data-param2="false"
                               ${order.buyer_confirmed ? 'disabled' : ''}
                               class="px-6 py-3 rounded-lg font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed" 
                               style="background-color: ${config.secondary_button}; color: white;">
@@ -1563,7 +1708,7 @@
               <div class="flex justify-between items-center">
                 <div class="flex items-center gap-4">
                   ${userData.profile_picture ? `
-                    <img src="${userData.profile_picture}" alt="${userData.username}" class="w-20 h-20 rounded-full object-cover border-4 border-blue-500 shadow-lg" onerror="this.style.display='none';">
+                    <img src="${userData.profile_picture}" alt="${userData.username}" class="w-20 h-20 rounded-full object-cover border-4 border-blue-500 shadow-lg" data-action="none">
                   ` : `
                     <div class="w-20 h-20 rounded-full flex items-center justify-center text-4xl border-4 border-blue-500 shadow-lg" style="background-color: rgba(59, 130, 246, 0.2);">
                       👤
@@ -1584,10 +1729,10 @@
                   </div>
                 </div>
                 <div class="flex gap-2">
-                  <button onclick="currentView='catalog'; render();" class="px-4 py-2 rounded-lg font-semibold transition" style="background-color: ${config.primary_button}; color: white;">
+                  <button data-action="setView" data-param1="catalog" class="px-4 py-2 rounded-lg font-semibold transition" style="background-color: ${config.primary_button}; color: white;">
                     🏠 Inicio
                   </button>
-                  <button onclick="logout();" class="px-4 py-2 rounded-lg font-semibold transition bg-red-600 text-white">
+                  <button data-action="logout" class="px-4 py-2 rounded-lg font-semibold transition bg-red-600 text-white">
                     🚪 Salir
                   </button>
                 </div>
@@ -1600,13 +1745,13 @@
               <div class="rounded-xl p-6 shadow-lg mb-6" style="background-color: ${config.card_background};">
                 <h2 class="text-2xl font-bold mb-4 text-center">💾 Gestión de Datos</h2>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                  <button onclick="exportData();" class="px-6 py-4 rounded-lg font-bold text-lg transition flex items-center justify-center gap-2" style="background-color: ${config.secondary_button}; color: white;">
+                  <button data-action="exportData" class="px-6 py-4 rounded-lg font-bold text-lg transition flex items-center justify-center gap-2" style="background-color: ${config.secondary_button}; color: white;">
                     📥 Exportar Todos los Datos
                   </button>
-                  <button onclick="document.getElementById('importFileInput').click();" class="px-6 py-4 rounded-lg font-bold text-lg transition flex items-center justify-center gap-2" style="background-color: ${config.primary_button}; color: white;">
+                  <button data-action="triggerImportInput" class="px-6 py-4 rounded-lg font-bold text-lg transition flex items-center justify-center gap-2" style="background-color: ${config.primary_button}; color: white;">
                     📤 Importar Datos
                   </button>
-                  <input type="file" id="importFileInput" accept=".json" onchange="importData(event);" style="display: none;">
+                  <input type="file" id="importFileInput" accept=".json" style="display: none;">
                 </div>
                 <div class="p-4 rounded-lg" style="background-color: rgba(59, 130, 246, 0.1);">
                   <p class="text-sm opacity-90 mb-2">
@@ -1624,7 +1769,7 @@
                   <div class="rounded-lg p-4 text-center" style="background-color: rgba(59, 130, 246, 0.2);">
                     <p class="text-3xl font-bold text-blue-400">${stats.totalUsers}</p>
                     <p class="mt-1 text-sm opacity-70">Usuarios Registrados</p>
-                  </div>
+                    </div>
                   <div class="rounded-lg p-4 text-center" style="background-color: rgba(16, 185, 129, 0.2);">
                     <p class="text-3xl font-bold text-green-400">${stats.onlineUsers}</p>
                     <p class="mt-1 text-sm opacity-70">Usuarios En Línea</p>
@@ -1693,7 +1838,9 @@
                           </div>
                           ${isPending && userData.role === 'reseller' ? `
                             <button 
-                              onclick="confirmOrder('${order.__backendId}', true);" 
+                              data-action="confirmOrder"
+                              data-param1="${order.__backendId}"
+                              data-param2="true"
                               ${order.seller_confirmed ? 'disabled' : ''}
                               class="px-6 py-3 rounded-lg font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed" 
                               style="background-color: ${config.secondary_button}; color: white;">
@@ -1762,10 +1909,10 @@
                         <p class="text-sm opacity-70">💬 ${user.discord_tag}</p>
                       </div>
                       <div class="flex gap-2">
-                        <button onclick="approveReseller('${user.__backendId}', true);" class="px-4 py-2 rounded-lg font-semibold transition text-white" style="background-color: ${config.secondary_button};">
+                        <button data-action="approveReseller" data-param1="${user.__backendId}" data-param2="true" class="px-4 py-2 rounded-lg font-semibold transition text-white" style="background-color: ${config.secondary_button};">
                           ✅ Aprobar
                         </button>
-                        <button onclick="approveReseller('${user.__backendId}', false);" class="px-4 py-2 rounded-lg font-semibold transition bg-red-600 text-white">
+                        <button data-action="approveReseller" data-param1="${user.__backendId}" data-param2="false" class="px-4 py-2 rounded-lg font-semibold transition bg-red-600 text-white">
                           ❌ Rechazar (Borrar)
                         </button>
                       </div>
@@ -1784,7 +1931,6 @@
                     type="text" 
                     id="userSearchInput"
                     placeholder="🔍 Buscar usuario..."
-                    oninput="filterUsers(this.value)"
                     class="w-full px-4 py-3 rounded-lg font-semibold"
                     style="background-color: rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.2); color: ${config.text_color};">
                 </div>
@@ -1812,7 +1958,8 @@
                           <tr class="user-row border-b hover:bg-opacity-50" data-username="${user.username.toLowerCase()}" style="border-color: rgba(255,255,255,0.05); ${isBanned ? 'background-color: rgba(239, 68, 68, 0.1);' : ''}">
                             <td class="py-3 px-4">
                               <button 
-                                onclick="viewUserProfile('${user.__backendId}');"
+                                data-action="viewUserProfile"
+                                data-param1="${user.__backendId}"
                                 class="font-semibold hover:underline"
                                 style="color: ${config.primary_button};">
                                 👤 ${user.username}
@@ -1843,7 +1990,8 @@
                             <td class="py-3 px-4">
                               <div class="flex gap-2 items-center">
                                 <select 
-                                  onchange="if(this.value) changeUserRole('${user.__backendId}', this.value);" 
+                                  data-action="changeRole"
+                                  data-id="${user.__backendId}"
                                   class="px-2 py-1 rounded text-xs font-semibold"
                                   style="background-color: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.2); color: ${config.text_color};">
                                   <option value="">Rol...</option>
@@ -1852,11 +2000,11 @@
                                   <option value="admin" ${user.role === 'admin' ? 'disabled' : ''}>👑 Admin</option>
                                 </select>
                                 
-                                <button onclick="banUser('${user.__backendId}')" title="${isBanned ? 'Desbanear' : 'Banear'}" class="p-1 rounded hover:bg-white hover:bg-opacity-10">
+                                <button data-action="banUser" data-param1="${user.__backendId}" title="${isBanned ? 'Desbanear' : 'Banear'}" class="p-1 rounded hover:bg-white hover:bg-opacity-10">
                                     ${isBanned ? '✅' : '🚫'}
                                 </button>
                                 
-                                <button onclick="deleteUserAccount('${user.__backendId}')" title="Eliminar Cuenta" class="p-1 rounded hover:bg-red-600 text-red-500 hover:text-white transition">
+                                <button data-action="deleteUserAccount" data-param1="${user.__backendId}" title="Eliminar Cuenta" class="p-1 rounded hover:bg-red-600 text-red-500 hover:text-white transition">
                                     🗑️
                                 </button>
                               </div>
@@ -1878,7 +2026,7 @@
                 <p class="text-sm text-center opacity-90">La plataforma cobra un <span class="font-bold text-xl" style="color: ${config.secondary_button};">10%</span> de todas tus ventas completadas</p>
               </div>
 
-              <form onsubmit="handleAddProduct(event);" class="grid md:grid-cols-2 gap-4">
+              <form data-handler="handleAddProduct" class="grid md:grid-cols-2 gap-4">
                 <div>
                   <label class="block text-sm font-semibold mb-2" for="productName">Nombre del Producto</label>
                   <input type="text" id="productName" required class="w-full px-4 py-2 rounded-lg" style="background-color: rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.1); color: ${config.text_color};">
@@ -1991,7 +2139,7 @@
                           </td>
                           <td class="py-3 px-4">${product.stock}</td>
                           <td class="py-3 px-4">
-                            <button onclick="deleteProduct('${product.__backendId}');" class="px-3 py-1 rounded-lg bg-red-600 text-white font-semibold hover:bg-red-700 transition">
+                            <button data-action="deleteProduct" data-param1="${product.__backendId}" class="px-3 py-1 rounded-lg bg-red-600 text-white font-semibold hover:bg-red-700 transition">
                               🗑️
                             </button>
                           </td>
@@ -2013,10 +2161,10 @@
 
       if (showModal === 'login') {
         return `
-          <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" onclick="if(event.target === this) { showModal = null; render(); }">
-            <div class="rounded-xl shadow-2xl w-full max-w-md p-8" style="background-color: ${config.card_background}; color: ${config.text_color};" onclick="event.stopPropagation();">
+          <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" data-action="modalBackdropClose">
+            <div class="rounded-xl shadow-2xl w-full max-w-md p-8" style="background-color: ${config.card_background}; color: ${config.text_color};" data-action="none">
               <h2 class="text-3xl font-bold mb-6 text-center">🔐 Iniciar Sesión</h2>
-              <form onsubmit="handleLogin(event);">
+              <form data-handler="handleLogin">
                 <div class="mb-4">
                   <label class="block text-sm font-semibold mb-2" for="loginUsername">Usuario</label>
                   <input type="text" id="loginUsername" required class="w-full px-4 py-3 rounded-lg" style="background-color: rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.1); color: ${config.text_color};">
@@ -2028,7 +2176,7 @@
                 <button type="submit" class="w-full py-3 rounded-lg font-bold text-lg transition mb-3" style="background-color: ${config.primary_button}; color: white;">
                   Entrar
                 </button>
-                <button type="button" onclick="showModal = null; render();" class="w-full py-2 rounded-lg font-semibold transition" style="background-color: rgba(255,255,255,0.1); color: ${config.text_color};">
+                <button type="button" data-action="closeModal" class="w-full py-2 rounded-lg font-semibold transition" style="background-color: rgba(255,255,255,0.1); color: ${config.text_color};">
                   Cancelar
                 </button>
               </form>
@@ -2039,10 +2187,10 @@
 
       if (showModal === 'register') {
         return `
-          <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" onclick="if(event.target === this) { showModal = null; render(); }">
-            <div class="rounded-xl shadow-2xl w-full max-w-md p-8" style="background-color: ${config.card_background}; color: ${config.text_color};" onclick="event.stopPropagation();">
+          <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" data-action="modalBackdropClose">
+            <div class="rounded-xl shadow-2xl w-full max-w-md p-8" style="background-color: ${config.card_background}; color: ${config.text_color};" data-action="none">
               <h2 class="text-3xl font-bold mb-6 text-center">📝 Registro de Comprador</h2>
-              <form onsubmit="handleRegisterBuyer(event);">
+              <form data-handler="handleRegisterBuyer">
                 <div class="mb-4">
                   <label class="block text-sm font-semibold mb-2" for="buyerUsername">Usuario</label>
                   <input type="text" id="buyerUsername" required class="w-full px-4 py-3 rounded-lg" style="background-color: rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.1); color: ${config.text_color};">
@@ -2058,7 +2206,7 @@
                 <button type="submit" class="w-full py-3 rounded-lg font-bold text-lg transition mb-3" style="background-color: ${config.secondary_button}; color: white;">
                   Registrarse
                 </button>
-                <button type="button" onclick="showModal = null; render();" class="w-full py-2 rounded-lg font-semibold transition" style="background-color: rgba(255,255,255,0.1); color: ${config.text_color};">
+                <button type="button" data-action="closeModal" class="w-full py-2 rounded-lg font-semibold transition" style="background-color: rgba(255,255,255,0.1); color: ${config.text_color};">
                   Cancelar
                 </button>
               </form>
@@ -2069,10 +2217,10 @@
 
       if (showModal === 'registerReseller') {
         return `
-          <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" onclick="if(event.target === this) { showModal = null; render(); }">
-            <div class="rounded-xl shadow-2xl w-full max-w-md p-8" style="background-color: ${config.card_background}; color: ${config.text_color};" onclick="event.stopPropagation();">
+          <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" data-action="modalBackdropClose">
+            <div class="rounded-xl shadow-2xl w-full max-w-md p-8" style="background-color: ${config.card_background}; color: ${config.text_color};" data-action="none">
               <h2 class="text-3xl font-bold mb-6 text-center">🏪 Abrir Tienda</h2>
-              <form onsubmit="handleRegisterReseller(event);">
+              <form data-handler="handleRegisterReseller">
                 <div class="mb-4">
                   <label class="block text-sm font-semibold mb-2" for="resellerUsername">Usuario</label>
                   <input type="text" id="resellerUsername" required class="w-full px-4 py-3 rounded-lg" style="background-color: rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.1); color: ${config.text_color};">
@@ -2097,7 +2245,7 @@
                 <button type="submit" class="w-full py-3 rounded-lg font-bold text-lg transition mb-3" style="background-color: ${config.primary_button}; color: white;">
                   Enviar Solicitud
                 </button>
-                <button type="button" onclick="showModal = null; render();" class="w-full py-2 rounded-lg font-semibold transition" style="background-color: rgba(255,255,255,0.1); color: ${config.text_color};">
+                <button type="button" data-action="closeModal" class="w-full py-2 rounded-lg font-semibold transition" style="background-color: rgba(255,255,255,0.1); color: ${config.text_color};">
                   Cancelar
                 </button>
               </form>
@@ -2109,8 +2257,8 @@
       if (showModal === 'importConfirm' && selectedOrder) {
         const importedData = selectedOrder;
         return `
-          <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" onclick="if(event.target === this) { showModal = null; selectedOrder = null; render(); }">
-            <div class="rounded-xl shadow-2xl w-full max-w-md p-8" style="background-color: ${config.card_background}; color: ${config.text_color};" onclick="event.stopPropagation();">
+          <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" data-action="modalBackdropClose">
+            <div class="rounded-xl shadow-2xl w-full max-w-md p-8" style="background-color: ${config.card_background}; color: ${config.text_color};" data-action="none">
               <h2 class="text-3xl font-bold mb-4 text-center">📤 Confirmar Importación</h2>
               
               <div class="mb-6 p-4 rounded-lg" style="background-color: rgba(255, 215, 0, 0.1); border: 2px solid rgba(255, 215, 0, 0.3);">
@@ -2127,11 +2275,11 @@
                 <p class="text-xs opacity-70 mt-2">📅 Exportado: ${new Date(importedData.exportDate || Date.now()).toLocaleString()}</p>
               </div>
 
-              <button id="confirmImportBtn" onclick="confirmImport();" class="w-full py-3 rounded-lg font-bold text-lg transition mb-3" style="background-color: ${config.secondary_button}; color: white;">
+              <button id="confirmImportBtn" data-action="confirmImport" class="w-full py-3 rounded-lg font-bold text-lg transition mb-3" style="background-color: ${config.secondary_button}; color: white;">
                 ✅ Confirmar Importación
               </button>
               
-              <button type="button" onclick="showModal = null; selectedOrder = null; render();" class="w-full py-2 rounded-lg font-semibold transition" style="background-color: rgba(255,255,255,0.1); color: ${config.text_color};">
+              <button type="button" data-action="closeModal" class="w-full py-2 rounded-lg font-semibold transition" style="background-color: rgba(255,255,255,0.1); color: ${config.text_color};">
                 Cancelar
               </button>
             </div>
@@ -2142,90 +2290,5 @@
       if (showModal === 'review' && selectedOrder && selectedOrder.order_status) {
         return `
           <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
-            <div class="rounded-xl shadow-2xl w-full max-w-md p-8" style="background-color: ${config.card_background}; color: ${config.text_color};" onclick="event.stopPropagation();">
-              <h2 class="text-3xl font-bold mb-4 text-center">⭐ Calificar Pedido</h2>
-              
-              <div class="mb-6 p-4 rounded-lg" style="background-color: rgba(255, 215, 0, 0.1); border: 2px solid rgba(255, 215, 0, 0.3);">
-                <p class="text-center font-bold mb-2">⚠️ ¡Calificación Obligatoria!</p>
-                <p class="text-sm text-center opacity-90">Debes calificar esta tienda para continuar usando el marketplace</p>
-              </div>
-
-              <div class="mb-6 p-4 rounded-lg" style="background-color: rgba(0,0,0,0.2);">
-                <p class="font-semibold mb-1">🏪 Tienda: ${selectedOrder.seller_username}</p>
-                <p class="text-sm opacity-70">💰 Total: $${selectedOrder.total.toFixed(2)} USDT</p>
-                <p class="text-sm opacity-70">📦 Pedido #${selectedOrder.id.substring(0, 8)}</p>
-              </div>
-
-              <form onsubmit="handleSubmitReview(event);">
-                <div class="mb-6">
-                  <label class="block text-sm font-semibold mb-3 text-center">Calificación *</label>
-                  <div class="star-rating">
-                    ${[5, 4, 3, 2, 1].map(star => `
-                      <input type="radio" id="star${star}" name="rating" value="${star}" class="hidden" required>
-                      <label for="star${star}" title="${star} estrellas"></label>
-                    `).join('')}
-                  </div>
-                </div>
-
-                <div class="mb-6">
-                  <label class="block text-sm font-semibold mb-2" for="reviewText">Comentario (opcional)</label>
-                  <textarea id="reviewText" rows="4" placeholder="Comparte tu experiencia con esta tienda..." class="w-full px-4 py-3 rounded-lg" style="background-color: rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.1); color: ${config.text_color};"></textarea>
-                </div>
-
-                <button type="submit" class="w-full py-3 rounded-lg font-bold text-lg transition" style="background-color: ${config.secondary_button}; color: white;">
-                  ⭐ Enviar Reseña
-                </button>
-              </form>
-            </div>
-          </div>
-        `;
-      }
-
-      if (showModal === 'setupShop' && selectedOrder && !selectedOrder.order_status) {
-        const user = selectedOrder;
-        const isFromLogin = user.__backendId === currentUser?.__backendId;
-        return `
-          <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" onclick="if(event.target === this && isFromLogin) { showModal = null; render(); } else if (event.target === this) { logout(); showToast('Cierre de sesión forzado por configuración incompleta.'); }">
-            <div class="rounded-xl shadow-2xl w-full max-w-md p-8" style="background-color: ${config.card_background}; color: ${config.text_color};" onclick="event.stopPropagation();">
-              <h2 class="text-3xl font-bold mb-4 text-center">🏪 Configurar Tienda</h2>
-              
-              <div class="mb-6 p-4 rounded-lg" style="background-color: ${isFromLogin ? 'rgba(255, 215, 0, 0.1); border: 2px solid rgba(255, 215, 0, 0.3)' : 'rgba(59, 130, 246, 0.1); border: 2px solid rgba(59, 130, 246, 0.3)'};">
-                <p class="text-center font-bold mb-2">${isFromLogin ? '⚠️ Configuración Obligatoria' : '📋 Información Requerida'}</p>
-                <p class="text-sm text-center opacity-90">${isFromLogin ? 'Debes configurar tu tienda para poder acceder al marketplace' : `El usuario <span class="font-bold">${user.username}</span> necesita configurar su tienda para ser vendedor`}</p>
-              </div>
-
-              <form onsubmit="handleSetupShop(event);">
-                <div class="mb-4">
-                  <label class="block text-sm font-semibold mb-2" for="setupShopName">Nombre de la Tienda *</label>
-                  <input 
-                    type="text" 
-                    id="setupShopName" 
-                    placeholder="Mi Tienda Épica"
-                    required 
-                    class="w-full px-4 py-3 rounded-lg" 
-                    style="background-color: rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.1); color: ${config.text_color};">
-                </div>
-
-                <div class="mb-6">
-                  <label class="block text-sm font-semibold mb-2" for="setupDiscord">Discord Tag *</label>
-                  <input 
-                    type="text" 
-                    id="setupDiscord" 
-                    placeholder="Usuario#1234"
-                    value="${user.discord_tag || ''}"
-                    required 
-                    class="w-full px-4 py-3 rounded-lg" 
-                    style="background-color: rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.1); color: ${config.text_color};">
-                </div>
-
-                <div class="mb-6 p-4 rounded-lg" style="background-color: rgba(16, 185, 129, 0.1);">
-                  <p class="text-sm opacity-80">
-                    ✅ Una vez configurada la tienda, ${isFromLogin ? 'podrás' : 'el usuario podrá'} agregar productos y vender
-                  </p>
-                </div>
-
-                <button type="submit" class="w-full py-3 rounded-lg font-bold text-lg transition mb-3" style="background-color: ${config.secondary_button}; color: white;">
-                  🏪 Crear Tienda
-                </button>
-                
-                ${!isFromLogin ? `
+            <div class="rounded-xl shadow-2xl w-full max-w-md p-8" style="background-color: ${config.card_background}; color: ${config.text_color};" data-action="none">
+              <h2 class="text-3xl font-bold mb
