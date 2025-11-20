@@ -168,7 +168,7 @@ window.dataSdk = {
         
 
         // Limpiar claves de mapeo y auxiliares
-        const { __backendId, type, seller, buyer, user, id, ...finalInsertData } = insertData; 
+        const { __backendId, type, seller, buyer, user, ...finalInsertData } = insertData; 
         
         const { data, error } = await supabase
             .from(tableName)
@@ -203,7 +203,7 @@ window.dataSdk = {
         // Se eliminó la lógica de 'activity'
 
         // Quitamos claves de mapeo, auxiliares y la ID nativa
-        const { __backendId, type, seller, buyer, user, id, ...finalUpdateData } = updateData;
+        const { __backendId, type, seller, buyer, user, ...finalUpdateData } = updateData;
 
         // Filtramos por la ID nativa de Supabase (item.id o item.__backendId)
         const { data, error } = await supabase
