@@ -86,7 +86,6 @@ window.dataSdk = {
         if (!supabase) return { isOk: false };
         
         try {
-            // Se eliminó la consulta a 'activities'
             const [users, products, orders, reviews, config] = await Promise.all([
                 supabase.from(TABLE_NAMES.user).select('*, __backendId:id'),
                 supabase.from(TABLE_NAMES.product).select('*, __backendId:id, seller_id'), 
@@ -164,11 +163,17 @@ window.dataSdk = {
         } else if (item.type === 'review' && item.reviewed_seller) {
              insertData.reviewed_seller_id = item.reviewed_seller; 
         } 
-        // Se eliminó la lógica de 'activity'
         
-
         // Limpiar claves de mapeo y auxiliares
         const { __backendId, type, seller, buyer, user, ...finalInsertData } = insertData; 
+        
+        // =================================================
+        // >> INICIO LOGGING DE DIAGNÓSTICO (IMPORTANTE) <<
+        // =================================================
+        console.warn(`[DEBUG-CREATE] ⚠️ Usuario autenticado (currentUser.id): ${item.seller}`);
+        console.warn(`[DEBUG-CREATE] Intentando crear en ${tableName}. Seller_ID enviado: ${insertData.seller_id}`);
+        console.warn(`[DEBUG-CREATE] Datos completos enviados:`, finalInsertData);
+        // =================================================
         
         const { data, error } = await supabase
             .from(tableName)
@@ -176,7 +181,8 @@ window.dataSdk = {
             .select();
 
         if (error) {
-            console.error(`Error CREATE en tabla ${tableName}:`, error);
+            // LOGGING DE ERRORES DETALLADO
+            console.error(`[DEBUG-CREATE] 🛑 Error completo de Supabase en tabla ${tableName}:`, error);
             showToast(`❌ Error al crear registro en ${tableName}. (RLS de INSERT?)`);
             return { isOk: false };
         }
@@ -200,7 +206,6 @@ window.dataSdk = {
         } else if (item.type === 'review' && item.reviewed_seller) {
              updateData.reviewed_seller_id = item.reviewed_seller;
         } 
-        // Se eliminó la lógica de 'activity'
 
         // Quitamos claves de mapeo, auxiliares y la ID nativa
         const { __backendId, type, seller, buyer, user, ...finalUpdateData } = updateData;
@@ -255,6 +260,7 @@ window.dataSdk = {
 // =========================================================
 // == 4. SDK DE CHAT (SUPABASE REALTIME)                  ==
 // =========================================================
+// (Resto del código de chatSdk.js...)
 window.chatSdk = {
     
     CHAT_TABLE_NAME: 'messages',
@@ -283,7 +289,7 @@ window.chatSdk = {
         if (!supabase || !content.trim()) return;
         
         const { error } = await supabase
-            .from(TABLE_NAMES.message) 
+            .from(TABLE_TABLES.message) 
             .insert([{ order_id: orderId, sender: sender, content: content }]);
             
         if (error) {
