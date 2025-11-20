@@ -3,7 +3,7 @@
  <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mu Online 99B Marketplace - V14 SECURE ADMIN</title>
+  <title>Mu Online 99B Marketplace - V15 FINAL (REVIEWS FIXED)</title>
   
   <script src="https://cdn.tailwindcss.com"></script>
   
@@ -147,7 +147,7 @@
 
   <script>
     // Nombre de la llave para guardar en el navegador
-    const DB_KEY = 'mu_marketplace_db_v14_secure'; 
+    const DB_KEY = 'mu_marketplace_db_v15_final'; 
     
     // Inicializar DB desde LocalStorage al cargar
     let savedData = localStorage.getItem(DB_KEY);
@@ -239,7 +239,7 @@
     };
 
     // Clave de sesión
-    const SESSION_KEY = 'mu_session_user_v14_secure';
+    const SESSION_KEY = 'mu_session_user_v15_final';
     
     // Variables de Timeout para Auto-Logout
     let inactivityTimeout;
@@ -1114,8 +1114,48 @@
       const config = getConfig();
       
       let filteredProducts = allProducts;
+      
+      let shopStats = null;
+      let shopReviewsHTML = '';
+
       if (selectedShopFilter) {
           filteredProducts = allProducts.filter(p => p.seller_shop_name === selectedShopFilter);
+          
+          // 1. Calcular estadísticas de la tienda seleccionada
+          const shopOwner = allUsers.find(u => u.shop_name === selectedShopFilter);
+          if (shopOwner) {
+                const reviews = allReviews.filter(r => r.reviewed_seller === shopOwner.username);
+                const avg = reviews.length ? (reviews.reduce((a,b)=>a+b.rating,0)/reviews.length).toFixed(1) : 0;
+                const sales = allOrders.filter(o => o.seller_username === shopOwner.username && o.order_status === 'completed').length;
+                shopStats = { owner: shopOwner, rating: parseFloat(avg), reviewCount: reviews.length, salesCount: sales };
+                
+                // 2. Generar HTML de reseñas
+                if (reviews.length > 0) {
+                    shopReviewsHTML = `
+                        <div class="max-w-7xl mx-auto px-4 py-8 border-t border-slate-700 mt-8">
+                            <h3 class="text-2xl font-bold text-yellow-400 mb-6">⭐ Opiniones de los Clientes (${reviews.length})</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                ${reviews.map(r => `
+                                    <div class="bg-slate-800 p-4 rounded-lg border border-slate-700 shadow-md">
+                                        <div class="flex justify-between items-center mb-2">
+                                            <span class="font-bold text-white">${r.buyer_username}</span>
+                                            <div class="text-yellow-400">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</div>
+                                        </div>
+                                        <p class="text-slate-300 text-sm italic">"${r.review_text || 'Sin comentario escrito'}"</p>
+                                        <p class="text-xs text-slate-500 mt-2 text-right">${new Date(r.created_at).toLocaleDateString()}</p>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    shopReviewsHTML = `
+                        <div class="max-w-7xl mx-auto px-4 py-8 border-t border-slate-700 mt-8 text-center opacity-50">
+                            <p>Esta tienda aún no tiene reseñas.</p>
+                        </div>
+                    `;
+                }
+          }
       } else {
           filteredProducts = selectedCategory === 'all' 
             ? allProducts 
@@ -1127,45 +1167,12 @@
       const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
       const topShops = getTopShops(); 
 
-      // Lógica para mostrar reseñas de la tienda seleccionada
-      let shopReviewsHTML = '';
-      if (selectedShopFilter) {
-          const shopOwner = allUsers.find(u => u.shop_name === selectedShopFilter);
-          const reviews = shopOwner ? allReviews.filter(r => r.reviewed_seller === shopOwner.username).reverse() : [];
-          
-          if (reviews.length > 0) {
-            shopReviewsHTML = `
-                <div class="max-w-7xl mx-auto px-4 py-8 border-t border-slate-700 mt-8">
-                    <h3 class="text-2xl font-bold text-yellow-400 mb-6">⭐ Opiniones de los Clientes (${reviews.length})</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        ${reviews.map(r => `
-                            <div class="bg-slate-800 p-4 rounded-lg border border-slate-700 shadow-md">
-                                <div class="flex justify-between items-center mb-2">
-                                    <span class="font-bold text-white">${r.buyer_username}</span>
-                                    <div class="text-yellow-400">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</div>
-                                </div>
-                                <p class="text-slate-300 text-sm italic">"${r.review_text}"</p>
-                                <p class="text-xs text-slate-500 mt-2 text-right">${new Date(r.created_at).toLocaleDateString()}</p>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-            `;
-          } else {
-              shopReviewsHTML = `
-                <div class="max-w-7xl mx-auto px-4 py-8 border-t border-slate-700 mt-8 text-center opacity-50">
-                    <p>Esta tienda aún no tiene reseñas.</p>
-                </div>
-              `;
-          }
-      }
-
       return `
         <div class="min-h-full pb-20">
           <header class="shadow-lg sticky top-0 z-40 bg-slate-800 border-b border-slate-700 p-4">
             <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
                 <div class="text-center md:text-left">
-                  <h1 class="text-2xl font-bold text-blue-400 tracking-tight">MU MARKET <span class="text-white text-xs bg-blue-600 px-1 rounded">V14</span></h1>
+                  <h1 class="text-2xl font-bold text-blue-400 tracking-tight">MU MARKET <span class="text-white text-xs bg-blue-600 px-1 rounded">V15</span></h1>
                   <p class="text-xs mt-1 opacity-60">${config.contact_info}</p>
                 </div>
                 <div class="flex flex-wrap gap-2 justify-center items-center">
@@ -1231,14 +1238,33 @@
 
           <div class="max-w-7xl mx-auto px-4 py-6">
             ${selectedShopFilter ? `
-                <div class="flex items-center justify-between bg-blue-900/30 border border-blue-500 p-4 rounded-lg mb-6 shadow-lg">
-                    <div>
+                <div class="bg-blue-900/30 border border-blue-500 p-4 rounded-lg mb-6 shadow-lg">
+                    <div class="flex items-center justify-between border-b border-blue-800/50 pb-3 mb-3">
                         <h2 class="text-2xl font-bold text-blue-300">🏪 Tienda: ${selectedShopFilter}</h2>
-                        <p class="text-sm opacity-70">Viendo productos exclusivos de este vendedor</p>
+                        <button onclick="clearShopFilter()" class="bg-red-600 hover:bg-red-500 px-6 py-2 rounded font-bold text-sm shadow transition transform hover:scale-105">
+                            Ver Todas las Tiendas
+                        </button>
                     </div>
-                    <button onclick="clearShopFilter()" class="bg-red-600 hover:bg-red-500 px-6 py-2 rounded font-bold text-sm shadow transition transform hover:scale-105">
-                        Ver Todas las Tiendas
-                    </button>
+                    
+                    ${shopStats ? `
+                        <div class="flex justify-around text-center py-2 bg-slate-900/50 rounded-lg border border-slate-700">
+                            <div class="px-3">
+                                <p class="text-xl font-bold text-yellow-400">${shopStats.rating.toFixed(1)} ⭐</p>
+                                <p class="text-xs opacity-70">Rating Promedio</p>
+                            </div>
+                            <div class="w-px bg-slate-700"></div>
+                            <div class="px-3">
+                                <p class="text-xl font-bold text-green-400">${shopStats.salesCount}</p>
+                                <p class="text-xs opacity-70">Ventas Totales</p>
+                            </div>
+                            <div class="w-px bg-slate-700"></div>
+                            <div class="px-3">
+                                <p class="text-xl font-bold text-white">${shopStats.reviewCount}</p>
+                                <p class="text-xs opacity-70">Reseñas</p>
+                            </div>
+                        </div>
+                    ` : `<p class="text-center text-sm opacity-60 py-2">Cargando estadísticas o tienda sin datos aún.</p>`}
+                    
                 </div>
             ` : `
                 <div class="flex flex-wrap gap-3 justify-center">
@@ -1257,7 +1283,7 @@
             ${filteredProducts.length === 0 ? `
               <div class="text-center py-20 bg-slate-800/50 rounded-xl border border-slate-700 border-dashed">
                 <p class="text-3xl opacity-40">📦</p>
-                <p class="text-xl opacity-60 mt-2">No hay productos disponibles en esta categoría.</p>
+                <p class="text-xl opacity-60 mt-2">No hay productos disponibles en esta tienda/categoría.</p>
               </div>
             ` : `
               <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -1826,7 +1852,7 @@
                         </div>
                          <div class="col-span-2">
                             <label class="text-xs text-slate-400 font-bold uppercase mb-1 block">Descripción Detallada</label>
-                            <textarea id="editDescription" class="w-full bg-slate-700 p-3 rounded text-white border border-slate-600 h-24 resize-none">${p.description||''}</textarea>
+                            <textarea id="editDescription" class="w-full bg-slate-700 p-3 rounded text-white mb-4 border border-slate-600 h-24 resize-none">${p.description||''}</textarea>
                         </div>
                         <button class="col-span-2 bg-blue-600 hover:bg-blue-500 py-4 rounded-lg font-bold text-white shadow-lg mt-2 uppercase tracking-wide transition transform hover:scale-[1.02]">
                             Guardar Cambios
