@@ -12,12 +12,12 @@ const TABLE_NAMES = {
     'product': 'products',
     'order': 'orders',
     'review': 'reviews',
-    'activity': 'activities', // Nueva tabla
+    'activity': 'activities',
     'config': 'config',
-    'message': 'messages' // Nueva tabla para chat
+    'message': 'messages'
 };
 
-// --- CLAVES GLOBALES (PARA EVITAR ReferenceError en app.js) ---
+// --- CLAVES GLOBALES (NECESARIAS PARA app.js) ---
 DB_KEY = 'mu_marketplace_db_v22_final'; 
 SESSION_KEY = 'mu_session_user_v22_final'; 
 
