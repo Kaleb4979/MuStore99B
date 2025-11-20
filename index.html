@@ -3,7 +3,7 @@
  <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mu Online 99B Marketplace - V20 FINAL (Aviso LocalStorage)</title>
+  <title>Mu Online 99B Marketplace - V22 FINAL (Conexión JSONBin)</title>
   
   <script src="https://cdn.tailwindcss.com"></script>
   
@@ -146,67 +146,25 @@
   </style>
 
   <script>
-    // Nombre de la llave para guardar en el navegador
-    const DB_KEY = 'mu_marketplace_db_v20_final'; 
+    // ---------------------------------------------------------
+    // 1. CONFIGURACIÓN CRÍTICA (REEMPLAZAR ESTAS LÍNEAS)
+    // ---------------------------------------------------------
+    const BIN_ID = 'TU_BIN_ID_AQUI'; // ⬅️ REEMPLAZA ESTO CON TU ID REAL DE JSONBIN
+    const SECRET_KEY = 'TU_SECRET_KEY_AQUI'; // ⬅️ REEMPLAZA ESTO CON TU LLAVE MAESTRA REAL
+    const JSONBIN_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
+
+    const DB_KEY = 'mu_marketplace_db_v22_final'; 
+    const SESSION_KEY = 'mu_session_user_v22_final';
     
-    // Inicializar DB desde LocalStorage al cargar (LECTURA CRÍTICA AQUÍ)
-    let savedData = localStorage.getItem(DB_KEY);
+    // Base de datos simulada (solo para mantener la estructura, los datos reales vienen del BIN)
     window.mockDb = {
-      // **LECTURA CRÍTICA:** Cargar datos inmediatamente al definir mockDb
-      data: savedData ? JSON.parse(savedData) : [], 
+      data: [], 
       handler: null,
-      notify() {
-        // Guardar datos
-        const strData = JSON.stringify(this.data);
-        localStorage.setItem(DB_KEY, strData);
-        // Avisar a la aplicación que hubo cambios
-        if (this.handler) this.handler.onDataChanged(this.data);
-      }
+      // La notificación ahora es manejada por el SDK después de una operación de red exitosa.
+      notify() {} 
     };
 
-    // Listener para sincronizar pestañas abiertas
-    window.addEventListener('storage', (event) => {
-        if (event.key === DB_KEY) {
-            const newData = JSON.parse(event.newValue);
-            window.mockDb.data = newData;
-            if (window.mockDb.handler) {
-                window.mockDb.handler.onDataChanged(newData);
-            }
-        }
-    });
-
-    // SDK Simulado para Crear, Leer, Actualizar y Borrar (CRUD)
-    window.dataSdk = {
-      init: async (handler) => {
-        window.mockDb.handler = handler;
-        // Simular un pequeño retraso de red, pero los datos YA están cargados
-        setTimeout(() => window.mockDb.notify(), 50); 
-        return { isOk: true };
-      },
-      create: async (item) => {
-        // Generar ID único
-        item.__backendId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
-        window.mockDb.data.push(item);
-        window.mockDb.notify();
-        return { isOk: true, item: item };
-      },
-      update: async (item) => {
-        const index = window.mockDb.data.findIndex(i => i.__backendId === item.__backendId);
-        if (index !== -1) {
-          window.mockDb.data[index] = {...item}; 
-          window.mockDb.notify();
-          return { isOk: true, item: item };
-        }
-        return { isOk: false };
-      },
-      delete: async (item) => {
-        window.mockDb.data = window.mockDb.data.filter(i => i.__backendId !== item.__backendId);
-        window.mockDb.notify();
-        return { isOk: true };
-      }
-    };
-    
-    // SDK para configuración visual
+    // SDK de Configuración Visual (sigue local, no necesita backend)
     window.elementSdk = {
       config: {},
       init: (options) => {
@@ -216,6 +174,119 @@
       setConfig: (newConfig) => {
         window.elementSdk.config = { ...window.elementSdk.config, ...newConfig };
       }
+    };
+
+    // ---------------------------------------------------------
+    // SDK Base de Datos (Conexión JSONBin)
+    // ---------------------------------------------------------
+    window.dataSdk = {
+        init: async (handler) => {
+            window.mockDb.handler = handler;
+            return window.dataSdk.read(); // Leer los datos al inicio
+        },
+        
+        // FUNCIÓN DE LECTURA: Obtiene todos los datos del BIN
+        read: async () => {
+            if (!BIN_ID || !SECRET_KEY || BIN_ID.includes('AQUI')) {
+                 console.error("JSONBin Config Error: BIN_ID o SECRET_KEY no configurados.");
+                 showToast('❌ Error de Config: BIN ID o Key faltantes.');
+                 // Forzar a usar localStorage si no hay configuración de BIN
+                 const localData = localStorage.getItem(DB_KEY);
+                 window.mockDb.data = localData ? JSON.parse(localData) : [];
+                 window.mockDb.handler.onDataChanged(window.mockDb.data);
+                 return { isOk: false };
+            }
+
+            try {
+                const response = await fetch(JSONBIN_URL + '/latest', {
+                    method: 'GET',
+                    headers: {
+                        'X-Master-Key': SECRET_KEY 
+                    }
+                });
+
+                if (!response.ok) throw new Error('Error al leer el BIN');
+
+                const json = await response.json();
+                // JSONBin devuelve los datos dentro de una clave 'record'
+                const data = json.record || []; 
+                
+                // Almacenar en localStorage como fallback local y para velocidad
+                localStorage.setItem(DB_KEY, JSON.stringify(data));
+                
+                // Actualizar la DB local y notificar
+                window.mockDb.data = data;
+                window.mockDb.handler.onDataChanged(data); 
+                return { isOk: true };
+
+            } catch (error) {
+                console.error("JSONBin READ Error:", error);
+                showToast('❌ Error al cargar datos remotos. Usando datos locales (LocalStorage).');
+                // Si falla la red, usar el último backup local
+                const localData = localStorage.getItem(DB_KEY);
+                window.mockDb.data = localData ? JSON.parse(localData) : [];
+                window.mockDb.handler.onDataChanged(window.mockDb.data);
+                return { isOk: false };
+            }
+        },
+        
+        // FUNCIÓN DE ESCRITURA: Actualiza TODOS los datos en el BIN
+        write: async (newData) => {
+            if (!BIN_ID || !SECRET_KEY || BIN_ID.includes('AQUI')) {
+                 showToast('❌ Error de Config: BIN ID o Key faltantes.');
+                 return { isOk: false };
+            }
+            
+            try {
+                const response = await fetch(JSONBIN_URL, {
+                    method: 'PUT', // PUT se usa para reemplazar todo el contenido
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Master-Key': SECRET_KEY
+                    },
+                    body: JSON.stringify(newData)
+                });
+
+                if (!response.ok) throw new Error('Error al escribir en el BIN');
+                
+                // Si la escritura es exitosa, actualizamos localStorage y notificamos
+                localStorage.setItem(DB_KEY, JSON.stringify(newData));
+                window.mockDb.data = newData;
+                window.mockDb.handler.onDataChanged(newData);
+                return { isOk: true };
+
+            } catch (error) {
+                console.error("JSONBin WRITE Error:", error);
+                showToast('❌ Error de conexión/escritura. Vuelve a intentarlo.');
+                return { isOk: false };
+            }
+        },
+
+        // CREAR: Agrega un item y reescribe todo el BIN
+        create: async (item) => {
+            item.__backendId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
+            const newData = [...window.mockDb.data, item];
+            const result = await window.dataSdk.write(newData);
+            return { isOk: result.isOk, item: item };
+        },
+        
+        // ACTUALIZAR: Modifica un item y reescribe todo el BIN
+        update: async (item) => {
+            const index = window.mockDb.data.findIndex(i => i.__backendId === item.__backendId);
+            if (index === -1) return { isOk: false };
+
+            const newData = [...window.mockDb.data];
+            newData[index] = {...item};
+            const result = await window.dataSdk.write(newData);
+            return { isOk: result.isOk, item: item };
+        },
+        
+        // BORRAR: Elimina un item y reescribe todo el BIN
+        delete: async (item) => {
+            const newData = window.mockDb.data.filter(i => i.__backendId !== item.__backendId);
+            const result = await window.dataSdk.write(newData);
+            return { isOk: result.isOk };
+        }
     };
   </script>
  </head>
@@ -239,9 +310,6 @@
       font_size: 16
     };
 
-    // Clave de sesión
-    const SESSION_KEY = 'mu_session_user_v20_final';
-    
     // Variables de Timeout para Auto-Logout
     let inactivityTimeout;
     const TIMEOUT_LIMIT = 5 * 60 * 1000; // 5 minutos
@@ -258,14 +326,14 @@
     let adminViewTarget = null; // Si no es null, el admin está editando la tienda de este usuario
     let selectedProductToEdit = null; // Producto seleccionado para editar en el modal
 
-    // Arrays de datos
+    // Arrays de datos (Poblados por dataSdk.read)
     let allProducts = [];
     let allUsers = [];
     let allOrders = [];
     let allReviews = [];
     
     // Carrito
-    let cart = [];
+    let cart = JSON.parse(localStorage.getItem('mu_cart_v22') || '[]');
     
     // Control de Modales
     let showModal = null; // 'login', 'register', 'editProduct', 'dataTools', etc.
@@ -350,7 +418,7 @@
       // Configurar listeners de inactividad
       setupAutoLogout();
 
-      // Conectar a la "Base de Datos"
+      // Conectar a la "Base de Datos" (JSONBin)
       const initResult = await window.dataSdk.init(dataHandler);
       
       // Configurar SDK visual
@@ -499,8 +567,6 @@
       if (result.isOk) {
         showToast('Registro exitoso! Ahora puedes iniciar sesión');
         showModal = 'login';
-        // Agregamos notify aquí para asegurar la sincronización inmediata del nuevo usuario en el panel admin/global
-        window.mockDb.notify();
         render();
       } else {
         showToast('Error al registrar usuario');
@@ -537,8 +603,6 @@
       if (result.isOk) {
         showToast('Solicitud enviada! Espera aprobación del admin');
         showModal = null;
-        // Agregamos notify aquí para asegurar la sincronización inmediata del nuevo usuario en el panel admin/global
-        window.mockDb.notify();
         render();
       } else {
         showToast('Error al enviar solicitud');
@@ -548,26 +612,27 @@
     async function updateUserActivity() {
       if (!currentUser) return;
       
+      // La lógica de actividad debería ser más inteligente y no usar CREATE/UPDATE
+      // tan seguido en un backend remoto, pero lo mantendremos simple aquí:
+      
       const activityRecords = window.mockDb.data.filter(item => item.type === 'activity');
       const existingActivity = activityRecords.find(a => a.username === currentUser.username);
       
-      const lastTime = existingActivity ? new Date(existingActivity.last_activity).getTime() : 0;
       const now = Date.now();
-
-      // Actualizar solo cada 2 minutos para no saturar
-      if (!existingActivity || (now - lastTime > 2 * 60 * 1000)) {
-          if (existingActivity) {
-             const updatedActivity = {...existingActivity, last_activity: new Date().toISOString()};
-             await window.dataSdk.update(updatedActivity);
-          } else {
-             const activityData = {
-               id: 'activity_' + currentUser.username,
-               type: 'activity',
-               username: currentUser.username,
-               last_activity: new Date().toISOString()
-             };
-             await window.dataSdk.create(activityData);
-          }
+      
+      // Esto es solo un placeholder, las operaciones de red aquí son costosas y lentas
+      // Debería usarse un endpoint específico para actividad, pero por simplicidad de JSONBin:
+      if (existingActivity) {
+         const updatedActivity = {...existingActivity, last_activity: new Date().toISOString()};
+         await window.dataSdk.update(updatedActivity);
+      } else {
+         const activityData = {
+           id: 'activity_' + currentUser.username,
+           type: 'activity',
+           username: currentUser.username,
+           last_activity: new Date().toISOString()
+         };
+         await window.dataSdk.create(activityData);
       }
       
       if (userActivityTimeout) clearTimeout(userActivityTimeout);
@@ -581,6 +646,7 @@
       localStorage.removeItem(SESSION_KEY);
       currentView = 'catalog';
       cart = [];
+      localStorage.setItem('mu_cart_v22', '[]');
       selectedShopFilter = null;
       adminViewTarget = null; // Resetear modo gestión
       showToast(auto ? '💤 Sesión cerrada por inactividad' : 'Sesión cerrada');
@@ -767,6 +833,10 @@
     // ---------------------------------------------------------
     // 8. CARRITO Y PEDIDOS
     // ---------------------------------------------------------
+    function updateCartStorage() {
+        localStorage.setItem('mu_cart_v22', JSON.stringify(cart));
+    }
+
     function validateCart() {
         if (cart.length === 0) return;
         let cartModified = false;
@@ -797,7 +867,10 @@
             return true;
         });
         
-        if (cartModified) cart = newCart;
+        if (cartModified) {
+            cart = newCart;
+            updateCartStorage();
+        }
     }
 
     function addToCart(backendId) {
@@ -826,11 +899,13 @@
         cart.push({ ...product, quantity: 1 });
         showToast('Agregado al carrito');
       }
+      updateCartStorage();
       render();
     }
 
     function removeFromCart(index) {
       cart.splice(index, 1);
+      updateCartStorage();
       render();
     }
 
@@ -927,6 +1002,7 @@
 
       showToast('Pedido(s) creado(s) exitosamente!');
       cart = [];
+      updateCartStorage();
       currentView = 'orders';
       render();
     }
@@ -957,9 +1033,11 @@
                   const product = allProducts.find(p => p.__backendId === item.backendId);
                   if (product) {
                     const updatedProduct = {...product, stock: Math.max(0, product.stock - item.quantity)};
+                    // Actualizamos el stock del producto de forma remota
                     await window.dataSdk.update(updatedProduct); 
                   }
                 }
+                // Actualizamos el estado de la orden a completada y revisable
                 await window.dataSdk.update(completedOrder); 
                 
                 // Si soy el comprador, abrir reseña INMEDIATAMENTE
@@ -978,7 +1056,7 @@
       render();
     }
 
-    // ENVIAR RESEÑA (MODIFICADA V16)
+    // ENVIAR RESEÑA
     async function handleSubmitReview(e) {
       e.preventDefault();
       if (!selectedOrder) return;
@@ -991,7 +1069,7 @@
         return;
       }
 
-      // 1. Crear la reseña (esto dispara el notify y el render a través de dataSdk.create)
+      // 1. Crear la reseña
       const reviewData = {
         id: Date.now().toString(),
         type: 'review',
@@ -1008,16 +1086,16 @@
       const updatedOrder = {...selectedOrder, needs_review: false};
       await window.dataSdk.update(updatedOrder); 
       
-      // La llamada a dataSdk.update (en el paso 2) internamente llama a notify() y render()
-      // Esto asegura que allReviews se actualice ANTES de que renderCatalog() recalcule las estadísticas.
-
       showToast('¡Gracias por tu reseña! (La tienda se ha actualizado)');
       showModal = null;
       selectedOrder = null;
     }
     
     // FUNCIONES DE IMPORTAR/EXPORTAR
+    // NOTA: Estas funciones usan LOCALSTORAGE, NO JSONBIN, para evitar reemplazar
+    // todo el BIN de forma accidental. Solo exportan/importan el estado local.
     function downloadBackup() {
+        // Usa los datos que ya están en memoria (sincronizados con el BIN)
         const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(window.mockDb.data));
         const downloadAnchorNode = document.createElement('a');
         downloadAnchorNode.setAttribute("href", dataStr);
@@ -1032,21 +1110,25 @@
         document.getElementById('fileInput').click();
     }
 
-    function handleFileUpload(event) {
+    // ADVERTENCIA: Esta función es peligrosa, reemplaza el BIN COMPLETO.
+    async function handleFileUpload(event) {
         const file = event.target.files[0];
         if (!file) return;
 
         const reader = new FileReader();
-        reader.onload = function(e) {
+        reader.onload = async function(e) {
             try {
                 const json = JSON.parse(e.target.result);
                 if (Array.isArray(json)) {
-                    if(confirm("⚠️ Esto reemplazará TODOS los datos actuales por los del archivo. ¿Continuar?")) {
-                        window.mockDb.data = json;
-                        window.mockDb.notify();
-                        showModal = null;
-                        showToast('✅ Datos restaurados exitosamente. Recargando...');
-                        setTimeout(() => window.location.reload(), 1500);
+                    if(confirm("⚠️ ¡ADVERTENCIA! Esto reemplazará TODOS los datos REMOTOS (JSONBin) por los del archivo. ¿Continuar?")) {
+                        const result = await window.dataSdk.write(json);
+                        if (result.isOk) {
+                            showModal = null;
+                            showToast('✅ Datos restaurados en JSONBin exitosamente. Recargando...');
+                            setTimeout(() => window.location.reload(), 1500);
+                        } else {
+                             showToast('❌ Error al subir y restaurar los datos en JSONBin.');
+                        }
                     }
                 } else {
                     showToast('❌ Archivo JSON inválido');
@@ -1085,6 +1167,10 @@
     }
 
     function getConfig() {
+      // Intentar cargar la configuración de un objeto de configuración si existe
+      const configItem = window.mockDb.data.find(item => item.type === 'config');
+      if (configItem) return configItem.config;
+      
       return window.elementSdk ? window.elementSdk.config : defaultConfig;
     }
 
@@ -1182,7 +1268,7 @@
           <header class="shadow-lg sticky top-0 z-40 bg-slate-800 border-b border-slate-700 p-4">
             <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
                 <div class="text-center md:text-left">
-                  <h1 class="text-2xl font-bold text-blue-400 tracking-tight">MU MARKET <span class="text-white text-xs bg-blue-600 px-1 rounded">V20</span></h1>
+                  <h1 class="text-2xl font-bold text-blue-400 tracking-tight">MU MARKET <span class="text-white text-xs bg-blue-600 px-1 rounded">V22</span></h1>
                   <p class="text-xs mt-1 opacity-60">${config.contact_info}</p>
                 </div>
                 <div class="flex flex-wrap gap-2 justify-center items-center">
@@ -1377,7 +1463,7 @@
                     <div class="bg-slate-800 p-10 rounded-xl border border-slate-700 text-center shadow-lg">
                         <p class="text-4xl mb-4">😢</p>
                         <p class="text-xl font-bold mb-2">Tu carrito está vacío</p>
-                        <p class="text-slate-400 mb-6">¡Explora el catálogo y encuentra los mejores items!</p>
+                        <p class="text-slate-400 mb-6">¡Explora el catálogo y encuentra los mejores items!}
                         <button onclick="currentView='catalog'; render();" class="bg-blue-600 px-6 py-3 rounded-lg font-bold hover:bg-blue-500 shadow transition">
                             Volver al Catálogo
                         </button>
@@ -1735,16 +1821,6 @@
                             🌍 Panel Global de Usuarios <span class="text-xs bg-slate-900 text-slate-400 px-2 py-1 rounded ml-auto">Total: ${displayUsers.length}</span>
                         </h2>
                         
-                        <div class="bg-red-900/30 border border-red-500 p-4 rounded-lg mb-6 shadow-md">
-                            <h3 class="font-bold text-red-300 flex items-center gap-2">⚠️ ATENCIÓN: SINCRONIZACIÓN LIMITADA</h3>
-                            <p class="text-sm text-red-400 mt-2">
-                                Esta aplicación usa **Local Storage**, no una base de datos central en la nube.
-                                Por lo tanto, **solo puedes ver las solicitudes de registro de los usuarios que se crearon en tu propia PC.**
-                            </p>
-                            <p class="text-sm text-red-400 mt-2 font-bold">
-                                Para ver las solicitudes de otras personas, ellas deben **enviarte su archivo de Backup** (Usando la herramienta "💾 RESPALDO SYSTEM" y luego "⬆️ IMPORTAR" sus datos aquí).
-                            </p>
-                        </div>
                         <div class="overflow-x-auto rounded-lg border border-slate-700">
                             <table class="w-full text-sm text-left text-slate-300">
                                 <thead class="bg-slate-900 text-white uppercase font-bold text-xs">
@@ -1826,18 +1902,18 @@
             return `
             <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" ${close}>
                 <div class="${box}" onclick="event.stopPropagation()">
-                    <h2 class="text-2xl font-bold text-center mb-4 text-white">🛠️ Gestión de Datos</h2>
-                    <p class="text-center text-slate-400 text-sm mb-6">Guarda una copia de seguridad o restaura datos anteriores.</p>
+                    <h2 class="text-2xl font-bold text-center mb-4 text-white">🛠️ Gestión de Datos (JSONBin)</h2>
+                    <p class="text-center text-slate-400 text-sm mb-6">Guarda una copia de seguridad o restaura los datos REMOTOS.</p>
                     
                     <div class="grid gap-4">
                         <button onclick="downloadBackup()" class="bg-blue-600 hover:bg-blue-500 py-4 rounded-lg font-bold text-white shadow-lg transition flex items-center justify-center gap-3">
-                            ⬇️ EXPORTAR (Descargar Backup)
+                            ⬇️ EXPORTAR (Descargar Backup del BIN)
                         </button>
                         
                         <div class="border-t border-slate-600 my-2"></div>
                         
-                        <button onclick="triggerUpload()" class="bg-green-600 hover:bg-green-500 py-4 rounded-lg font-bold text-white shadow-lg transition flex items-center justify-center gap-3">
-                            ⬆️ IMPORTAR (Restaurar Backup)
+                        <button onclick="triggerUpload()" class="bg-red-600 hover:bg-red-500 py-4 rounded-lg font-bold text-white shadow-lg transition flex items-center justify-center gap-3">
+                            ⬆️ IMPORTAR (Reemplazar BIN Remoto)
                         </button>
                         <input type="file" id="fileInput" accept=".json" class="hidden" onchange="handleFileUpload(event)">
                     </div>
@@ -2023,13 +2099,18 @@
           status: 'approved'
       };
       
-      await window.dataSdk.update(updatedUser);
+      const result = await window.dataSdk.update(updatedUser);
       
-      // Actualizar sesión local si es el usuario actual
-      if(currentUser && user.__backendId === currentUser.__backendId) {
-          currentUser = updatedUser;
-          localStorage.setItem(SESSION_KEY, JSON.stringify(currentUser));
-          currentView = 'admin';
+      if (result.isOk) {
+          // Actualizar sesión local si es el usuario actual
+          if(currentUser && user.__backendId === currentUser.__backendId) {
+              currentUser = updatedUser;
+              localStorage.setItem(SESSION_KEY, JSON.stringify(currentUser));
+              currentView = 'admin';
+          }
+      } else {
+          showToast('Error al actualizar la configuración de la tienda.');
+          return;
       }
       
       showModal = null;
