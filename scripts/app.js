@@ -61,8 +61,9 @@ const ADMIN_CREDENTIALS = {
     password: 'Kaleb.2021',
     discord_tag: 'KalebAdmin#9999'
 };
-let onlineUsers = new Set();
-let userActivityTimeout = null;
+// Eliminada variable onlineUsers y userActivityTimeout
+let userActivityTimeout = null; 
+
 
 // =========================================================
 // == 2. HANDLER DE DATOS (Recibe los cambios del dataSdk) ==
@@ -74,7 +75,6 @@ const dataHandler = {
         allUsers = data.filter(item => item.type === 'user') || [];
         allOrders = data.filter(item => item.type === 'order') || [];
         allReviews = data.filter(item => item.type === 'review') || [];
-        const activityRecords = data.filter(item => item.type === 'activity') || [];
         
         // --- Cargar configuración remota ---
         const configItem = data.find(item => item.type === 'config');
@@ -84,27 +84,7 @@ const dataHandler = {
             appConfig = defaultConfig; 
         }
         
-        // Lógica de notificaciones y actividad
-        if (currentUser) {
-             const newOrderAlert = activityRecords.find(a => 
-                 a.type === 'activity' && a.message && !a.dismissed && 
-                 (a.username === currentUser.username || currentUser.role === 'admin') 
-             );
-
-             if (newOrderAlert) {
-                 showToast(`🔔 ${newOrderAlert.message}`);
-                 const updatedAlert = {...newOrderAlert, dismissed: true};
-                 window.dataSdk.update(updatedAlert); 
-             }
-        }
-        
-        // Actualizar la lista de usuarios online
-        const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
-        onlineUsers = new Set(
-          activityRecords
-             .filter(a => a.type === 'activity' && new Date(a.last_activity).getTime() > fiveMinutesAgo)
-             .map(a => a.username)
-        );
+        // Eliminada toda la lógica de notificaciones y actividad 'onlineUsers'
         
         validateCart(); 
         render(); // Volver a pintar la pantalla
@@ -232,7 +212,7 @@ async function handleLogin(e) {
     // --- SECCIÓN CRÍTICA: Autenticación con Supabase Client ---
     const emailFicticio = user.username.toLowerCase() + "@marketplace.com";
     
-    const { data, error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await window.dataSdk.getSupabaseClient().auth.signInWithPassword({
         email: emailFicticio, 
         password: password,
     });
@@ -250,12 +230,11 @@ async function handleLogin(e) {
     showModal = null;
     showToast(`Bienvenido, ${user.username}!`);
     
-    updateUserActivity(); 
+    // CORRECCIÓN: Eliminada la llamada a updateUserActivity()
     
     render();
 }
 
-// CORREGIDA: Usa supabase.auth.signUp para obtener un UUID válido
 async function handleRegisterBuyer(e) {
     e.preventDefault();
     const username = e.target.username.value;
@@ -270,7 +249,7 @@ async function handleRegisterBuyer(e) {
     const emailFicticio = username.toLowerCase() + "@marketplace.com";
     
     // --- Registrar en Supabase Auth para obtener el UUID ---
-    const { data: authData, error: authError } = await supabase.auth.signUp({
+    const { data: authData, error: authError } = await window.dataSdk.getSupabaseClient().auth.signUp({
         email: emailFicticio,
         password: password,
     });
@@ -301,7 +280,7 @@ async function handleRegisterBuyer(e) {
         localStorage.setItem(SESSION_KEY, JSON.stringify(newUser)); 
         showToast('✅ Registro de comprador exitoso. ¡Bienvenido!');
         currentView = 'catalog';
-        updateUserActivity();
+        // CORRECCIÓN: Eliminada la llamada a updateUserActivity()
     } else {
         showToast('❌ Error al registrar en la tabla de datos. (Intente de nuevo)');
     }
@@ -309,7 +288,6 @@ async function handleRegisterBuyer(e) {
     render();
 }
 
-// CORREGIDA: Usa supabase.auth.signUp para obtener un UUID válido
 async function handleRegisterReseller(e) {
     e.preventDefault();
     const username = e.target.username.value;
@@ -324,7 +302,7 @@ async function handleRegisterReseller(e) {
     const emailFicticio = username.toLowerCase() + "@marketplace.com";
     
     // --- Registrar en Supabase Auth para obtener el UUID ---
-    const { data: authData, error: authError } = await supabase.auth.signUp({
+    const { data: authData, error: authError } = await window.dataSdk.getSupabaseClient().auth.signUp({
         email: emailFicticio,
         password: password,
     });
@@ -351,13 +329,7 @@ async function handleRegisterReseller(e) {
 
     if (isOk) {
         showToast('✅ Solicitud enviada. Espera la aprobación del administrador.');
-        window.dataSdk.create({
-            type: 'activity',
-            username: ADMIN_CREDENTIALS.username,
-            message: `⚠️ Nueva solicitud de revendedor de ${username}.`,
-            dismissed: false,
-            last_activity: new Date().toISOString()
-        });
+        // CORRECCIÓN: Eliminada la lógica de notificación al admin (INSERT INTO activities)
         showModal = 'login';
     } else {
         showToast('❌ Error al registrar solicitud en la tabla de datos.');
@@ -365,46 +337,13 @@ async function handleRegisterReseller(e) {
     render();
 }
 
-// CORRECCIÓN CRÍTICA: Asegura que el UUID se usa correctamente para el RLS
-async function updateUserActivity() {
-    if (!currentUser) return; 
-
-    if (userActivityTimeout) clearTimeout(userActivityTimeout);
-    
-    // CRÍTICO: Usamos el ID primario (UUID) del usuario
-    const userId = currentUser.id; 
-    
-    // Buscamos si ya existe un registro de actividad para este UUID
-    const activityRecord = window.mockDb.data.find(a => 
-        a.type === 'activity' && a.user === userId && a.last_activity
-    );
-    
-    const newActivity = {
-        type: 'activity',
-        // CRÍTICO: Usar el userId para el campo 'user' (mapea a user_id en dataSdk)
-        user: userId, 
-        username: currentUser.username, 
-        message: `${currentUser.username} está en línea.`,
-        last_activity: new Date().toISOString(),
-        dismissed: true 
-    };
-
-    if (activityRecord) {
-        // Actualizar registro existente (UPDATE)
-        await window.dataSdk.update({...activityRecord, last_activity: newActivity.last_activity});
-    } else {
-        // Crear nuevo registro (INSERT) - Aquí falla con 42501 si la RLS es estricta
-        await window.dataSdk.create(newActivity); 
-    }
-
-    userActivityTimeout = setTimeout(updateUserActivity, 3 * 60 * 1000); // Cada 3 minutos
-}
+// REMOVIDA: La función updateUserActivity() fue eliminada.
 
 function logout(auto = false) { 
     window.chatSdk.unsubscribe();
     
-    if (userActivityTimeout) clearTimeout(userActivityTimeout);
-    clearTimeout(inactivityTimeout);
+    clearTimeout(inactivityTimeout); 
+    
     currentUser = null;
     localStorage.removeItem(SESSION_KEY);
     currentView = 'catalog';
@@ -794,13 +733,6 @@ async function createOrder() {
         const { isOk } = await window.dataSdk.create(newOrder);
 
         if (isOk) {
-            window.dataSdk.create({
-                type: 'activity',
-                username: sellerUser.username,
-                message: `🛒 ¡Nueva orden de ${currentUser.username} por ${total} Zen!`,
-                dismissed: false,
-                last_activity: new Date().toISOString()
-            });
             
             for (const cartItem of items) {
                 const product = allProducts.find(p => p.__backendId === cartItem.backendId);
@@ -825,27 +757,19 @@ async function confirmOrder(backendId, isSeller) {
 
     let updatedOrder = { ...order };
     let toastMessage = '';
-    let notificationUser = '';
-    let notificationMessage = '';
     
     if (isSeller) {
         if (order.order_status === 'pending') {
             updatedOrder.order_status = 'confirmed_by_seller';
             toastMessage = '✅ Orden aceptada. El comprador debe confirmar la recepción.';
-            notificationUser = order.buyer_username;
-            notificationMessage = `🔔 Tu orden ${backendId.slice(-4)} ha sido aceptada por el vendedor.`;
         } else if (order.order_status === 'confirmed_by_buyer') {
              updatedOrder.order_status = 'completed';
              toastMessage = '🎉 Orden completada y registrada.';
-             notificationUser = order.buyer_username;
-             notificationMessage = `🎉 Tu orden ${backendId.slice(-4)} ha sido marcada como completada.`;
         }
     } else { // Es el comprador
         if (order.order_status === 'confirmed_by_seller') {
             updatedOrder.order_status = 'confirmed_by_buyer';
             toastMessage = '✅ Confirmaste la recepción. Esperando la confirmación final del vendedor.';
-            notificationUser = order.seller_username;
-            notificationMessage = `✅ El comprador confirmó la recepción de la orden ${backendId.slice(-4)}.`;
         }
     }
 
@@ -853,15 +777,6 @@ async function confirmOrder(backendId, isSeller) {
         const { isOk } = await window.dataSdk.update(updatedOrder);
         if (isOk) {
             showToast(toastMessage);
-            if (notificationUser) {
-                 window.dataSdk.create({
-                    type: 'activity',
-                    username: notificationUser,
-                    message: notificationMessage,
-                    dismissed: false,
-                    last_activity: new Date().toISOString()
-                });
-            }
         } else {
             showToast('❌ Error al actualizar el estado de la orden.');
         }
@@ -1173,7 +1088,8 @@ function renderCatalog() {
                 <div class="text-xs">${shop.shop_name || shop.username}</div>
                 <div class="text-[10px] text-yellow-400">${getStarHtml(shop.rating)} (${shop.reviewCount})</div>
                 <div class="text-xs text-gray-400 mt-1">${shop.salesCount} ventas</div>
-                ${onlineUsers.has(shop.username) ? '<span class="live-indicator"></span>' : ''}
+                
+                <!-- REMOVIDO: Indicador de "en línea" -->
             </div>
         `;
     }).join('');
@@ -1754,7 +1670,7 @@ function renderModal() {
                     <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded transition mt-4">
                         Guardar Cambios
                     </button>
-                    <button type="button" onclick="deleteProduct('${selectedProductToEdit.__backendId}'); showModal=null; render();" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded transition mt-2">
+                    <button type="button" onclick="deleteProduct('${selectedProductToEdit.__backendId}')" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded transition mt-2">
                         Eliminar Producto
                     </button>
                 </form>
@@ -1890,11 +1806,7 @@ async function init() {
             return; 
         }
         
-        if(isOk) {
-            updateUserActivity();
-        } else {
-            console.warn("No se pudo actualizar la actividad del usuario debido a un fallo en la lectura inicial.");
-        }
+        // CORRECCIÓN: Eliminada la llamada a updateUserActivity
     }
     render();
 }
