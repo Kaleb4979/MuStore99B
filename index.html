@@ -457,7 +457,7 @@
 
     // Validar si hay reseñas pendientes
     function checkPendingReviews() {
-      if (!currentUser || currentUser.role !== 'buyer') return;
+      if (!currentUser || currentUser.role !== 'buyer' || showModal === 'review') return;
       
       const pendingOrder = allOrders.find(o => 
         o.buyer_username === currentUser.username && 
@@ -1105,7 +1105,10 @@
           // SI AMBOS CONFIRMARON, RESTAR STOCK Y FINALIZAR
           if (result.item.seller_confirmed && result.item.buyer_confirmed && result.item.order_status !== 'completed') {
               
-              const completedOrder = {...result.item, order_status: 'completed', needs_review: true};
+              const completedOrder = {...result.item, 
+                  order_status: 'completed', 
+                  needs_review: true // Establecer needs_review solo en este punto
+              };
               
               try {
                 const itemsData = JSON.parse(completedOrder.items_data);
@@ -1113,16 +1116,15 @@
                   const product = allProducts.find(p => p.__backendId === item.backendId);
                   if (product) {
                     const updatedProduct = {...product, stock: Math.max(0, product.stock - item.quantity)};
-                    // Actualizamos el stock del producto de forma remota
                     await window.dataSdk.update(updatedProduct); 
                   }
                 }
                 // Actualizamos el estado de la orden a completada y revisable
-                await window.dataSdk.update(completedOrder); 
+                const finalResult = await window.dataSdk.update(completedOrder); 
                 
                 // Si soy el comprador, abrir reseña INMEDIATAMENTE
-                if (currentUser.role === 'buyer') {
-                    selectedOrder = completedOrder;
+                if (currentUser.role === 'buyer' && finalResult.isOk) {
+                    selectedOrder = finalResult.item;
                     showModal = 'review';
                 }
 
@@ -1160,21 +1162,19 @@
         created_at: new Date().toISOString()
       };
 
-      // 🚨 CRÍTICO: Esperamos que la creación de la reseña actualice el estado global (allReviews)
-      await window.dataSdk.create(reviewData); 
+      const reviewResult = await window.dataSdk.create(reviewData); 
 
       // 2. Actualizar la orden para marcarla como revisada
       const updatedOrder = {...selectedOrder, needs_review: false};
       await window.dataSdk.update(updatedOrder); 
       
-      // 3. Forzar una lectura para recalcular el Top Tiendas y actualizar la vista de reseñas
-      // La función dataSdk.update ya llama a dataHandler.onDataChanged, lo cual llama a render().
-      // Si la función dataSdk.create también llama a dataHandler.onDataChanged, no necesitamos
-      // una llamada explícita a window.dataSdk.read() o render() aquí, ya que el flujo lo maneja.
-      
       showToast('¡Gracias por tu reseña! (La tienda se ha actualizado)');
+      
+      // 🚨 CRÍTICO: Cerrar el modal AQUÍ para evitar que se reabra
       showModal = null;
       selectedOrder = null;
+      
+      // La llamada a dataSdk.update ya dispara render() a través de dataHandler
     }
     
     // FUNCIONES DE IMPORTAR/EXPORTAR
@@ -1224,7 +1224,7 @@
         reader.readAsText(file);
     }
 
-    // 🚨 FUNCIÓN CRÍTICA DE CÁLCULO DE TOP TIENDAS 🚨
+    // FUNCIÓN CRÍTICA DE CÁLCULO DE TOP TIENDAS 
     function getTopShops() {
       // 1. Filtrar solo los resellers aprobados
       const resellers = allUsers.filter(u => u.role === 'reseller' && u.approved);
@@ -1235,7 +1235,8 @@
         const sales = allOrders.filter(o => o.seller_username === seller.username && o.order_status === 'completed').length;
         
         // Calcular rating promedio
-        const avg = reviews.length ? (reviews.reduce((a,b)=>a+b.rating,0)/reviews.length).toFixed(1) : 0;
+        const totalRating = reviews.reduce((a,b)=>a+b.rating,0);
+        const avg = reviews.length ? (totalRating / reviews.length).toFixed(1) : 0;
         
         return { 
           ...seller, 
@@ -1320,12 +1321,13 @@
       if (selectedShopFilter) {
           filteredProducts = allProducts.filter(p => p.seller_shop_name === selectedShopFilter);
           
-          // 1. Calcular estadísticas de la tienda seleccionada
+          // 1. Calcular estadísticas de la tienda seleccionada (similar a getTopShops pero para una sola tienda)
           const shopOwner = allUsers.find(u => u.shop_name === selectedShopFilter);
           if (shopOwner) {
               const reviews = allReviews.filter(r => r.reviewed_seller === shopOwner.username);
-              const avg = reviews.length ? (reviews.reduce((a,b)=>a+b.rating,0)/reviews.length).toFixed(1) : 0;
               const sales = allOrders.filter(o => o.seller_username === shopOwner.username && o.order_status === 'completed').length;
+              const avg = reviews.length ? (reviews.reduce((a,b)=>a+b.rating,0)/reviews.length).toFixed(1) : 0;
+              
               shopStats = { owner: shopOwner, rating: parseFloat(avg), reviewCount: reviews.length, salesCount: sales };
               
               // 2. Generar HTML de reseñas
