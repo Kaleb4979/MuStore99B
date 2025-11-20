@@ -76,12 +76,12 @@ const dataHandler = {
         allReviews = data.filter(item => item.type === 'review') || [];
         const activityRecords = data.filter(item => item.type === 'activity') || [];
         
-        // --- AÑADIDO: Cargar configuración remota ---
+        // --- Cargar configuración remota ---
         const configItem = data.find(item => item.type === 'config');
         if (configItem && configItem.config) {
             appConfig = configItem.config;
         } else {
-            appConfig = defaultConfig; // Usar la configuración local si no hay remota
+            appConfig = defaultConfig; 
         }
         
         // Lógica de notificaciones y actividad
@@ -230,7 +230,6 @@ async function handleLogin(e) {
     }
 
     // --- SECCIÓN CRÍTICA: Autenticación con Supabase Client ---
-    // Usar el email ficticio que se creó durante el registro
     const emailFicticio = user.username.toLowerCase() + "@marketplace.com";
     
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -270,7 +269,7 @@ async function handleRegisterBuyer(e) {
 
     const emailFicticio = username.toLowerCase() + "@marketplace.com";
     
-    // --- CAMBIO CLAVE: Registrar en Supabase Auth ---
+    // --- Registrar en Supabase Auth para obtener el UUID ---
     const { data: authData, error: authError } = await supabase.auth.signUp({
         email: emailFicticio,
         password: password,
@@ -281,11 +280,10 @@ async function handleRegisterBuyer(e) {
         showToast('❌ Error de autenticación al registrar. ¿Email en uso?');
         return;
     }
-    // --- FIN CAMBIO CLAVE ---
     
     const newUser = {
         type: 'user',
-        id: authData.user.id, // <<-- Tomar el UUID generado por Supabase Auth
+        id: authData.user.id, // Tomar el UUID generado por Supabase Auth
         username,
         password,
         contact,
@@ -325,7 +323,7 @@ async function handleRegisterReseller(e) {
 
     const emailFicticio = username.toLowerCase() + "@marketplace.com";
     
-    // --- CAMBIO CLAVE: Registrar en Supabase Auth ---
+    // --- Registrar en Supabase Auth para obtener el UUID ---
     const { data: authData, error: authError } = await supabase.auth.signUp({
         email: emailFicticio,
         password: password,
@@ -336,11 +334,10 @@ async function handleRegisterReseller(e) {
         showToast('❌ Error de autenticación al registrar. ¿Email en uso?');
         return;
     }
-    // --- FIN CAMBIO CLAVE ---
-
+    
     const newUser = {
         type: 'user',
-        id: authData.user.id, // <<-- Tomar el UUID generado por Supabase Auth
+        id: authData.user.id, // Tomar el UUID generado por Supabase Auth
         username,
         password,
         contact,
@@ -368,19 +365,24 @@ async function handleRegisterReseller(e) {
     render();
 }
 
-// CORREGIDA: Usa el ID (UUID) del usuario para INSERT/UPDATE en activities
+// CORRECCIÓN CRÍTICA: Asegura que el UUID se usa correctamente para el RLS
 async function updateUserActivity() {
     if (!currentUser) return; 
 
     if (userActivityTimeout) clearTimeout(userActivityTimeout);
     
+    // CRÍTICO: Usamos el ID primario (UUID) del usuario
+    const userId = currentUser.id; 
+    
+    // Buscamos si ya existe un registro de actividad para este UUID
     const activityRecord = window.mockDb.data.find(a => 
-        a.type === 'activity' && (a.user === currentUser.id || a.user === currentUser.__backendId) && a.last_activity
+        a.type === 'activity' && a.user === userId && a.last_activity
     );
     
     const newActivity = {
         type: 'activity',
-        user: currentUser.id || currentUser.__backendId, // UUID
+        // CRÍTICO: Usar el userId para el campo 'user' (mapea a user_id en dataSdk)
+        user: userId, 
         username: currentUser.username, 
         message: `${currentUser.username} está en línea.`,
         last_activity: new Date().toISOString(),
@@ -388,8 +390,10 @@ async function updateUserActivity() {
     };
 
     if (activityRecord) {
+        // Actualizar registro existente (UPDATE)
         await window.dataSdk.update({...activityRecord, last_activity: newActivity.last_activity});
     } else {
+        // Crear nuevo registro (INSERT) - Aquí falla con 42501 si la RLS es estricta
         await window.dataSdk.create(newActivity); 
     }
 
