@@ -410,20 +410,20 @@
       { id: 'sets', name: 'Sets', icon: '🛡️' }
     ];
 
-    // Credenciales del Admin Supremo
-    const ADMIN_CREDENTIALS = {
-      username: 'Kaleb',
-      password: 'Kaleb.2021',
-      discord_tag: 'Kaleb5447'
-    };
-
-
-    // Credenciales del Admin Supremo
-    const ADMIN_CREDENTIALS = {
-      username: 'kilen',
-      password: 'K03080506000',
-      discord_tag: 'newkilen1'
-    };
+// Credenciales del Admin Supremo (Ahora soporta múltiples admins)
+const ADMIN_CREDENTIALS = [
+  {
+    username: 'Kaleb',
+    password: 'Kaleb.2021',
+    discord_tag: 'KalebAdmin#9999'
+  },
+  // --- NUEVO ADMIN SUPREMO ---
+  {
+    username: 'kilen',
+    password: '03080506000',
+    discord_tag: 'newkilen1'
+  }
+];
     
     // Control de Usuarios Online
     let onlineUsers = new Set();
@@ -2635,6 +2635,7 @@
   </script>
  </body>
 </html>
+
 
 
 
