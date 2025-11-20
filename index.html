@@ -1138,13 +1138,13 @@
       render();
     }
 
-    // ENVIAR RESEÑA
+    // ENVIAR RESEÑA (MODIFICADO: SOLO RECIBE RATING, NO TEXTO)
     async function handleSubmitReview(e) {
       e.preventDefault();
       if (!selectedOrder) return;
 
       const rating = parseInt(document.querySelector('input[name="rating"]:checked')?.value || '0');
-      const reviewText = document.getElementById('reviewText').value.trim();
+      // reviewText se elimina ya que el usuario solo quiere el rating.
 
       if (rating === 0) {
         showToast('Por favor selecciona una calificación');
@@ -1158,7 +1158,7 @@
         buyer_username: currentUser.username,
         reviewed_seller: selectedOrder.seller_username,
         rating: rating,
-        review_text: reviewText,
+        review_text: '', // RESEÑA ESCRITA ELIMINADA (se deja vacío)
         created_at: new Date().toISOString()
       };
 
@@ -1168,7 +1168,7 @@
       const updatedOrder = {...selectedOrder, needs_review: false};
       await window.dataSdk.update(updatedOrder); 
       
-      showToast('¡Gracias por tu reseña! (La tienda se ha actualizado)');
+      showToast('¡Gracias por tu calificación!');
       
       // 🚨 CRÍTICO: Cerrar el modal AQUÍ para evitar que se reabra
       showModal = null;
@@ -1224,7 +1224,7 @@
         reader.readAsText(file);
     }
 
-    // FUNCIÓN CRÍTICA DE CÁLCULO DE TOP TIENDAS 
+    // FUNCIÓN CRÍTICA DE CÁLCULO DE TOP TIENDAS (MODIFICADO: RANKING POR VENTAS)
     function getTopShops() {
       // 1. Filtrar solo los resellers aprobados
       const resellers = allUsers.filter(u => u.role === 'reseller' && u.approved);
@@ -1234,7 +1234,7 @@
         const reviews = allReviews.filter(r => r.reviewed_seller === seller.username);
         const sales = allOrders.filter(o => o.seller_username === seller.username && o.order_status === 'completed').length;
         
-        // Calcular rating promedio
+        // Calcular rating promedio (MANTENER para la visualización de estrellas)
         const totalRating = reviews.reduce((a,b)=>a+b.rating,0);
         const avg = reviews.length ? (totalRating / reviews.length).toFixed(1) : 0;
         
@@ -1246,15 +1246,11 @@
         };
       });
       
-      // 3. Ordenar: Primero por ventas, luego por reseñas, luego por rating
+      // 3. Ordenar: Solo por ventas (Rating según ventas, como se solicitó)
       return shopsStats
             // Mostrar solo tiendas con actividad (ventas o reseñas)
             .filter(s => s.salesCount > 0 || s.reviewCount > 0)
-            .sort((a, b) => {
-              if (b.salesCount !== a.salesCount) return b.salesCount - a.salesCount; // Primero Ventas
-              if (b.reviewCount !== a.reviewCount) return b.reviewCount - a.reviewCount; // Segundo Reseñas
-              return b.rating - a.rating; // Tercero Rating
-            })
+            .sort((a, b) => b.salesCount - a.salesCount) // <-- CRÍTICO: ORDENAR SOLO POR SALES COUNT
             .slice(0, 3); 
     }
 
@@ -1316,12 +1312,12 @@
       let filteredProducts = allProducts;
       
       let shopStats = null;
-      let shopReviewsHTML = '';
-
+      // shopReviewsHTML se elimina
+      
       if (selectedShopFilter) {
           filteredProducts = allProducts.filter(p => p.seller_shop_name === selectedShopFilter);
           
-          // 1. Calcular estadísticas de la tienda seleccionada (similar a getTopShops pero para una sola tienda)
+          // 1. Calcular estadísticas de la tienda seleccionada
           const shopOwner = allUsers.find(u => u.shop_name === selectedShopFilter);
           if (shopOwner) {
               const reviews = allReviews.filter(r => r.reviewed_seller === shopOwner.username);
@@ -1330,32 +1326,7 @@
               
               shopStats = { owner: shopOwner, rating: parseFloat(avg), reviewCount: reviews.length, salesCount: sales };
               
-              // 2. Generar HTML de reseñas
-              if (reviews.length > 0) {
-                  shopReviewsHTML = `
-                      <div class="max-w-7xl mx-auto px-4 py-8 border-t border-slate-700 mt-8">
-                          <h3 class="text-2xl font-bold text-yellow-400 mb-6">⭐ Opiniones de los Clientes (${reviews.length})</h3>
-                          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              ${reviews.map(r => `
-                                  <div class="bg-slate-800 p-4 rounded-lg border border-slate-700 shadow-md">
-                                      <div class="flex justify-between items-center mb-2">
-                                          <span class="font-bold text-white">${r.buyer_username}</span>
-                                          <div class="text-yellow-400">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</div>
-                                      </div>
-                                      <p class="text-slate-300 text-sm italic">"${r.review_text || 'Sin comentario escrito'}"</p>
-                                      <p class="text-xs text-slate-500 mt-2 text-right">${new Date(r.created_at).toLocaleDateString()}</p>
-                                  </div>
-                              `).join('')}
-                          </div>
-                      </div>
-                  `;
-              } else {
-                  shopReviewsHTML = `
-                      <div class="max-w-7xl mx-auto px-4 py-8 border-t border-slate-700 mt-8 text-center opacity-50">
-                          <p>Esta tienda aún no tiene reseñas.</p>
-                      </div>
-                  `;
-              }
+              // 2. Generar HTML de reseñas (ELIMINADO)
           }
       } else {
           filteredProducts = selectedCategory === 'all' 
@@ -1411,7 +1382,7 @@
             <div class="max-w-7xl mx-auto px-4 py-6">
               <div class="mb-4 text-center">
                 <h2 class="text-2xl font-bold text-yellow-400 mb-1">🏆 MEJORES VENDEDORES</h2>
-                <p class="text-xs opacity-60">Clasificación por Ventas y Calidad</p>
+                <p class="text-xs opacity-60">Clasificación por Ventas</p>
               </div>
               <div class="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
                 ${topShops.map((shop, index) => `
@@ -1428,7 +1399,7 @@
                         <div class="w-px bg-slate-600"></div>
                         <div class="text-center px-2">
                           <p class="text-xl font-bold text-yellow-400">${shop.rating}</p>
-                          <p class="text-xs opacity-70 uppercase">Estrellas</p>
+                          <p class="text-xs opacity-70 uppercase">Rating</p>
                         </div>
                     </div>
                   </div>
@@ -1461,7 +1432,7 @@
                             <div class="w-px bg-slate-700"></div>
                             <div class="px-3">
                                 <p class="text-xl font-bold text-white">${shopStats.reviewCount}</p>
-                                <p class="text-xs opacity-70">Reseñas</p>
+                                <p class="text-xs opacity-70">Calificaciones</p>
                             </div>
                         </div>
                     ` : `<p class="text-center text-sm opacity-60 py-2">Cargando estadísticas o tienda sin datos aún.</p>`}
@@ -1543,9 +1514,7 @@
             `}
           </main>
           
-          ${shopReviewsHTML}
-          
-        </div>
+          </div>
       `;
     }
 
@@ -2151,7 +2120,7 @@
             </div>`;
         }
 
-        // MODAL: RESEÑA (OBLIGATORIO - SIN BOTÓN CERRAR)
+        // MODAL: RESEÑA (OBLIGATORIO - SOLO CALIFICACIÓN)
         if(showModal === 'review') {
             return `
             <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4 animate-bounce-in">
@@ -2167,8 +2136,7 @@
                                 </label>
                             `).join('')}
                         </div>
-                        <textarea id="reviewText" class="w-full bg-slate-700 p-3 rounded text-white mb-4 border border-slate-600 h-24 resize-none" placeholder="Escribe un comentario sobre tu experiencia..."></textarea>
-                        <button class="w-full bg-yellow-600 hover:bg-yellow-500 py-3 rounded font-bold text-white shadow-lg transition transform active:scale-95">ENVIAR RESEÑA</button>
+                        <button class="w-full bg-yellow-600 hover:bg-yellow-500 py-3 rounded font-bold text-white shadow-lg transition transform active:scale-95">ENVIAR CALIFICACIÓN</button>
                     </form>
                 </div>
             </div>`;
