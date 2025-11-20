@@ -4,70 +4,33 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Mu Online 99B Marketplace</title>
-  
   <script src="https://cdn.tailwindcss.com"></script>
-  
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
   
   <style>
-    body {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      height: 100%;
-      font-family: 'Inter', sans-serif;
-    }
-    html {
-      height: 100%;
-    }
-    /* Animaciones y Efectos */
-    .category-btn { transition: all 0.3s ease; }
-    .category-btn:hover { transform: translateY(-2px); }
+    body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f1f5f9; }
+    /* Animaciones */
+    .hover-scale { transition: transform 0.2s; }
+    .hover-scale:hover { transform: translateY(-3px); }
+    .modal-backdrop { background-color: rgba(0,0,0,0.85); backdrop-filter: blur(4px); }
     
-    .product-card { transition: all 0.3s ease; }
-    .product-card:hover { transform: translateY(-5px); box-shadow: 0 10px 25px rgba(0,0,0,0.4); }
+    /* Ranking Styles */
+    .rank-card { position: relative; overflow: hidden; transition: all 0.3s; border: 1px solid rgba(255,255,255,0.1); }
+    .rank-card:hover { transform: scale(1.03); }
+    .rank-1 { border: 2px solid #FFD700; box-shadow: 0 0 20px rgba(255, 215, 0, 0.2); }
+    .rank-2 { border: 2px solid #C0C0C0; box-shadow: 0 0 15px rgba(192, 192, 192, 0.2); }
+    .rank-3 { border: 2px solid #CD7F32; box-shadow: 0 0 10px rgba(205, 127, 50, 0.2); }
     
-    .loading-spinner {
-      border: 3px solid rgba(255,255,255,0.3);
-      border-top: 3px solid white;
-      border-radius: 50%;
-      width: 20px;
-      height: 20px;
-      animation: spin 1s linear infinite;
-    }
-    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    
-    .cart-badge {
-      position: absolute;
-      top: -8px; right: -8px;
-      background-color: #ef4444; color: white;
-      border-radius: 50%; width: 24px; height: 24px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 12px; font-weight: bold;
-    }
-    
-    .modal-backdrop { background-color: rgba(0, 0, 0, 0.8); backdrop-filter: blur(4px); }
-    
-    .star { cursor: pointer; transition: all 0.2s ease; }
-    .star:hover { transform: scale(1.3); color: #fbbf24; }
-    
-    .top-shop-card { transition: all 0.3s ease; }
-    .top-shop-card:hover { transform: scale(1.05); }
-    
-    /* Estilos específicos para el ranking */
-    .rank-1 { border: 2px solid #FFD700; box-shadow: 0 0 15px rgba(255, 215, 0, 0.3); }
-    .rank-2 { border: 2px solid #C0C0C0; box-shadow: 0 0 10px rgba(192, 192, 192, 0.3); }
-    .rank-3 { border: 2px solid #CD7F32; box-shadow: 0 0 10px rgba(205, 127, 50, 0.3); }
+    .star-rating { cursor: pointer; font-size: 2rem; color: #4b5563; transition: color 0.2s; }
+    .star-rating:hover, .star-rating.active { color: #fbbf24; }
+    .cart-badge { position: absolute; top: -5px; right: -5px; background: #ef4444; color: white; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; display: flex; align-items: center; justify-content: center; }
   </style>
-  <style>@view-transition { navigation: auto; }</style>
 
   <script>
-    const DB_KEY = 'mu_marketplace_db_v3_final'; 
-
-    // Inicializar DB en memoria desde LocalStorage
+    // --- BASE DE DATOS SIMULADA (LOCALSTORAGE) ---
+    const DB_KEY = 'mu_marketplace_full_v5'; 
     let savedData = localStorage.getItem(DB_KEY);
+    
     window.mockDb = {
       data: savedData ? JSON.parse(savedData) : [],
       handler: null,
@@ -77,25 +40,25 @@
       }
     };
 
-    // Data SDK Simulado (Persistencia y Tiempo Real Local)
+    // SDK DE DATOS
     window.dataSdk = {
       init: async (handler) => {
         window.mockDb.handler = handler;
-        setTimeout(() => window.mockDb.notify(), 50); 
+        setTimeout(() => window.mockDb.notify(), 100);
         return { isOk: true };
       },
       create: async (item) => {
-        item.__backendId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
+        item.__backendId = Date.now().toString() + Math.random().toString(36).substr(2, 5);
         window.mockDb.data.push(item);
         window.mockDb.notify();
-        return { isOk: true, item: item };
+        return { isOk: true, item };
       },
       update: async (item) => {
-        const index = window.mockDb.data.findIndex(i => i.__backendId === item.__backendId);
-        if (index !== -1) {
-          window.mockDb.data[index] = {...item}; 
+        const idx = window.mockDb.data.findIndex(i => i.__backendId === item.__backendId);
+        if (idx !== -1) {
+          window.mockDb.data[idx] = { ...item };
           window.mockDb.notify();
-          return { isOk: true, item: item };
+          return { isOk: true, item };
         }
         return { isOk: false };
       },
@@ -105,842 +68,703 @@
         return { isOk: true };
       }
     };
-    
-    // Element SDK Simulado
-    window.elementSdk = {
-      config: {},
-      init: (options) => {
-        window.elementSdk.config = options.defaultConfig;
-        if(options.onConfigChange) options.onConfigChange(options.defaultConfig);
-      },
-      setConfig: (newConfig) => {
-        window.elementSdk.config = { ...window.elementSdk.config, ...newConfig };
-      }
-    };
   </script>
  </head>
  <body>
-  <div id="app" class="min-h-full"></div>
+  <div id="app" class="min-h-screen flex flex-col"></div>
   
   <script>
-    // --- CONFIGURACIÓN BASE ---
-    const defaultConfig = {
-      site_title: "Mu Online 99B Marketplace",
-      welcome_message: "El mejor mercado para items, sets y alas.",
-      contact_info: "Soporte: Discord Oficial",
-      background_color: "#0f172a",
-      card_background: "#1e293b",
-      text_color: "#f1f5f9",
-      primary_button: "#3b82f6",
-      secondary_button: "#10b981",
-      font_family: "Inter",
-      font_size: 16
+    // --- CONFIGURACIÓN GLOBAL ---
+    const config = {
+      title: "Mu Online 99B Market",
+      colors: { bg: "#0f172a", card: "#1e293b", primary: "#3b82f6", secondary: "#10b981" }
     };
 
-    // --- ESTADO DE LA APLICACIÓN ---
+    // --- ESTADO ---
     let currentUser = null;
     let currentView = 'catalog';
     let selectedCategory = 'all';
-    let allProducts = [];
-    let allUsers = [];
-    let allOrders = [];
-    let allReviews = [];
     let cart = [];
     let showModal = null;
-    let selectedOrder = null;
+    let selectedOrder = null; // Para reviews o detalles
 
-    const CATEGORIES = [
-      { id: 'all', name: 'Todos', icon: '🎮' },
-      { id: 'promotions', name: 'Promociones', icon: '🔥' },
-      { id: 'items', name: 'Items', icon: '⚔️' },
-      { id: 'jewels', name: 'Joyas', icon: '💎' },
-      { id: 'wings', name: 'Alas', icon: '🦅' },
-      { id: 'sets', name: 'Sets', icon: '🛡️' }
-    ];
-
-    const ADMIN_CREDENTIALS = { username: 'Kaleb', password: 'Kaleb.2021' };
-    let onlineUsers = new Set();
-    let userActivityTimeout = null;
+    // Cache de datos
+    let allProducts = [], allUsers = [], allOrders = [], allReviews = [];
     
-    // --- AUDIO Y NOTIFICACIONES ---
-    let audioContextResumed = false;
-    const notificationAudio = new Audio('https://freesound.org/data/previews/389/389332_7366710-lq.mp3'); 
+    // Audio
+    let audioReady = false;
+    const notifSound = new Audio('https://freesound.org/data/previews/389/389332_7366710-lq.mp3');
 
-    function playNotificationSound() {
-        if (!audioContextResumed) return;
-        const audioClone = notificationAudio.cloneNode(true);
-        audioClone.volume = 0.6; 
-        audioClone.play().catch(e => console.error("Audio error:", e));
-    }
-
-    // --- MANEJADOR DE DATOS (CORAZÓN DEL TIEMPO REAL) ---
+    // --- CORE: DATA HANDLER ---
     const dataHandler = {
       onDataChanged(data) {
-        // 1. Desempaquetar datos
-        allProducts = data.filter(item => item.type === 'product') || [];
-        allUsers = data.filter(item => item.type === 'user') || [];
-        allOrders = data.filter(item => item.type === 'order') || [];
-        allReviews = data.filter(item => item.type === 'review') || [];
-        const activityRecords = data.filter(item => item.type === 'activity') || [];
+        // 1. Desempaquetar
+        allProducts = data.filter(x => x.type === 'product');
+        allUsers = data.filter(x => x.type === 'user');
+        allOrders = data.filter(x => x.type === 'order');
+        allReviews = data.filter(x => x.type === 'review');
         
-        // 2. Notificaciones de Actividad (Nuevos Pedidos)
+        // 2. Notificaciones (Sonido + Toast)
+        const alerts = data.filter(x => x.type === 'activity' && !x.dismissed);
         if (currentUser) {
-            const newOrderAlert = activityRecords.find(a => 
-                a.type === 'activity' && a.message && !a.dismissed && 
-                (a.username === currentUser.username || currentUser.role === 'admin') 
-            );
-
-            if (newOrderAlert) {
-                showToast(`🔔 ${newOrderAlert.message}`);
-                playNotificationSound();
-                const updatedAlert = {...newOrderAlert, dismissed: true};
-                window.dataSdk.update(updatedAlert); 
+            const myAlert = alerts.find(a => a.username === currentUser.username || currentUser.role === 'admin');
+            if (myAlert) {
+                playAudio();
+                showToast(`🔔 ${myAlert.message}`);
+                window.dataSdk.update({ ...myAlert, dismissed: true });
             }
         }
-        
-        // 3. Usuarios Online
-        const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
-        onlineUsers = new Set(
-          activityRecords
-            .filter(a => a.type === 'activity' && new Date(a.last_activity).getTime() > fiveMinutesAgo)
-            .map(a => a.username)
-        );
-        
-        // 4. Validaciones Críticas
-        validateCart();
-        
-        // 5. TRIGGER DE CALIFICACIÓN (Fix "Apenas se marca")
-        // Verifica si hay una orden completada pendiente de review y abre el modal
+
+        // 3. Chequeo Automático de Reviews (Comprador)
         checkPendingReviews();
-        
-        // 6. Renderizar UI
-        render(); 
+
+        // 4. Validar Carrito (Stock real)
+        validateCart();
+
+        // 5. Renderizar
+        render();
       }
     };
 
-    async function init() {
-      await window.dataSdk.init(dataHandler);
-      if (window.elementSdk) {
-        window.elementSdk.init({
-          defaultConfig,
-          onConfigChange: async (config) => { render(); }
-        });
-      }
+    // --- LOGICA DE NEGOCIO ---
+    
+    function playAudio() {
+        if(audioReady) notifSound.cloneNode(true).play().catch(e=>console.log(e));
     }
 
-    // --- FUNCIÓN CRÍTICA: DETECTAR PENDIENTE DE CALIFICAR ---
     function checkPendingReviews() {
-      if (!currentUser || currentUser.role !== 'buyer') return;
-      
-      // Buscar orden completada que necesite review
-      const pendingOrder = allOrders.find(o => 
-        o.buyer_username === currentUser.username && 
-        o.order_status === 'completed' && 
-        o.needs_review === true
-      );
-
-      // Si existe y NO estamos ya calificándola, FORZAR APERTURA DEL MODAL
-      if (pendingOrder) {
-        if (showModal !== 'review' || (selectedOrder && selectedOrder.__backendId !== pendingOrder.__backendId)) {
-            selectedOrder = pendingOrder;
-            showModal = 'review';
-            // No llamamos render() aquí para evitar bucles infinitos, se llamará al final del dataHandler
-        }
-      }
-    }
-
-    // --- FUNCIONES DE AUTENTICACIÓN ---
-    async function handleLogin(e) {
-      e.preventDefault();
-      const username = document.getElementById('loginUsername').value.trim();
-      const password = document.getElementById('loginPassword').value;
-
-      if (username === ADMIN_CREDENTIALS.username && password === ADMIN_CREDENTIALS.password) {
-        currentUser = { username, role: 'admin', __backendId: 'admin' };
-        currentView = 'admin';
-        finishLogin();
-        return;
-      }
-
-      const user = allUsers.find(u => u.username === username && u.password === password);
-      if (user) {
-        if (user.status === 'banned') { showToast('🚫 Cuenta suspendida.'); return; }
-        if (user.role === 'reseller' && !user.approved) { showToast('Cuenta en revisión.'); return; }
+        if (!currentUser || currentUser.role !== 'buyer') return;
+        // Buscar orden completada sin review
+        const pend = allOrders.find(o => o.buyer_username === currentUser.username && o.order_status === 'completed' && o.needs_review);
         
-        currentUser = user;
-        
-        if (user.role === 'reseller' && (!user.shop_name || !user.discord_tag)) {
-          selectedOrder = user;
-          showModal = 'setupShop';
-        } else {
-          showModal = null;
-          if (user.role === 'reseller') currentView = 'admin';
+        if (pend) {
+            // Si encontramos una y no estamos ya en el modal, abrirlo
+            if (showModal !== 'review' || (selectedOrder && selectedOrder.__backendId !== pend.__backendId)) {
+                selectedOrder = pend;
+                showModal = 'review';
+            }
         }
-        finishLogin();
-      } else {
-        showToast('Credenciales inválidas');
-      }
-    }
-
-    async function finishLogin() {
-        showToast(`Bienvenido ${currentUser.username}`);
-        await updateUserActivity();
-        checkPendingReviews(); // Chequeo inicial al loguear
-        render();
-    }
-
-    async function handleRegisterBuyer(e) {
-      e.preventDefault();
-      // ... (Lógica estándar de registro, simplificada para brevedad)
-      const username = document.getElementById('buyerUsername').value.trim();
-      if (allUsers.find(u => u.username === username)) { showToast('Usuario existente'); return; }
-      
-      const userData = {
-        id: Date.now().toString(), type: 'user', username,
-        password: document.getElementById('buyerPassword').value,
-        discord_tag: document.getElementById('buyerDiscord').value.trim(),
-        role: 'buyer', approved: true, status: 'active', created_at: new Date().toISOString()
-      };
-      await window.dataSdk.create(userData);
-      showToast('Registro exitoso'); showModal = 'login'; render();
-    }
-
-    async function handleRegisterReseller(e) {
-      e.preventDefault();
-      const username = document.getElementById('resellerUsername').value.trim();
-      if (allUsers.find(u => u.username === username)) { showToast('Usuario existente'); return; }
-      
-      const userData = {
-        id: Date.now().toString(), type: 'user', username,
-        password: document.getElementById('resellerPassword').value,
-        shop_name: document.getElementById('resellerShop').value.trim(),
-        discord_tag: document.getElementById('resellerDiscord').value.trim(),
-        role: 'reseller', approved: false, status: 'pending', created_at: new Date().toISOString()
-      };
-      await window.dataSdk.create(userData);
-      showToast('Solicitud enviada'); showModal = null; render();
-    }
-
-    async function updateUserActivity() {
-      if (!currentUser) return;
-      // Actualizar "Last Seen"
-      const existingActivity = window.mockDb.data.find(item => item.type === 'activity' && item.username === currentUser.username);
-      if (existingActivity) {
-        await window.dataSdk.update({...existingActivity, last_activity: new Date().toISOString()});
-      } else {
-        await window.dataSdk.create({
-            id: 'act_' + currentUser.username, type: 'activity', 
-            username: currentUser.username, last_activity: new Date().toISOString()
-        });
-      }
-      if (userActivityTimeout) clearTimeout(userActivityTimeout);
-      userActivityTimeout = setTimeout(updateUserActivity, 2 * 60 * 1000);
-    }
-
-    function logout() {
-      if (userActivityTimeout) clearTimeout(userActivityTimeout);
-      currentUser = null; currentView = 'catalog'; cart = [];
-      render();
-    }
-
-    // --- GESTIÓN DE PRODUCTOS Y CARRITO ---
-    async function handleAddProduct(e) {
-      e.preventDefault();
-      // ... (Lógica estándar de creación de producto)
-      const btn = e.target.querySelector('button[type="submit"]');
-      btn.disabled = true;
-      
-      const originalPrice = parseFloat(document.getElementById('productPrice').value);
-      const discount = parseInt(document.getElementById('productDiscount').value) || 0;
-      
-      const productData = {
-        type: 'product',
-        name: document.getElementById('productName').value.trim(),
-        category: document.getElementById('productCategory').value,
-        price: originalPrice,
-        final_price: discount > 0 ? originalPrice * (1 - discount / 100) : originalPrice,
-        discount: discount,
-        on_sale: document.getElementById('productOnSale').checked,
-        stock: parseInt(document.getElementById('productStock').value),
-        description: document.getElementById('productDescription').value.trim(),
-        image_url: document.getElementById('productImage').value.trim(),
-        seller_username: currentUser.username,
-        seller_shop_name: currentUser.shop_name,
-        seller_discord: currentUser.discord_tag,
-        created_at: new Date().toISOString()
-      };
-
-      await window.dataSdk.create(productData);
-      showToast('Producto Agregado'); e.target.reset();
-      btn.disabled = false;
-    }
-
-    async function deleteProduct(id) {
-        const p = allProducts.find(i => i.__backendId === id);
-        if(p) await window.dataSdk.delete(p);
     }
 
     function validateCart() {
         if (cart.length === 0) return;
-        let modified = false;
-        const newCart = cart.filter(item => {
-            const real = allProducts.find(p => p.__backendId === item.__backendId);
-            if (!real) { showToast(`Item "${item.name}" eliminado.`); modified = true; return false; }
-            if (item.quantity > real.stock) { item.quantity = real.stock; modified = true; }
-            // Sincronizar precios/datos
-            if (item.price !== real.price || item.final_price !== real.final_price) {
-                Object.assign(item, real); modified = true;
+        const newCart = [];
+        cart.forEach(cItem => {
+            const real = allProducts.find(p => p.__backendId === cItem.__backendId);
+            if (real && real.stock > 0) {
+                // Actualizar precio y limitar stock
+                cItem.price = real.price;
+                cItem.final_price = real.final_price;
+                cItem.quantity = Math.min(cItem.quantity, real.stock);
+                newCart.push(cItem);
             }
-            return item.quantity > 0;
         });
-        if (modified) cart = newCart;
-    }
-
-    function addToCart(id) {
-        if (!currentUser) { showModal = 'login'; render(); return; }
-        const prod = allProducts.find(p => p.__backendId === id);
-        if (!prod || prod.stock < 1) return;
-        
-        const exist = cart.find(i => i.__backendId === id);
-        if (exist) {
-            if (exist.quantity < prod.stock) exist.quantity++;
-        } else {
-            cart.push({ ...prod, quantity: 1 });
+        if (JSON.stringify(cart) !== JSON.stringify(newCart)) {
+            cart = newCart;
+            showToast('⚠️ Carrito actualizado por cambios en stock');
         }
-        showToast('Agregado al carrito'); render();
-    }
-
-    // --- PEDIDOS Y CONFIRMACIÓN ---
-    async function createOrder() {
-        validateCart();
-        if (cart.length === 0) return;
-
-        const ordersBySeller = {};
-        cart.forEach(item => {
-            if (!ordersBySeller[item.seller_username]) {
-                ordersBySeller[item.seller_username] = { 
-                    seller: item.seller_username, discord: item.seller_discord, items: [], total: 0 
-                };
-            }
-            const price = item.discount > 0 ? item.final_price : item.price;
-            ordersBySeller[item.seller_username].items.push(item);
-            ordersBySeller[item.seller_username].total += price * item.quantity;
-        });
-
-        for (const seller in ordersBySeller) {
-            const o = ordersBySeller[seller];
-            const itemsStr = o.items.map(i => `${i.name} x${i.quantity}`).join(', ');
-            const itemsJson = JSON.stringify(o.items.map(i => ({ backendId: i.__backendId, quantity: i.quantity })));
-            
-            const orderData = {
-                type: 'order', id: Date.now() + '_' + seller,
-                buyer_username: currentUser.username, buyer_discord: currentUser.discord_tag,
-                seller_username: seller, seller_discord: o.discord,
-                items: itemsStr, items_data: itemsJson, total: o.total,
-                order_status: 'pending', seller_confirmed: false, buyer_confirmed: false,
-                created_at: new Date().toISOString(), needs_review: false // Inicialmente false
-            };
-            
-            const res = await window.dataSdk.create(orderData);
-            
-            // Notificar al vendedor
-            if(res.isOk) {
-                await window.dataSdk.create({
-                    type: 'activity', username: seller, message: `¡Nuevo Pedido de ${currentUser.username}!`, dismissed: false, created_at: new Date().toISOString()
-                });
-            }
-        }
-        
-        cart = []; showToast('Pedido Creado'); currentView = 'orders'; render();
-    }
-
-    async function confirmOrder(backendId, isSeller) {
-        const order = allOrders.find(o => o.__backendId === backendId);
-        if (!order) return;
-        
-        let updated = {...order};
-        if (isSeller) updated.seller_confirmed = true;
-        else updated.buyer_confirmed = true;
-
-        const res = await window.dataSdk.update(updated);
-        
-        // VERIFICAR SI AMBOS CONFIRMARON -> COMPLETAR
-        if (res.isOk && res.item.seller_confirmed && res.item.buyer_confirmed && res.item.order_status !== 'completed') {
-            
-            const completedOrder = { ...res.item, order_status: 'completed', needs_review: true };
-            
-            // 1. Descontar Stock
-            try {
-                const items = JSON.parse(completedOrder.items_data);
-                for (const i of items) {
-                    const prod = allProducts.find(p => p.__backendId === i.backendId);
-                    if (prod) await window.dataSdk.update({ ...prod, stock: Math.max(0, prod.stock - i.quantity) });
-                }
-            } catch (e) { console.error(e); }
-
-            // 2. Actualizar Orden a 'completed' (Esto dispara el checkPendingReviews en el otro cliente)
-            await window.dataSdk.update(completedOrder);
-            
-            showToast('¡Pedido Completado!');
-        } else {
-            showToast('Confirmado. Esperando a la otra parte.');
-        }
-    }
-
-    // --- SISTEMA DE REVIEWS Y TOP SHOPS ---
-    async function handleSubmitReview(e) {
-        e.preventDefault();
-        if (!selectedOrder) return;
-        
-        const rating = parseInt(document.querySelector('input[name="rating"]:checked')?.value || '0');
-        if (rating === 0) { showToast('Selecciona estrellas'); return; }
-
-        const reviewData = {
-            type: 'review',
-            buyer_username: currentUser.username,
-            reviewed_seller: selectedOrder.seller_username,
-            rating: rating,
-            review_text: document.getElementById('reviewText').value.trim(),
-            created_at: new Date().toISOString()
-        };
-
-        const res = await window.dataSdk.create(reviewData);
-        if (res.isOk) {
-            // Quitar flag de needs_review
-            await window.dataSdk.update({ ...selectedOrder, needs_review: false });
-            showToast('¡Reseña Enviada!'); showModal = null; selectedOrder = null; render();
-        }
-    }
-
-    function getSellerRating(username) {
-        const revs = allReviews.filter(r => r.reviewed_seller === username);
-        if (revs.length === 0) return { average: 0, count: 0 };
-        const sum = revs.reduce((a, b) => a + b.rating, 0);
-        return { average: (sum / revs.length).toFixed(1), count: revs.length };
     }
 
     function getTopShops() {
-        const resellers = allUsers.filter(u => u.role === 'reseller' && u.approved);
-        const shops = resellers.map(u => {
-            const r = getSellerRating(u.username);
-            return { ...u, rating: parseFloat(r.average), count: r.count };
+        const sellers = allUsers.filter(u => u.role === 'reseller' && u.approved);
+        const stats = sellers.map(s => {
+            const revs = allReviews.filter(r => r.reviewed_seller === s.username);
+            const avg = revs.length ? (revs.reduce((a,b)=>a+b.rating,0)/revs.length) : 0;
+            return { ...s, rating: avg, count: revs.length };
         });
-        
-        // Ordenar: Mayor Rating > Mayor Cantidad de Reviews
-        return shops.filter(s => s.count > 0)
-                    .sort((a, b) => (b.rating - a.rating) || (b.count - a.count))
-                    .slice(0, 3);
+        // Ordenar: Mayor Rating -> Mayor Cantidad Reviews
+        return stats.filter(s => s.count > 0).sort((a,b) => (b.rating - a.rating) || (b.count - a.count)).slice(0, 3);
     }
 
-    // --- UTILIDADES UI ---
+    // --- ACCIONES DE USUARIO ---
+
+    async function handleLogin(e) {
+        e.preventDefault();
+        const u = document.getElementById('inpUser').value.trim();
+        const p = document.getElementById('inpPass').value;
+
+        // Admin Hardcode
+        if (u === 'Kaleb' && p === 'Kaleb.2021') {
+            currentUser = { username: 'Kaleb', role: 'admin', __backendId: 'admin' };
+            currentView = 'admin'; showModal = null; render(); return;
+        }
+
+        const user = allUsers.find(x => x.username === u && x.password === p);
+        if (!user) { showToast('❌ Datos incorrectos'); return; }
+        if (user.status === 'banned') { showToast('🚫 Usuario BANEADO'); return; }
+        if (user.role === 'reseller' && !user.approved) { showToast('⏳ Cuenta en revisión'); return; }
+
+        currentUser = user;
+        showModal = null;
+        
+        // Forzar configuración de tienda si falta
+        if (user.role === 'reseller' && (!user.shop_name || !user.discord_tag)) {
+            selectedOrder = user; 
+            showModal = 'setupShop';
+        } else if (user.role === 'reseller') {
+            currentView = 'admin';
+        }
+        
+        showToast(`Bienvenido ${u}`);
+        render();
+    }
+
+    async function register(type, e) {
+        e.preventDefault();
+        const form = e.target;
+        const user = form.querySelector('[name="user"]').value.trim();
+        
+        if(allUsers.find(u=>u.username===user)) { showToast('Usuario ya existe'); return; }
+
+        const newUser = {
+            type: 'user',
+            username: user,
+            password: form.querySelector('[name="pass"]').value,
+            role: type,
+            approved: type === 'buyer', // Comprador aprueba directo, vendedor no
+            status: type === 'buyer' ? 'active' : 'pending',
+            created_at: new Date().toISOString()
+        };
+
+        if (type === 'reseller') {
+            newUser.shop_name = form.querySelector('[name="shop"]').value;
+            newUser.discord_tag = form.querySelector('[name="disc"]').value;
+        } else {
+            newUser.discord_tag = form.querySelector('[name="disc"]').value;
+        }
+
+        await window.dataSdk.create(newUser);
+        showToast(type === 'buyer' ? '✅ Registrado. Inicia sesión.' : '⏳ Solicitud enviada.');
+        showModal = type === 'buyer' ? 'login' : null;
+        render();
+    }
+
+    async function createOrder() {
+        if(cart.length===0) return;
+        validateCart();
+
+        // Agrupar por vendedor
+        const groups = {};
+        cart.forEach(item => {
+            if(!groups[item.seller_username]) groups[item.seller_username] = { items:[], total:0, seller_disc: item.seller_discord };
+            groups[item.seller_username].items.push(item);
+            groups[item.seller_username].total += (item.final_price * item.quantity);
+        });
+
+        for (const seller in groups) {
+            const g = groups[seller];
+            const order = {
+                type: 'order',
+                id: Date.now() + Math.floor(Math.random()*1000),
+                buyer_username: currentUser.username,
+                buyer_discord: currentUser.discord_tag,
+                seller_username: seller,
+                seller_discord: g.seller_disc,
+                total: g.total,
+                items_desc: g.items.map(i=>`${i.name} x${i.quantity}`).join(', '),
+                items_json: JSON.stringify(g.items.map(i=>({ bid: i.__backendId, qty: i.quantity }))),
+                order_status: 'pending',
+                seller_confirmed: false,
+                buyer_confirmed: false,
+                needs_review: false,
+                created_at: new Date().toISOString()
+            };
+            
+            const res = await window.dataSdk.create(order);
+            // Notificar Vendedor
+            if (res.isOk) {
+                await window.dataSdk.create({
+                    type: 'activity', username: seller, message: `💰 Nuevo pedido de ${currentUser.username}`, dismissed: false
+                });
+            }
+        }
+        cart = [];
+        showToast('✅ Pedido realizado. Contacta por Discord.');
+        currentView = 'orders';
+        render();
+    }
+
+    async function confirmOrder(oId, isSeller) {
+        const order = allOrders.find(o => o.__backendId === oId);
+        if(!order) return;
+
+        const update = { ...order };
+        if (isSeller) update.seller_confirmed = true;
+        else update.buyer_confirmed = true;
+
+        // Si ambos confirman -> COMPLETADO
+        if ((isSeller && update.buyer_confirmed) || (!isSeller && update.seller_confirmed)) {
+            update.order_status = 'completed';
+            update.needs_review = true; // Esto dispara el modal en el comprador
+
+            // BAJA DE STOCK
+            try {
+                const items = JSON.parse(update.items_json);
+                for(const i of items) {
+                    const prod = allProducts.find(p => p.__backendId === i.bid);
+                    if(prod) {
+                        await window.dataSdk.update({ ...prod, stock: Math.max(0, prod.stock - i.qty) });
+                    }
+                }
+            } catch(e){ console.error(e); }
+        }
+
+        await window.dataSdk.update(update);
+        showToast(update.order_status==='completed' ? '✅ ¡Orden Finalizada!' : '✅ Confirmado. Esperando otra parte.');
+    }
+
+    async function sendReview(e) {
+        e.preventDefault();
+        const rating = document.querySelector('.star-rating.active')?.dataset.val;
+        if (!rating) { showToast('Selecciona estrellas'); return; }
+        
+        const text = document.getElementById('reviewText').value;
+        
+        await window.dataSdk.create({
+            type: 'review',
+            buyer_username: currentUser.username,
+            reviewed_seller: selectedOrder.seller_username,
+            rating: parseInt(rating),
+            review_text: text,
+            created_at: new Date().toISOString()
+        });
+
+        // Quitar flag needs_review
+        await window.dataSdk.update({ ...selectedOrder, needs_review: false });
+        
+        showToast('⭐ Reseña enviada');
+        showModal = null; selectedOrder = null;
+        render();
+    }
+
+    // --- IMPORT / EXPORT (SOLUCIÓN PERSISTENCIA) ---
+    function exportDB() {
+        const str = JSON.stringify(window.mockDb.data);
+        const blob = new Blob([str], {type: 'application/json'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = 'mu_market_backup.json'; a.click();
+    }
+    
+    function importDB(e) {
+        const file = e.target.files[0];
+        if(!file) return;
+        const r = new FileReader();
+        r.onload = (ev) => {
+            try {
+                const data = JSON.parse(ev.target.result);
+                window.mockDb.data = data;
+                window.mockDb.notify();
+                showToast('✅ Datos restaurados correctamente');
+                setTimeout(()=>location.reload(), 1000);
+            } catch(err) { showToast('❌ Error en archivo'); }
+        };
+        r.readAsText(file);
+    }
+
+    // --- RENDERIZADO UI ---
+
     function showToast(msg) {
         const t = document.createElement('div');
-        t.className = 'fixed bottom-6 right-6 px-6 py-3 rounded-lg shadow-lg font-semibold z-50 text-white bg-blue-600';
-        t.textContent = msg; document.body.appendChild(t);
+        t.className = 'fixed bottom-5 right-5 bg-blue-600 text-white px-6 py-3 rounded shadow-lg z-50 font-bold animate-bounce';
+        t.innerText = msg;
+        document.body.appendChild(t);
         setTimeout(() => t.remove(), 3000);
-    }
-
-    function renderStars(n) {
-        return '⭐'.repeat(Math.floor(n)) + (n % 1 >= 0.5 ? '✨' : '') + '☆'.repeat(5 - Math.floor(n) - (n % 1 >= 0.5 ? 1 : 0));
     }
 
     function render() {
         const app = document.getElementById('app');
-        const config = window.elementSdk.config || defaultConfig;
-        document.body.style.backgroundColor = config.background_color;
-        document.body.style.color = config.text_color;
-
-        // Autoplay Policy Fix
-        if (!audioContextResumed) {
-            document.body.addEventListener('click', () => {
-                notificationAudio.play().then(() => { 
-                    audioContextResumed = true; notificationAudio.pause(); notificationAudio.currentTime = 0; 
-                }).catch(()=>{});
+        
+        // Click inicial para habilitar audio
+        if(!audioReady) {
+            document.body.addEventListener('click', () => { 
+                if(!audioReady) { audioReady = true; notifSound.play().then(()=>notifSound.pause()).catch(()=>{}); }
             }, { once: true });
         }
 
-        // Router
-        if (currentView === 'catalog') app.innerHTML = renderCatalog();
-        else if (currentView === 'cart') app.innerHTML = renderCart();
-        else if (currentView === 'orders') app.innerHTML = renderOrders();
-        else if (currentView === 'admin') app.innerHTML = renderAdmin();
+        // RENDER PRINCIPAL
+        let html = renderHeader();
+        
+        if (currentView === 'catalog') html += renderCatalog();
+        else if (currentView === 'cart') html += renderCart();
+        else if (currentView === 'orders') html += renderOrders();
+        else if (currentView === 'admin') html += renderAdmin();
 
-        // Modal Container
-        const cont = document.getElementById('modalContainer');
-        if(!cont) {
-            const d = document.createElement('div'); d.id = 'modalContainer'; 
-            app.appendChild(d); d.innerHTML = showModal ? renderModal() : '';
-        } else {
-            cont.innerHTML = showModal ? renderModal() : '';
-        }
+        // MODALES
+        if (showModal) html += renderModal();
+
+        app.innerHTML = html;
     }
 
-    // --- VISTAS HTML ---
+    function renderHeader() {
+        const itemsInCart = cart.reduce((a,b)=>a+b.quantity,0);
+        return `
+        <nav class="bg-slate-900 border-b border-slate-700 p-4 sticky top-0 z-40 shadow-xl">
+            <div class="max-w-7xl mx-auto flex flex-wrap justify-between items-center gap-4">
+                <div>
+                    <h1 class="text-2xl font-bold text-blue-400 tracking-tighter">MU ONLINE 99B <span class="text-white text-sm font-normal opacity-60">Marketplace</span></h1>
+                </div>
+                <div class="flex gap-3">
+                    ${!currentUser ? `
+                        <button onclick="showModal='login'; render()" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded font-bold">Entrar</button>
+                        <button onclick="showModal='regBuyer'; render()" class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded font-bold">Registro</button>
+                        <button onclick="showModal='regSeller'; render()" class="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded font-bold">Vender</button>
+                    ` : `
+                        <button onclick="currentView='catalog'; render()" class="px-3 py-2 hover:bg-slate-700 rounded">🏠 Inicio</button>
+                        <button onclick="currentView='cart'; render()" class="px-3 py-2 hover:bg-slate-700 rounded relative">
+                            🛒 Carrito ${itemsInCart>0?`<span class="cart-badge">${itemsInCart}</span>`:''}
+                        </button>
+                        <button onclick="currentView='orders'; render()" class="px-3 py-2 hover:bg-slate-700 rounded">📦 Pedidos</button>
+                        ${currentUser.role !== 'buyer' ? `<button onclick="currentView='admin'; render()" class="px-3 py-2 bg-slate-700 rounded font-bold border border-blue-500">⚙️ Gestión</button>` : ''}
+                        <button onclick="currentUser=null; currentView='catalog'; cart=[]; render()" class="bg-red-600 px-3 py-2 rounded font-bold ml-2">Salir</button>
+                    `}
+                </div>
+            </div>
+        </nav>`;
+    }
+
     function renderCatalog() {
-        const config = window.elementSdk.config || defaultConfig;
-        const topShops = getTopShops();
+        const top = getTopShops();
         const filtered = selectedCategory === 'all' ? allProducts : 
                          selectedCategory === 'promotions' ? allProducts.filter(p => p.on_sale) : 
                          allProducts.filter(p => p.category === selectedCategory);
 
-        return `
-        <div class="min-h-full pb-10">
-            <header class="shadow-lg" style="background-color: ${config.card_background};">
-                <div class="max-w-7xl mx-auto px-4 py-6 flex flex-col md:flex-row justify-between items-center gap-4">
-                    <div>
-                        <h1 class="text-3xl font-bold">${config.site_title}</h1>
-                        <p class="text-sm opacity-70">${config.welcome_message}</p>
-                    </div>
-                    <div class="flex gap-2 flex-wrap justify-center">
-                        ${currentUser ? `
-                            <button onclick="currentView='cart'; render();" class="relative px-4 py-2 rounded bg-blue-600 text-white font-bold">
-                                🛒 Carrito ${cart.length > 0 ? `<span class="cart-badge">${cart.reduce((a,b)=>a+b.quantity,0)}</span>` : ''}
-                            </button>
-                            <button onclick="currentView='orders'; render();" class="px-4 py-2 rounded bg-purple-600 text-white font-bold">📦 Pedidos</button>
-                            ${currentUser.role !== 'buyer' ? `<button onclick="currentView='admin'; render();" class="px-4 py-2 rounded bg-green-600 text-white font-bold">🏪 Tienda</button>` : ''}
-                            <button onclick="logout();" class="px-4 py-2 rounded bg-red-600 text-white font-bold">Salir</button>
-                        ` : `
-                            <button onclick="showModal='login'; render();" class="px-4 py-2 rounded bg-blue-600 text-white font-bold">Login</button>
-                            <button onclick="showModal='register'; render();" class="px-4 py-2 rounded bg-green-600 text-white font-bold">Registro</button>
-                            <button onclick="showModal='registerReseller'; render();" class="px-4 py-2 rounded bg-purple-600 text-white font-bold">Vender</button>
-                        `}
-                    </div>
-                </div>
-            </header>
+        const cats = [
+            {id:'all', icon:'🌐', n:'Todo'}, {id:'promotions', icon:'🔥', n:'Promos'},
+            {id:'items', icon:'⚔️', n:'Armas'}, {id:'sets', icon:'🛡️', n:'Sets'},
+            {id:'wings', icon:'🦅', n:'Alas'}, {id:'jewels', icon:'💎', n:'Joyas'}
+        ];
 
-            ${topShops.length > 0 ? `
-            <div class="max-w-7xl mx-auto px-4 mt-8">
-                <h2 class="text-2xl font-bold text-center mb-6">🏆 Top Tiendas Premium</h2>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    ${topShops.map((shop, idx) => `
-                        <div class="top-shop-card rounded-xl p-6 text-center relative overflow-hidden rank-${idx+1}" style="background-color: ${config.card_background};">
-                            <div class="text-4xl mb-2">${idx===0?'🥇':idx===1?'🥈':'🥉'}</div>
-                            <h3 class="text-xl font-bold">${shop.shop_name}</h3>
-                            <p class="text-sm opacity-70">Vendedor: ${shop.username}</p>
-                            <div class="mt-3">
-                                <p class="text-2xl text-yellow-400">${renderStars(shop.rating)}</p>
-                                <p class="text-sm font-bold">${shop.rating} / 5.0</p>
-                                <p class="text-xs opacity-60">(${shop.count} reseñas)</p>
+        return `
+        <div class="max-w-7xl mx-auto p-4 w-full">
+            ${top.length > 0 ? `
+                <div class="mb-10">
+                    <h2 class="text-center text-2xl font-bold mb-6 text-yellow-400">🏆 MEJORES VENDEDORES</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        ${top.map((s, i) => `
+                            <div class="rank-card rank-${i+1} bg-slate-800 p-6 rounded-xl text-center relative">
+                                <div class="absolute top-2 right-2 text-4xl opacity-20 font-black">${i+1}</div>
+                                <div class="text-4xl mb-2">${i===0?'👑':i===1?'🥈':'🥉'}</div>
+                                <h3 class="text-xl font-bold text-white">${s.shop_name}</h3>
+                                <p class="text-sm text-slate-400">${s.username}</p>
+                                <div class="mt-3 flex justify-center items-center gap-2">
+                                    <span class="text-yellow-400 text-xl">⭐ ${s.rating.toFixed(1)}</span>
+                                    <span class="text-xs bg-slate-700 px-2 py-1 rounded">(${s.count} reviews)</span>
+                                </div>
                             </div>
-                        </div>
-                    `).join('')}
+                        `).join('')}
+                    </div>
                 </div>
-            </div>
             ` : ''}
 
-            <div class="max-w-7xl mx-auto px-4 mt-8 flex flex-wrap justify-center gap-3">
-                ${CATEGORIES.map(cat => `
-                    <button onclick="selectedCategory='${cat.id}'; render();" 
-                        class="category-btn px-6 py-3 rounded-lg font-bold shadow-md ${selectedCategory===cat.id ? 'ring-4 ring-blue-400 bg-blue-600 text-white' : 'bg-gray-800 text-gray-200'}">
-                        ${cat.icon} ${cat.name}
+            <div class="flex flex-wrap justify-center gap-3 mb-8">
+                ${cats.map(c => `
+                    <button onclick="selectedCategory='${c.id}'; render()" 
+                        class="hover-scale px-6 py-3 rounded-lg font-bold shadow-lg flex items-center gap-2
+                        ${selectedCategory===c.id ? 'bg-blue-600 ring-2 ring-blue-400' : 'bg-slate-800 text-slate-300'}">
+                        <span>${c.icon}</span> ${c.n}
                     </button>
                 `).join('')}
             </div>
 
-            <div class="max-w-7xl mx-auto px-4 mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                ${filtered.map(p => {
-                    const r = getSellerRating(p.seller_username);
-                    return `
-                    <div class="product-card rounded-xl overflow-hidden relative shadow-lg" style="background-color: ${config.card_background};">
-                        ${p.on_sale ? `<span class="absolute top-2 right-2 bg-red-600 text-white px-3 py-1 rounded-full text-xs font-bold z-10 animate-pulse">🔥 PROMO</span>` : ''}
-                        <div class="h-48 bg-gray-900 flex items-center justify-center overflow-hidden">
-                            ${p.image_url ? `<img src="${p.image_url}" class="w-full h-full object-cover" onerror="this.style.display='none'">` : `<span class="text-6xl">📦</span>`}
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                ${filtered.length === 0 ? '<div class="col-span-full text-center py-20 text-slate-500 text-xl">No hay items en esta categoría</div>' : filtered.map(p => `
+                    <div class="bg-slate-800 rounded-xl overflow-hidden shadow-lg hover-scale border border-slate-700 relative flex flex-col h-full">
+                        ${p.on_sale ? '<div class="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded z-10 animate-pulse">OFERTA</div>' : ''}
+                        
+                        <div class="h-48 bg-slate-900 flex items-center justify-center overflow-hidden">
+                            ${p.image_url ? `<img src="${p.image_url}" class="w-full h-full object-cover" onerror="this.style.display='none'">` : `<span class="text-5xl opacity-50">📦</span>`}
                         </div>
-                        <div class="p-4">
-                            <div class="flex justify-between items-start">
-                                <div>
-                                    <h3 class="font-bold text-lg truncate w-40">${p.name}</h3>
-                                    <p class="text-xs opacity-70">🏪 ${p.seller_shop_name} ${r.count>0 ? `(${r.average}⭐)`:''}</p>
-                                </div>
-                                <div class="text-right">
-                                    ${p.discount > 0 ? `
-                                        <p class="text-xs line-through opacity-50">$${p.price}</p>
-                                        <p class="text-lg font-bold text-green-400">$${p.final_price.toFixed(2)}</p>
-                                    ` : `<p class="text-lg font-bold text-green-400">$${p.price.toFixed(2)}</p>`}
-                                </div>
+                        
+                        <div class="p-4 flex-1 flex flex-col">
+                            <div class="mb-2">
+                                <h3 class="font-bold text-lg leading-tight">${p.name}</h3>
+                                <p class="text-xs text-slate-400 mt-1">🏪 ${p.seller_shop_name}</p>
                             </div>
-                            <button onclick="addToCart('${p.__backendId}')" ${p.stock<1?'disabled':''} 
-                                class="w-full mt-4 py-2 rounded font-bold text-white transition ${p.stock>0?'bg-blue-600 hover:bg-blue-700':'bg-gray-600 cursor-not-allowed'}">
-                                ${p.stock>0 ? '🛒 Agregar' : 'Sin Stock'}
-                            </button>
+                            
+                            <div class="mt-auto pt-4 border-t border-slate-700 flex justify-between items-center">
+                                <div>
+                                    ${p.discount > 0 
+                                        ? `<div class="text-xs line-through text-slate-500">$${p.price}</div><div class="text-xl font-bold text-green-400">$${p.final_price}</div>`
+                                        : `<div class="text-xl font-bold text-green-400">$${p.price}</div>`
+                                    }
+                                </div>
+                                <button onclick="addToCart(allProducts.find(x=>x.__backendId=='${p.__backendId}'))" 
+                                    class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded font-bold text-sm transition-colors"
+                                    ${p.stock < 1 ? 'disabled style="opacity:0.5; cursor:not-allowed"' : ''}>
+                                    ${p.stock < 1 ? 'AGOTADO' : 'COMPRAR'}
+                                </button>
+                            </div>
+                            <div class="text-xs text-right mt-1 text-slate-500">Stock: ${p.stock}</div>
                         </div>
                     </div>
-                `}).join('')}
+                `).join('')}
             </div>
         </div>`;
     }
 
     function renderCart() {
-        const config = window.elementSdk.config || defaultConfig;
-        const total = cart.reduce((acc, el) => acc + (el.final_price * el.quantity), 0);
+        const total = cart.reduce((a,b) => a + (b.final_price * b.quantity), 0);
         return `
-        <div class="max-w-4xl mx-auto px-4 py-8">
-            <h1 class="text-3xl font-bold mb-6">🛒 Tu Carrito</h1>
-            ${cart.length === 0 ? '<p class="opacity-60">Carrito vacío...</p><button onclick="currentView=\'catalog\'; render();" class="mt-4 px-4 py-2 bg-blue-600 rounded text-white">Volver</button>' : `
+        <div class="max-w-3xl mx-auto p-6 w-full">
+            <h2 class="text-3xl font-bold mb-6 border-b border-slate-700 pb-4">🛒 Tu Carrito</h2>
+            ${cart.length === 0 ? '<p class="text-center text-slate-500 py-10">Carrito vacío.</p>' : `
                 <div class="space-y-4">
                     ${cart.map((item, idx) => `
-                        <div class="flex justify-between items-center p-4 rounded-lg shadow" style="background-color: ${config.card_background};">
+                        <div class="bg-slate-800 p-4 rounded flex justify-between items-center">
                             <div class="flex items-center gap-4">
-                                <div class="w-16 h-16 bg-gray-700 rounded flex items-center justify-center text-2xl">📦</div>
+                                <div class="w-12 h-12 bg-slate-900 rounded flex items-center justify-center text-xl">📦</div>
                                 <div>
-                                    <h3 class="font-bold">${item.name}</h3>
-                                    <p class="text-sm opacity-70">x${item.quantity} - $${(item.final_price * item.quantity).toFixed(2)}</p>
+                                    <div class="font-bold">${item.name}</div>
+                                    <div class="text-sm text-slate-400">$${item.final_price} x ${item.quantity}</div>
                                 </div>
                             </div>
-                            <button onclick="cart.splice(${idx},1); render();" class="text-red-500 font-bold">❌</button>
+                            <div class="font-bold text-green-400 mr-4">$${(item.final_price * item.quantity).toFixed(2)}</div>
+                            <button onclick="cart.splice(${idx}, 1); render()" class="text-red-500 hover:text-red-400">🗑️</button>
                         </div>
                     `).join('')}
-                    <div class="border-t mt-6 pt-4 flex justify-between items-center text-2xl font-bold">
-                        <span>Total:</span>
-                        <span class="text-green-400">$${total.toFixed(2)} USDT</span>
-                    </div>
-                    <button onclick="createOrder()" class="w-full py-4 mt-4 bg-green-600 rounded-lg text-xl font-bold hover:bg-green-700 transition text-white">✅ Confirmar Pedido</button>
-                    <button onclick="currentView='catalog'; render();" class="w-full mt-2 text-center opacity-70 hover:underline">Seguir Comprando</button>
+                </div>
+                <div class="mt-8 p-6 bg-slate-800 rounded text-center">
+                    <div class="text-2xl font-bold mb-4">Total: <span class="text-green-400">$${total.toFixed(2)} USDT</span></div>
+                    <button onclick="createOrder()" class="w-full bg-green-600 hover:bg-green-500 text-white py-4 rounded font-bold text-lg">✅ CONFIRMAR PEDIDO</button>
                 </div>
             `}
         </div>`;
     }
 
     function renderOrders() {
-        const config = window.elementSdk.config || defaultConfig;
-        const myOrders = allOrders.filter(o => o.buyer_username === currentUser.username);
+        const myOrders = allOrders.filter(o => o.buyer_username === currentUser.username).reverse();
         return `
-        <div class="max-w-4xl mx-auto px-4 py-8">
-            <div class="flex justify-between mb-6">
-                <h1 class="text-3xl font-bold">📦 Mis Pedidos</h1>
-                <button onclick="currentView='catalog'; render();" class="bg-blue-600 px-4 py-2 rounded text-white">Volver</button>
-            </div>
-            <div class="space-y-4">
-                ${myOrders.map(o => `
-                    <div class="p-6 rounded-lg shadow-lg border-l-4 ${o.order_status==='completed'?'border-green-500':'border-yellow-500'}" style="background-color: ${config.card_background};">
-                        <div class="flex justify-between mb-4">
-                            <h3 class="font-bold text-lg">Pedido #${o.id.slice(-6)}</h3>
-                            <span class="px-2 py-1 rounded text-xs font-bold ${o.order_status==='completed'?'bg-green-900 text-green-200':'bg-yellow-900 text-yellow-200'}">
-                                ${o.order_status==='completed'?'COMPLETADO':'PENDIENTE'}
-                            </span>
+        <div class="max-w-4xl mx-auto p-6 w-full">
+            <h2 class="text-3xl font-bold mb-6">📦 Historial de Pedidos</h2>
+            ${myOrders.length === 0 ? '<p>No hay pedidos.</p>' : myOrders.map(o => `
+                <div class="bg-slate-800 p-6 rounded-lg mb-4 border-l-4 ${o.order_status==='completed'?'border-green-500':'border-yellow-500'} shadow-lg">
+                    <div class="flex justify-between items-start mb-4">
+                        <div>
+                            <h3 class="font-bold text-lg">Pedido #${o.id}</h3>
+                            <p class="text-sm text-slate-400">Vendedor: ${o.seller_username} | Discord: <span class="select-all bg-slate-900 px-1 rounded">${o.seller_discord}</span></p>
                         </div>
-                        <p class="opacity-80 text-sm mb-2">🏪 Tienda: ${o.seller_username} (Discord: ${o.seller_discord})</p>
-                        <p class="font-bold mb-4">${o.items}</p>
-                        <div class="flex justify-between items-center">
-                            <span class="text-xl font-bold text-green-400">$${o.total.toFixed(2)}</span>
-                            ${o.order_status === 'pending' ? `
-                                <button onclick="confirmOrder('${o.__backendId}', false)" ${o.buyer_confirmed?'disabled':''} class="px-4 py-2 rounded bg-blue-600 text-white font-bold disabled:opacity-50">
-                                    ${o.buyer_confirmed ? 'Esperando Vendedor...' : '✅ Confirmar Recibido'}
-                                </button>
-                            ` : '<span class="text-green-500 font-bold">✅ Finalizado</span>'}
-                        </div>
+                        <span class="px-3 py-1 rounded font-bold text-xs ${o.order_status==='completed'?'bg-green-900 text-green-300':'bg-yellow-900 text-yellow-300'}">
+                            ${o.order_status.toUpperCase()}
+                        </span>
                     </div>
-                `).join('')}
-            </div>
+                    <div class="bg-slate-900 p-3 rounded mb-4 text-sm font-mono text-slate-300">
+                        ${o.items_desc}
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <div class="font-bold text-xl">$${o.total.toFixed(2)}</div>
+                        ${o.order_status === 'pending' ? `
+                            <button onclick="confirmOrder('${o.__backendId}', false)" ${o.buyer_confirmed?'disabled':''} 
+                                class="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 px-4 py-2 rounded font-bold">
+                                ${o.buyer_confirmed ? '⏳ Esperando Vendedor...' : '✅ Confirmar Recibido'}
+                            </button>
+                        ` : '<div class="text-green-500 font-bold">✅ Finalizado</div>'}
+                    </div>
+                </div>
+            `).join('')}
         </div>`;
     }
 
     function renderAdmin() {
-        // Vista combinada para Admin y Vendedores
-        const config = window.elementSdk.config || defaultConfig;
         const isAdm = currentUser.role === 'admin';
+        // Filtros de datos según rol
         const myProds = isAdm ? allProducts : allProducts.filter(p => p.seller_username === currentUser.username);
-        const mySales = isAdm ? allOrders : allOrders.filter(o => o.seller_username === currentUser.username);
-        const pendingSales = mySales.filter(o => o.order_status === 'pending');
+        const myOrders = isAdm ? allOrders : allOrders.filter(o => o.seller_username === currentUser.username);
+        const pendingOrders = myOrders.filter(o => o.order_status === 'pending');
 
         return `
-        <div class="max-w-7xl mx-auto px-4 py-8">
-            <div class="flex justify-between items-center mb-8">
-                <h1 class="text-3xl font-bold">${isAdm ? '⚙️ Panel Admin' : '🏪 Mi Tienda'}</h1>
+        <div class="max-w-7xl mx-auto p-4 w-full">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-3xl font-bold">${isAdm ? '⚙️ Panel Admin' : '🏪 Mi Tienda'}</h2>
                 <div class="flex gap-2">
-                    <button onclick="exportData()" class="bg-gray-700 px-4 py-2 rounded text-white">📥 Backup</button>
-                    <label class="bg-gray-700 px-4 py-2 rounded text-white cursor-pointer">📤 Restaurar <input type="file" hidden onchange="importData(event)"></label>
-                    <button onclick="currentView='catalog'; render();" class="bg-blue-600 px-4 py-2 rounded text-white">🏠 Inicio</button>
+                    <button onclick="exportDB()" class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded">📥 Backup (Exportar)</button>
+                    <label class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded cursor-pointer">
+                        📤 Restaurar (Importar) <input type="file" hidden onchange="importDB(event)" accept=".json">
+                    </label>
                 </div>
             </div>
 
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-                <div class="bg-blue-900 p-4 rounded-lg text-center"><h3 class="text-2xl font-bold">${myProds.length}</h3><p class="text-xs">Productos</p></div>
-                <div class="bg-green-900 p-4 rounded-lg text-center"><h3 class="text-2xl font-bold">$${mySales.filter(o=>o.order_status==='completed').reduce((a,b)=>a+b.total,0).toFixed(0)}</h3><p class="text-xs">Ventas ($)</p></div>
-                <div class="bg-yellow-900 p-4 rounded-lg text-center"><h3 class="text-2xl font-bold">${pendingSales.length}</h3><p class="text-xs">Pendientes</p></div>
-                <div class="bg-purple-900 p-4 rounded-lg text-center"><h3 class="text-2xl font-bold">${getSellerRating(currentUser.username).average}⭐</h3><p class="text-xs">Rating</p></div>
+                <div class="bg-slate-800 p-4 rounded shadow border-t-4 border-blue-500 text-center">
+                    <div class="text-2xl font-bold">${myProds.length}</div><div class="text-xs uppercase tracking-wider">Productos</div>
+                </div>
+                <div class="bg-slate-800 p-4 rounded shadow border-t-4 border-green-500 text-center">
+                    <div class="text-2xl font-bold">$${myOrders.filter(o=>o.order_status==='completed').reduce((a,b)=>a+b.total,0).toFixed(0)}</div><div class="text-xs uppercase tracking-wider">Ventas</div>
+                </div>
+                <div class="bg-slate-800 p-4 rounded shadow border-t-4 border-yellow-500 text-center">
+                    <div class="text-2xl font-bold">${pendingOrders.length}</div><div class="text-xs uppercase tracking-wider">Pendientes</div>
+                </div>
+                <div class="bg-slate-800 p-4 rounded shadow border-t-4 border-purple-500 text-center">
+                    <div class="text-2xl font-bold">${getTopShops().find(s=>s.username===currentUser.username)?.rating.toFixed(1) || '0.0'}</div><div class="text-xs uppercase tracking-wider">Rating</div>
+                </div>
             </div>
 
-            <div class="mb-8 p-6 rounded-lg shadow" style="background-color: ${config.card_background};">
-                <h2 class="text-xl font-bold mb-4">📦 Gestión de Pedidos</h2>
-                ${pendingSales.length===0 ? '<p class="opacity-50">No hay pedidos pendientes.</p>' : pendingSales.map(o => `
-                    <div class="flex justify-between items-center p-3 mb-2 bg-black bg-opacity-30 rounded">
+            <div class="bg-slate-800 rounded-xl p-6 mb-8">
+                <h3 class="font-bold text-xl mb-4">📋 Pedidos Entrantes</h3>
+                ${pendingOrders.length === 0 ? '<p class="opacity-50">Todo al día.</p>' : pendingOrders.map(o => `
+                    <div class="bg-slate-900 p-4 rounded mb-2 flex flex-wrap justify-between items-center gap-4">
                         <div>
-                            <span class="font-bold text-yellow-500">#${o.id.slice(-6)}</span> 
-                            <span class="ml-2 text-sm">👤 ${o.buyer_username} (${o.buyer_discord})</span>
-                            <p class="text-xs opacity-70">${o.items}</p>
+                            <div class="font-bold text-yellow-400">Pedido #${o.id} <span class="text-slate-400 text-xs">(${o.created_at.split('T')[0]})</span></div>
+                            <div class="text-sm">De: ${o.buyer_username} (Discord: ${o.buyer_discord})</div>
+                            <div class="text-xs opacity-60 mt-1">${o.items_desc}</div>
                         </div>
-                        <button onclick="confirmOrder('${o.__backendId}', true)" ${o.seller_confirmed?'disabled':''} class="bg-green-600 px-4 py-2 rounded font-bold text-white disabled:opacity-50">
-                            ${o.seller_confirmed ? 'Esperando Cliente' : '✅ Confirmar Entrega'}
-                        </button>
+                        <div class="flex items-center gap-4">
+                            <div class="font-bold text-xl">$${o.total}</div>
+                            <button onclick="confirmOrder('${o.__backendId}', true)" ${o.seller_confirmed?'disabled':''} 
+                                class="bg-green-600 hover:bg-green-500 disabled:opacity-50 px-4 py-2 rounded font-bold">
+                                ${o.seller_confirmed ? 'Esperando Cliente...' : '✅ Confirmar Entrega'}
+                            </button>
+                        </div>
                     </div>
                 `).join('')}
             </div>
 
-            <div class="mb-8 p-6 rounded-lg shadow" style="background-color: ${config.card_background};">
-                <h2 class="text-xl font-bold mb-4">➕ Nuevo Producto</h2>
-                <form onsubmit="handleAddProduct(event)" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <input id="productName" required placeholder="Nombre Item" class="p-2 rounded bg-gray-700 text-white">
-                    <select id="productCategory" class="p-2 rounded bg-gray-700 text-white">
-                        <option value="items">Items</option><option value="sets">Sets</option><option value="wings">Alas</option><option value="jewels">Joyas</option>
+            <div class="bg-slate-800 rounded-xl p-6 mb-8">
+                <h3 class="font-bold text-xl mb-4">➕ Publicar Item</h3>
+                <form onsubmit="event.preventDefault(); const f=event.target; const p={type:'product', name:f.n.value, category:f.c.value, price:parseFloat(f.p.value), stock:parseInt(f.s.value), discount:parseInt(f.d.value)||0, image_url:f.i.value, description:f.desc.value, on_sale:f.os.checked, seller_username:currentUser.username, seller_shop_name:currentUser.shop_name, created_at:new Date().toISOString()}; p.final_price = p.price * (1 - p.discount/100); window.dataSdk.create(p); f.reset(); showToast('✅ Publicado');" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <input name="n" placeholder="Nombre del Item" required class="bg-slate-700 p-3 rounded text-white">
+                    <select name="c" class="bg-slate-700 p-3 rounded text-white">
+                        <option value="items">Arma/Escudo</option><option value="sets">Set/Armadura</option>
+                        <option value="wings">Alas/Capa</option><option value="jewels">Joya</option>
                     </select>
-                    <input id="productPrice" type="number" required placeholder="Precio" class="p-2 rounded bg-gray-700 text-white">
-                    <input id="productStock" type="number" required placeholder="Stock" class="p-2 rounded bg-gray-700 text-white">
-                    <input id="productDiscount" type="number" placeholder="% Descuento (0-100)" class="p-2 rounded bg-gray-700 text-white">
-                    <input id="productImage" placeholder="URL Imagen (Imgur)" class="p-2 rounded bg-gray-700 text-white">
-                    <textarea id="productDescription" placeholder="Descripción detallada..." class="md:col-span-2 p-2 rounded bg-gray-700 text-white"></textarea>
-                    <label class="flex items-center gap-2 md:col-span-2"><input type="checkbox" id="productOnSale"> <span class="font-bold text-red-400">🔥 Marcar como Promoción</span></label>
-                    <button type="submit" class="md:col-span-2 py-3 bg-blue-600 rounded font-bold text-white hover:bg-blue-700">Publicar Producto</button>
+                    <input name="p" type="number" placeholder="Precio (USDT)" required class="bg-slate-700 p-3 rounded text-white">
+                    <input name="s" type="number" placeholder="Stock" required class="bg-slate-700 p-3 rounded text-white">
+                    <input name="d" type="number" placeholder="% Descuento (0-100)" class="bg-slate-700 p-3 rounded text-white">
+                    <input name="i" placeholder="URL Imagen (Imgur)" class="bg-slate-700 p-3 rounded text-white">
+                    <textarea name="desc" placeholder="Descripción..." class="md:col-span-2 bg-slate-700 p-3 rounded text-white h-24"></textarea>
+                    <label class="flex items-center gap-2 cursor-pointer bg-slate-900 p-3 rounded w-fit">
+                        <input name="os" type="checkbox" class="w-5 h-5"> <span class="font-bold text-red-400">🔥 Marcar como Promoción</span>
+                    </label>
+                    <button class="md:col-span-2 bg-blue-600 hover:bg-blue-500 py-3 rounded font-bold text-white">PUBLICAR AHORA</button>
                 </form>
             </div>
-
-            ${isAdm ? renderAdminUserManagement() : ''}
-        </div>`;
-    }
-
-    function renderAdminUserManagement() {
-        const pending = allUsers.filter(u => u.role === 'reseller' && !u.approved);
-        const active = allUsers;
-        return `
-        <div class="p-6 rounded-lg shadow mb-8 bg-gray-800">
-            <h2 class="text-xl font-bold mb-4">👥 Gestión de Usuarios (Admin)</h2>
             
-            ${pending.length > 0 ? `
-                <div class="mb-6 bg-yellow-900 bg-opacity-20 p-4 rounded">
-                    <h3 class="font-bold text-yellow-500 mb-2">⏳ Solicitudes de Vendedor</h3>
-                    ${pending.map(u => `
-                        <div class="flex justify-between items-center mb-2">
-                            <span>${u.username} - ${u.shop_name}</span>
-                            <div class="flex gap-2">
-                                <button onclick="window.dataSdk.update({...allUsers.find(x=>x.__backendId==='${u.__backendId}'), approved:true, status:'approved'})" class="bg-green-600 px-2 py-1 rounded text-xs">Aprobar</button>
-                                <button onclick="window.dataSdk.delete(allUsers.find(x=>x.__backendId==='${u.__backendId}'))" class="bg-red-600 px-2 py-1 rounded text-xs">Rechazar</button>
-                            </div>
+            ${isAdm ? `
+                <div class="bg-slate-800 rounded-xl p-6">
+                    <h3 class="font-bold text-xl mb-4">👮 Panel de Control Usuarios</h3>
+                    ${allUsers.filter(u=>u.role==='reseller'&&!u.approved).length > 0 ? `
+                        <div class="bg-yellow-900/30 p-4 rounded mb-6 border border-yellow-600">
+                            <h4 class="font-bold text-yellow-500 mb-2">⏳ Solicitudes de Vendedor Pendientes</h4>
+                            ${allUsers.filter(u=>u.role==='reseller'&&!u.approved).map(u => `
+                                <div class="flex justify-between items-center bg-slate-900 p-2 rounded mb-1">
+                                    <span>${u.username} - ${u.shop_name} (${u.discord_tag})</span>
+                                    <div class="flex gap-2">
+                                        <button onclick="window.dataSdk.update({...allUsers.find(x=>x.__backendId=='${u.__backendId}'), approved:true, status:'approved'})" class="bg-green-600 px-2 py-1 rounded text-xs">Aprobar</button>
+                                        <button onclick="window.dataSdk.delete(allUsers.find(x=>x.__backendId=='${u.__backendId}'))" class="bg-red-600 px-2 py-1 rounded text-xs">Rechazar</button>
+                                    </div>
+                                </div>
+                            `).join('')}
                         </div>
-                    `).join('')}
+                    ` : ''}
+                    <div class="overflow-x-auto"><table class="w-full text-sm text-left text-slate-400">
+                        <thead class="bg-slate-900 text-slate-200"><tr><th class="p-3">User</th><th>Rol</th><th>Estado</th><th>Acción</th></tr></thead>
+                        <tbody>${allUsers.map(u => `<tr class="border-b border-slate-700">
+                            <td class="p-3">${u.username}</td><td>${u.role}</td>
+                            <td><span class="px-2 py-0.5 rounded text-xs ${u.status==='banned'?'bg-red-900 text-white':'bg-green-900 text-white'}">${u.status}</span></td>
+                            <td><button onclick="window.dataSdk.update({...allUsers.find(x=>x.__backendId=='${u.__backendId}'), status: '${u.status==='active'||u.status==='approved'?'banned':'active'}'})" class="text-yellow-500 hover:underline">${u.status.includes('banned')?'Unban':'Ban'}</button></td>
+                        </tr>`).join('')}</tbody>
+                    </table></div>
                 </div>
             ` : ''}
-
-            <div class="overflow-x-auto">
-                <table class="w-full text-sm text-left">
-                    <thead><tr class="border-b border-gray-600"><th>User</th><th>Rol</th><th>Estado</th><th>Acción</th></tr></thead>
-                    <tbody>
-                        ${active.map(u => `
-                            <tr class="border-b border-gray-700">
-                                <td class="py-2">${u.username}</td>
-                                <td>${u.role}</td>
-                                <td>${u.status}</td>
-                                <td>
-                                    <button onclick="window.dataSdk.delete(allUsers.find(x=>x.__backendId==='${u.__backendId}'))" class="text-red-500 hover:underline">Eliminar</button>
-                                    ${u.status!=='banned' ? 
-                                        `<button onclick="window.dataSdk.update({...allUsers.find(x=>x.__backendId==='${u.__backendId}'), status:'banned'})" class="text-yellow-500 ml-2">Ban</button>` : 
-                                        `<button onclick="window.dataSdk.update({...allUsers.find(x=>x.__backendId==='${u.__backendId}'), status:'active'})" class="text-green-500 ml-2">Unban</button>`
-                                    }
-                                </td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            </div>
         </div>`;
     }
 
+    // --- RENDERIZADO DE MODALES ---
+
     function renderModal() {
-        const config = window.elementSdk.config || defaultConfig;
-        
-        // MODAL LOGIN
+        // Funciones auxiliares para cerrar
+        const close = `onclick="if(event.target===this){showModal=null; render()}"`;
+        const contentClass = "bg-slate-800 p-8 rounded-xl shadow-2xl max-w-md w-full border border-slate-600 relative";
+
         if (showModal === 'login') return `
-        <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" onclick="if(event.target===this) {showModal=null; render();}">
-            <div class="p-8 rounded-xl shadow-2xl w-full max-w-md" style="background-color: ${config.card_background};">
-                <h2 class="text-2xl font-bold mb-4 text-center">Login</h2>
+        <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" ${close}>
+            <div class="${contentClass}">
+                <h2 class="text-2xl font-bold text-center mb-6">Acceder</h2>
                 <form onsubmit="handleLogin(event)">
-                    <input id="loginUsername" required class="w-full mb-3 p-3 rounded bg-gray-700 text-white" placeholder="Usuario">
-                    <input id="loginPassword" type="password" required class="w-full mb-6 p-3 rounded bg-gray-700 text-white" placeholder="Contraseña">
-                    <button class="w-full py-3 bg-blue-600 rounded font-bold text-white">Entrar</button>
+                    <input id="inpUser" placeholder="Usuario" class="w-full mb-3 p-3 rounded bg-slate-700 text-white focus:ring-2 ring-blue-500 outline-none" required>
+                    <input id="inpPass" type="password" placeholder="Contraseña" class="w-full mb-6 p-3 rounded bg-slate-700 text-white focus:ring-2 ring-blue-500 outline-none" required>
+                    <button class="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded font-bold">ENTRAR</button>
                 </form>
             </div>
         </div>`;
 
-        // MODAL REGISTRO
-        if (showModal === 'register') return `
-        <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" onclick="if(event.target===this) {showModal=null; render();}">
-            <div class="p-8 rounded-xl shadow-2xl w-full max-w-md" style="background-color: ${config.card_background};">
-                <h2 class="text-2xl font-bold mb-4 text-center">Registro Comprador</h2>
-                <form onsubmit="handleRegisterBuyer(event)">
-                    <input id="buyerUsername" required class="w-full mb-3 p-3 rounded bg-gray-700 text-white" placeholder="Usuario">
-                    <input id="buyerPassword" type="password" required class="w-full mb-3 p-3 rounded bg-gray-700 text-white" placeholder="Contraseña">
-                    <input id="buyerDiscord" required class="w-full mb-6 p-3 rounded bg-gray-700 text-white" placeholder="Discord Tag">
-                    <button class="w-full py-3 bg-green-600 rounded font-bold text-white">Registrarse</button>
+        if (showModal === 'regBuyer') return `
+        <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" ${close}>
+            <div class="${contentClass}">
+                <h2 class="text-2xl font-bold text-center mb-6 text-green-400">Registro Comprador</h2>
+                <form onsubmit="register('buyer', event)">
+                    <input name="user" placeholder="Usuario" class="w-full mb-3 p-3 rounded bg-slate-700 text-white" required>
+                    <input name="pass" type="password" placeholder="Contraseña" class="w-full mb-3 p-3 rounded bg-slate-700 text-white" required>
+                    <input name="disc" placeholder="Discord Tag" class="w-full mb-6 p-3 rounded bg-slate-700 text-white" required>
+                    <button class="w-full bg-green-600 hover:bg-green-500 py-3 rounded font-bold">REGISTRARSE</button>
                 </form>
             </div>
         </div>`;
 
-        // MODAL REVIEW (CALIFICACIÓN)
-        if (showModal === 'review' && selectedOrder) return `
-        <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
-            <div class="p-8 rounded-xl shadow-2xl w-full max-w-md border-2 border-yellow-500 relative" style="background-color: ${config.card_background};">
-                <h2 class="text-2xl font-bold mb-2 text-center text-yellow-400">⭐ Califica tu Compra</h2>
-                <p class="text-center text-sm mb-4 opacity-80">Pedido completado con <b>${selectedOrder.seller_username}</b></p>
-                <form onsubmit="handleSubmitReview(event)">
-                    <div class="flex justify-center gap-2 mb-6">
-                        ${[1,2,3,4,5].map(n => `<label><input type="radio" name="rating" value="${n}" class="hidden" required><span class="text-4xl star" onclick="this.parentElement.querySelector('input').checked=true">☆</span></label>`).join('')}
-                    </div>
-                    <textarea id="reviewText" rows="3" class="w-full p-3 rounded bg-gray-700 text-white mb-4" placeholder="¿Qué tal el servicio?"></textarea>
-                    <button class="w-full py-3 bg-yellow-600 hover:bg-yellow-500 rounded font-bold text-white">Enviar Calificación</button>
+        if (showModal === 'regSeller') return `
+        <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" ${close}>
+            <div class="${contentClass}">
+                <h2 class="text-2xl font-bold text-center mb-6 text-purple-400">Solicitud Vendedor</h2>
+                <form onsubmit="register('reseller', event)">
+                    <input name="user" placeholder="Usuario" class="w-full mb-3 p-3 rounded bg-slate-700 text-white" required>
+                    <input name="pass" type="password" placeholder="Contraseña" class="w-full mb-3 p-3 rounded bg-slate-700 text-white" required>
+                    <input name="shop" placeholder="Nombre de tu Tienda" class="w-full mb-3 p-3 rounded bg-slate-700 text-white" required>
+                    <input name="disc" placeholder="Discord Tag" class="w-full mb-6 p-3 rounded bg-slate-700 text-white" required>
+                    <button class="w-full bg-purple-600 hover:bg-purple-500 py-3 rounded font-bold">ENVIAR SOLICITUD</button>
                 </form>
             </div>
         </div>`;
 
-        // Otros modales (Setup Shop, Import, etc) se pueden mantener con lógica similar...
         if (showModal === 'setupShop') return `
         <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
-             <div class="p-8 rounded-xl shadow-2xl w-full max-w-md" style="background-color: ${config.card_background};">
-                <h2 class="text-2xl font-bold mb-4">Configurar Tienda</h2>
-                <form onsubmit="const u = currentUser; u.shop_name=document.getElementById('sName').value; u.discord_tag=document.getElementById('sDisc').value; u.role='reseller'; u.status='approved'; u.approved=true; window.dataSdk.update(u); showModal=null; currentView='admin'; render(); return false;">
-                    <input id="sName" required class="w-full mb-3 p-3 rounded bg-gray-700 text-white" placeholder="Nombre Tienda">
-                    <input id="sDisc" required class="w-full mb-6 p-3 rounded bg-gray-700 text-white" placeholder="Discord">
-                    <button class="w-full py-3 bg-blue-600 rounded font-bold text-white">Guardar</button>
+            <div class="${contentClass}">
+                <h2 class="text-2xl font-bold text-center mb-2">🏪 Configurar Tienda</h2>
+                <p class="text-center text-sm text-slate-400 mb-6">Datos necesarios para vender</p>
+                <form onsubmit="event.preventDefault(); const u={...currentUser, shop_name: document.getElementById('sname').value, discord_tag: document.getElementById('sdisc').value, role:'reseller', approved:true, status:'approved'}; window.dataSdk.update(u); currentUser=u; showModal=null; currentView='admin'; render();">
+                    <input id="sname" placeholder="Nombre de Tienda" class="w-full mb-3 p-3 rounded bg-slate-700 text-white" required>
+                    <input id="sdisc" placeholder="Discord Tag" value="${currentUser.discord_tag||''}" class="w-full mb-6 p-3 rounded bg-slate-700 text-white" required>
+                    <button class="w-full bg-blue-600 py-3 rounded font-bold">GUARDAR Y ENTRAR</button>
                 </form>
-             </div>
+            </div>
         </div>`;
 
-        // Reseller Registration Modal
-        if (showModal === 'registerReseller') return `
-         <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" onclick="if(event.target===this) {showModal=null; render();}">
-            <div class="p-8 rounded-xl shadow-2xl w-full max-w-md" style="background-color: ${config.card_background};">
-                <h2 class="text-2xl font-bold mb-4 text-center">Solicitud Vendedor</h2>
-                <form onsubmit="handleRegisterReseller(event)">
-                    <input id="resellerUsername" required class="w-full mb-3 p-3 rounded bg-gray-700 text-white" placeholder="Usuario">
-                    <input id="resellerPassword" type="password" required class="w-full mb-3 p-3 rounded bg-gray-700 text-white" placeholder="Contraseña">
-                    <input id="resellerShop" required class="w-full mb-3 p-3 rounded bg-gray-700 text-white" placeholder="Nombre Tienda">
-                    <input id="resellerDiscord" required class="w-full mb-6 p-3 rounded bg-gray-700 text-white" placeholder="Discord Tag">
-                    <button class="w-full py-3 bg-purple-600 rounded font-bold text-white">Enviar Solicitud</button>
+        if (showModal === 'review' && selectedOrder) return `
+        <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
+            <div class="${contentClass} border-2 border-yellow-500">
+                <h2 class="text-2xl font-bold text-center mb-2 text-yellow-400">⭐ Califica tu Compra</h2>
+                <p class="text-center text-slate-400 text-sm mb-6">¿Qué tal fue la experiencia con <b>${selectedOrder.seller_username}</b>?</p>
+                
+                <form onsubmit="sendReview(event)">
+                    <div class="flex justify-center gap-2 mb-6" id="starContainer">
+                        ${[1,2,3,4,5].map(n => `<span class="star-rating" data-val="${n}" onclick="document.querySelectorAll('.star-rating').forEach(s=>s.classList.remove('active')); this.classList.add('active'); this.previousElementSibling?.classList.add('active'); this.previousElementSibling?.previousElementSibling?.classList.add('active'); this.previousElementSibling?.previousElementSibling?.previousElementSibling?.classList.add('active'); this.previousElementSibling?.previousElementSibling?.previousElementSibling?.previousElementSibling?.classList.add('active');">★</span>`).join('')}
+                    </div>
+                    <textarea id="reviewText" class="w-full h-24 bg-slate-700 p-3 rounded mb-4 text-white" placeholder="Escribe un comentario (opcional)..."></textarea>
+                    <button class="w-full bg-yellow-600 hover:bg-yellow-500 py-3 rounded font-bold text-white">ENVIAR CALIFICACIÓN</button>
                 </form>
             </div>
         </div>`;
 
         return '';
     }
-    
-    // Import Functions
-    function exportData() {
-        const dataStr = JSON.stringify({ users: allUsers, products: allProducts, orders: allOrders, reviews: allReviews });
-        const blob = new Blob([dataStr], {type: "application/json"});
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a'); a.href = url; a.download = "backup.json"; a.click();
-    }
-    function importData(e) {
-        const reader = new FileReader();
-        reader.onload = async (ev) => {
-            const d = JSON.parse(ev.target.result);
-            // Reset & Load
-            window.mockDb.data = [];
-            for(const k in d) for(const i of d[k]) await window.dataSdk.create({...i});
-            showToast('Datos Restaurados');
-        };
-        reader.readAsText(e.target.files[0]);
-    }
 
-    init();
+    // Función para manejar la selección visual de estrellas (simple script)
+    document.addEventListener('click', e => {
+        if(e.target.classList.contains('star-rating')) {
+            const val = parseInt(e.target.dataset.val);
+            const container = document.getElementById('starContainer');
+            if(container) {
+                Array.from(container.children).forEach((star, i) => {
+                    if (i < val) star.style.color = '#fbbf24';
+                    else star.style.color = '#4b5563';
+                });
+                // Marcar activo el clickeado para el submit
+                container.querySelectorAll('.star-rating').forEach(s => s.classList.remove('active'));
+                e.target.classList.add('active');
+            }
+        }
+    });
+
+    // Init App
+    window.dataSdk.init(dataHandler);
   </script>
  </body>
 </html>
