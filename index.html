@@ -160,8 +160,9 @@
     const SESSION_KEY = 'mu_session_user_v22_final';
     
     // 📢 CONFIGURACIÓN SUPABASE (CHAT REALTIME) - UTILIZAR LOS VALORES REALES
-    const SUPABASE_URL = 'https://ciysaobejtxfkpmbmswb.supabase.co'; // <--- REEMPLAZADO CON SU URL REAL
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNpeXNhb2JlanR4ZmtwbWJtc3diIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM2MTAyNTksImV4cCI6MjA3OTE4NjI1OX0.WDg1v-2UK8yow7uXK8UyqOt3xOp_-BMMEVqyJeExb3w'; // <--- REEMPLAZADO CON SU CLAVE REAL
+    // NOTA: Estas claves son públicas y se exponen en el cliente.
+    const SUPABASE_URL = 'https://ciysaobejtxfkpmbmswb.supabase.co'; // <--- SU URL REAL
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNpeXNhb2JlanR4ZmtwbWJtc3diIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM2MTAyNTksImV4cCI6MjA3OTE4NjI1OX0.WDg1v-2UK8yow7uXK8UyqOt3xOp_-BMMEVqyJeExb3w'; // <--- SU CLAVE ANON KEY REAL
     
     let supabaseClient = null;
     if (window.supabase) {
@@ -326,6 +327,7 @@
                 return;
             }
             
+            // Asegúrese de que la tabla 'chats' exista en su Supabase con la columna 'order_id'
             const { error } = await supabaseClient
                 .from('chats')
                 .insert({ 
@@ -342,7 +344,10 @@
 
         // 🚨 3.2. FUNCIÓN DE SUSCRIPCIÓN (Realtime y Carga Inicial)
         subscribeToOrder: async (orderId) => {
-            if (!supabaseClient) return;
+            if (!supabaseClient) {
+                showToast('❌ Error: Supabase Client no inicializado.');
+                return;
+            }
 
             // 1. Desuscribirse del canal anterior
             window.chatSdk.unsubscribe();
@@ -350,14 +355,14 @@
             // 2. Cargar historial de mensajes (primero)
             const { data, error } = await supabaseClient
                 .from('chats')
-                .select('*')
+                .select('sender, content, created_at') // Seleccionamos solo las columnas necesarias
                 .eq('order_id', orderId)
                 .order('created_at', { ascending: true });
 
             if (error) {
                 console.error("Error al cargar historial de chat:", error);
                 showToast('❌ Error al cargar historial de chat.');
-                chatMessages = [{ id: 'error', sender: 'System', content: 'No se pudo cargar el chat.', created_at: new Date().toISOString() }];
+                chatMessages = [{ sender: 'System', content: 'No se pudo cargar el chat.', created_at: new Date().toISOString() }];
                 window.chatSdk.listener(orderId);
                 return;
             }
@@ -366,6 +371,7 @@
             window.chatSdk.listener(orderId); // Renderizar historial
             
             // 3. Suscribirse a nuevos mensajes (Realtime)
+            // Se asume que usted habilitó la opción de Realtime para la tabla 'chats' en Supabase
             chatChannel = supabaseClient.channel(`chat_${orderId}`);
             
             chatChannel
@@ -564,8 +570,688 @@
         showToast('Usuario o contraseña incorrectos');
       }
     }
+
+    async function handleRegisterBuyer(e) {
+      e.preventDefault();
+      const username = document.getElementById('buyerUsername').value.trim();
+      const password = document.getElementById('buyerPassword').value;
+      const discord = document.getElementById('buyerDiscord').value.trim();
+
+      if (allUsers.find(u => u.username === username)) {
+        showToast('El usuario ya existe');
+        return;
+      }
+      if (allUsers.find(u => u.discord_tag === discord)) {
+        showToast('El Discord ya está registrado.');
+        return;
+      }
+
+      const userData = {
+        id: Date.now().toString(),
+        type: 'user',
+        username,
+        password,
+        discord_tag: discord || 'No Informado', 
+        profile_picture: '',
+        role: 'buyer',
+        approved: true,
+        status: 'active',
+        created_at: new Date().toISOString()
+      };
+
+      const result = await window.dataSdk.create(userData);
+      if (result.isOk) {
+        showToast('Registro exitoso! Ahora puedes iniciar sesión');
+        showModal = 'login';
+        render();
+      } else {
+        showToast('Error al registrar usuario');
+      }
+    }
+
+    async function handleRegisterReseller(e) {
+      e.preventDefault();
+      const username = document.getElementById('resellerUsername').value.trim();
+      const password = document.getElementById('resellerPassword').value;
+      const discord = document.getElementById('resellerDiscord').value.trim();
+      const shopName = document.getElementById('resellerShop').value.trim();
+
+      if (allUsers.find(u => u.username === username)) {
+        showToast('El usuario ya existe');
+        return;
+      }
+      if (allUsers.find(u => u.discord_tag === discord)) {
+        showToast('El Discord ya está registrado.');
+        return;
+      }
+
+      const userData = {
+        id: Date.now().toString(),
+        type: 'user',
+        username,
+        password,
+        discord_tag: discord || 'No Informado', 
+        shop_name: shopName,
+        profile_picture: '',
+        role: 'reseller',
+        approved: false, // Inicia como no aprobado
+        status: 'pending', // Inicia en pendiente
+        created_at: new Date().toISOString()
+      };
+
+      const result = await window.dataSdk.create(userData);
+      if (result.isOk) {
+        showToast('Solicitud enviada! Espera aprobación del admin.');
+        showModal = null;
+        render();
+      } else {
+        showToast('Error al enviar solicitud');
+      }
+    }
+
+    async function updateUserActivity() {
+      if (!currentUser) return;
+      
+      const activityRecords = window.mockDb.data.filter(item => item.type === 'activity');
+      const existingActivity = activityRecords.find(a => a.username === currentUser.username);
+      
+      const activityData = {
+        id: 'activity_' + currentUser.username,
+        type: 'activity',
+        username: currentUser.username,
+        last_activity: new Date().toISOString()
+      };
+      
+      // Intenta actualizar si existe, si no, lo crea.
+      if (existingActivity) {
+           const updatedActivity = {...existingActivity, last_activity: new Date().toISOString()};
+           await window.dataSdk.update(updatedActivity);
+      } else {
+           await window.dataSdk.create(activityData);
+      }
+      
+      if (userActivityTimeout) clearTimeout(userActivityTimeout);
+      userActivityTimeout = setTimeout(updateUserActivity, 3 * 60 * 1000);
+    }
+
+    function logout(auto = false) {
+      if (userActivityTimeout) clearTimeout(userActivityTimeout);
+      clearTimeout(inactivityTimeout);
+      currentUser = null;
+      localStorage.removeItem(SESSION_KEY);
+      currentView = 'catalog';
+      cart = [];
+      localStorage.setItem('mu_cart_v22', '[]');
+      selectedShopFilter = null;
+      adminViewTarget = null; // Resetear modo gestión
+      managedUser = null; // Resetear usuario gestionado
+      window.chatSdk.unsubscribe(); // Detener el listener del chat
+      showToast(auto ? '💤 Sesión cerrada por inactividad' : 'Sesión cerrada');
+      render();
+    }
     
-    // ... (El resto de las funciones de usuario/productos/pedidos se mantienen) ...
+    // Función para completar la configuración de tienda (Admin lo activa o Vendedor lo completa)
+    async function handleSetupShop(e) {
+      e.preventDefault();
+      const user = selectedOrder; // Usuario que necesita configuración
+      if(!user) return;
+      
+      const setupShopNameInput = document.getElementById('setupShopName');
+      const setupDiscordInput = document.getElementById('setupDiscord');
+      
+      if (!setupShopNameInput || !setupDiscordInput) {
+          showToast('Error: Campos de formulario no encontrados.');
+          return;
+      }
+      
+      const shopName = setupShopNameInput.value.trim();
+      const discord = setupDiscordInput.value.trim();
+      
+      // Validar discord unico (excluyendo al usuario actual)
+      if(allUsers.find(u => u.discord_tag === discord && u.__backendId !== user.__backendId)) {
+          showToast('Este Discord ya está en uso por otro usuario.');
+          return;
+      }
+      
+      const updatedUser = {
+          ...user,
+          shop_name: shopName,
+          discord_tag: discord || 'No Informado',
+          approved: true, 
+          status: 'active' 
+      };
+      
+      const result = await window.dataSdk.update(updatedUser);
+      
+      if (result.isOk) {
+          // Si el usuario que completa es el mismo que está logueado
+          if(currentUser && user.__backendId === currentUser.__backendId) {
+              // Actualizar el estado de la sesión
+              currentUser = updatedUser;
+              localStorage.setItem(SESSION_KEY, JSON.stringify(currentUser));
+              currentView = 'admin'; // Mover al panel
+          } 
+          
+          showModal = null;
+          selectedOrder = null;
+          showToast('✅ Configuración de tienda guardada. Tienda Activada.');
+          render(); 
+      } else {
+          showToast('Error al actualizar la configuración de la tienda.');
+      }
+    }
+
+
+    // ---------------------------------------------------------
+    // 7. GESTIÓN DE PRODUCTOS (CRUD COMPLETO)
+    // ---------------------------------------------------------
+    
+    // Función centralizada para abrir la gestión de productos de cualquier usuario
+    function openProductManagement(username) {
+        if (currentUser.role === 'admin' && currentUser.username !== username) {
+            enterShopManagement(username);
+        } else if (currentUser.username === username && (currentUser.role === 'reseller' || currentUser.role === 'admin')) {
+            currentView = 'admin';
+            render();
+        } else {
+            showToast('No tienes permisos para gestionar esta tienda.');
+        }
+        showModal = null;
+    }
+    
+    async function handleAddProduct(e) {
+      e.preventDefault();
+      if (allProducts.length >= 999) {
+        showToast('Límite de productos alcanzado');
+        return;
+      }
+
+      // Determinar quién es el dueño (Soporte para Admin Gestionando Tienda ajena)
+      const ownerUsername = adminViewTarget ? adminViewTarget : currentUser.username;
+      const ownerData = allUsers.find(u => u.username === ownerUsername) || currentUser;
+
+      const btn = e.target.querySelector('button[type="submit"]');
+      btn.disabled = true;
+      btn.innerHTML = '<div class="loading-spinner mx-auto"></div>';
+
+      let imageUrl = document.getElementById('productImage').value.trim();
+      // Asegurar formato de Imgur para display (si es link directo)
+      if (imageUrl && imageUrl.includes('imgur.com/') && !imageUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
+        imageUrl = imageUrl + '.jpg';
+      }
+
+      const discount = parseInt(document.getElementById('productDiscount').value) || 0;
+      const onSale = document.getElementById('productOnSale').checked;
+      const originalPrice = parseFloat(document.getElementById('productPrice').value);
+      const finalPrice = discount > 0 ? originalPrice * (1 - discount / 100) : originalPrice;
+
+      const productData = {
+        id: Date.now().toString(),
+        type: 'product',
+        name: document.getElementById('productName').value.trim(),
+        category: document.getElementById('productCategory').value,
+        price: originalPrice,
+        final_price: parseFloat(finalPrice.toFixed(2)), // Fix para evitar errores de coma flotante en precios
+        discount: discount,
+        on_sale: onSale,
+        stock: parseInt(document.getElementById('productStock').value),
+        description: document.getElementById('productDescription').value.trim(),
+        image_url: imageUrl,
+        seller_username: ownerUsername,
+        seller_shop_name: ownerData.shop_name || ownerUsername,
+        seller_discord: ownerData.discord_tag || 'No Informado',
+        created_at: new Date().toISOString()
+      };
+
+      const result = await window.dataSdk.create(productData);
+      if (result.isOk) {
+        showToast('Producto agregado exitosamente');
+        e.target.reset();
+      } else {
+        showToast('Error al agregar producto');
+      }
+
+      btn.disabled = false;
+      btn.innerHTML = 'Publicar Ahora';
+    }
+
+    // Función para Abrir Modal de Edición
+    function openEditModal(backendId) {
+        const product = allProducts.find(p => p.__backendId === backendId);
+        if (!product) return;
+        selectedProductToEdit = product;
+        showModal = 'editProduct';
+        render();
+    }
+
+    // Función para Guardar Cambios del Producto
+    async function handleUpdateProduct(e) {
+        e.preventDefault();
+        if (!selectedProductToEdit) return;
+
+        const price = parseFloat(document.getElementById('editPrice').value);
+        const discount = parseInt(document.getElementById('editDiscount').value) || 0;
+        
+        let imageUrl = document.getElementById('editImage').value.trim();
+        if (imageUrl && imageUrl.includes('imgur.com/') && !imageUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
+            imageUrl += '.jpg';
+        }
+        
+        const finalPrice = discount > 0 ? price * (1 - discount / 100) : price;
+
+        const updatedProduct = {
+            ...selectedProductToEdit,
+            name: document.getElementById('editName').value.trim(),
+            stock: parseInt(document.getElementById('editStock').value),
+            price: price,
+            discount: discount,
+            final_price: parseFloat(finalPrice.toFixed(2)), // Fix para consistencia
+            description: document.getElementById('editDescription').value.trim(),
+            image_url: imageUrl,
+            on_sale: document.getElementById('editOnSale').checked
+        };
+
+        const result = await window.dataSdk.update(updatedProduct);
+        
+        if (result.isOk) {
+            showToast('✅ Producto actualizado correctamente');
+            showModal = null;
+            selectedProductToEdit = null;
+        } else {
+            showToast('Error al actualizar producto');
+        }
+    }
+
+    async function deleteProduct(backendId) {
+      if(!confirm("¿Estás seguro de borrar este producto?")) return;
+      
+      const product = allProducts.find(p => p.__backendId === backendId);
+      if (!product) return;
+      
+      const result = await window.dataSdk.delete(product); 
+      if (result.isOk) {
+        showToast('Producto eliminado');
+      } else {
+        showToast('Error al eliminar producto');
+      }
+    }
+
+    // ---------------------------------------------------------
+    // 8. GESTIÓN DE USUARIOS (ADMIN)
+    // ---------------------------------------------------------
+    
+    // Nueva función para abrir el modal de gestión
+    function openManageUserModal(username) {
+        managedUser = allUsers.find(u => u.username === username);
+        if (!managedUser) {
+            showToast('Usuario no encontrado.');
+            return;
+        }
+        showModal = 'manageUser';
+        render();
+    }
+    
+    // Función para eliminar todos los pedidos completados (LOG HISTÓRICO)
+    async function clearCompletedOrdersLog() {
+        if (!currentUser || currentUser.role !== 'admin') {
+            showToast('Acceso denegado.');
+            return;
+        }
+        
+        if (!confirm("⚠️ ¡ADVERTENCIA CRÍTICA!\n\nEsta acción eliminará PERMANENTEMENTE TODOS los pedidos con estado 'COMPLETADO' (Log Histórico). ¿Estás seguro de continuar?")) {
+            return;
+        }
+        
+        showToast('Limpiando log de pedidos completados...');
+        
+        const ordersToDelete = allOrders.filter(o => o.order_status === 'completed');
+        
+        // Crear una nueva lista de datos sin los pedidos completados
+        const newDbData = window.mockDb.data.filter(item => 
+            item.type !== 'order' || item.order_status !== 'completed'
+        );
+        
+        const result = await window.dataSdk.write(newDbData);
+        
+        if (result.isOk) {
+            showToast(`✅ Log Histórico de ${ordersToDelete.length} pedidos eliminado exitosamente.`);
+        } else {
+            showToast('❌ Error al eliminar el log histórico. Verifica el BIN.');
+        }
+    }
+    
+    async function approveUser(backendId) {
+        const user = allUsers.find(u => u.__backendId === backendId);
+        if (!user) {
+            showToast('❌ Usuario no encontrado o ID no válido.');
+            return;
+        }
+        
+        // Si el vendedor no tiene nombre de tienda o discord, forzar setup (Admin lo puede hacer por él o forzar que lo haga)
+        if (user.role === 'reseller' && (!user.shop_name || !user.discord_tag || user.status === 'pending')) {
+            selectedOrder = user;
+            showModal = 'setupShop';
+            showToast('El vendedor necesita completar la configuración de su tienda antes de la activación final.');
+            render();
+            return;
+        }
+        
+        const updatedUser = { ...user, status: 'active', approved: true };
+        const result = await window.dataSdk.update(updatedUser);
+        if (result.isOk) {
+            showToast('✅ Usuario ACEPTADO y activado');
+        } else {
+            showToast('❌ Error al actualizar usuario. Verifica el estado del BIN.');
+        }
+        showModal = null; // Cerrar cualquier modal que esté abierto
+    }
+
+    async function rejectUser(backendId) {
+        deleteUserAccount(backendId);
+    }
+
+    async function banUser(backendId) {
+        const user = allUsers.find(u => u.__backendId === backendId);
+        if (!user) return;
+        let updatedUser;
+        if(user.status === 'banned') {
+            updatedUser = {...user, status: 'active', approved: true};
+            await window.dataSdk.update(updatedUser);
+            showToast('Usuario desbaneado (activo)');
+        } else {
+            updatedUser = {...user, status: 'banned', approved: false};
+            await window.dataSdk.update(updatedUser);
+            showToast('🚫 Usuario BANEADO exitosamente');
+        }
+        showModal = null;
+    }
+
+    async function deleteUserAccount(backendId) {
+        if(!confirm("⚠️ ¡ADVERTENCIA DE SEGURIDAD!\n\n¿Estás COMPLETAMENTE SEGURO de eliminar este usuario?\nEsta acción borrará su cuenta y TODOS sus productos.")) return;
+        
+        const user = allUsers.find(u => u.__backendId === backendId);
+        if (!user) return;
+
+        if(user.role === 'reseller') {
+            const userProducts = allProducts.filter(p => p.seller_username === user.username);
+            // El dataSDK.delete elimina de la lista y reescribe, esto es costoso
+            for(const p of userProducts) {
+                await window.dataSdk.delete(p);
+            }
+        }
+        const result = await window.dataSdk.delete(user);
+        if (result.isOk) showToast('🗑️ Cuenta eliminada correctamente');
+        showModal = null;
+    }
+    
+    // --- FUNCIONES DE MODO DIOS (ADMIN ENTRA EN TIENDA) ---
+    function enterShopManagement(targetUsername) {
+        adminViewTarget = targetUsername;
+        showToast(`👁️ Gestionando tienda de: ${targetUsername}`);
+        showModal = null;
+        currentView = 'admin';
+        render();
+    }
+    
+    function exitShopManagement() {
+        adminViewTarget = null;
+        showToast('🔙 Volviendo a vista global');
+        render();
+    }
+    
+    // Función para refrescar datos en la vista Admin
+    async function loadAdminView() {
+        showToast('🔄 Sincronizando datos remotos...');
+        // Forzamos la lectura para asegurar los últimos cambios de usuarios/pedidos
+        const result = await window.dataSdk.read(); 
+        
+        if (result.isOk) {
+             showToast('✅ Sincronización completa.');
+        } else {
+             showToast('⚠️ No se pudo sincronizar la lista de usuarios del BIN.');
+        }
+        
+        currentView = 'admin';
+        render();
+    }
+
+    // ---------------------------------------------------------
+    // 9. CARRITO Y PEDIDOS
+    // ---------------------------------------------------------
+    function updateCartStorage() {
+        localStorage.setItem('mu_cart_v22', JSON.stringify(cart));
+    }
+
+    function validateCart() {
+        if (cart.length === 0) return;
+        let cartModified = false;
+        
+        const newCart = cart.filter(cartItem => {
+            const correspondingProduct = allProducts.find(p => p.__backendId === cartItem.__backendId);
+            
+            if (!correspondingProduct) {
+                showToast(`❌ El item "${cartItem.name}" ha sido eliminado del catálogo.`);
+                cartModified = true;
+                return false; 
+            }
+            
+            if (cartItem.quantity > correspondingProduct.stock) {
+                cartItem.quantity = correspondingProduct.stock;
+                cartModified = true;
+                if (cartItem.quantity === 0) return false;
+                showToast(`⚠️ Stock de "${cartItem.name}" limitado a ${cartItem.quantity}.`);
+            }
+            
+            // Sincronizar precios en vivo
+            if (cartItem.price !== correspondingProduct.price || cartItem.final_price !== correspondingProduct.final_price) {
+                cartItem.price = correspondingProduct.price;
+                cartItem.final_price = correspondingProduct.final_price;
+                cartItem.name = correspondingProduct.name;
+                cartModified = true;
+            }
+            return true;
+        });
+        
+        if (cartModified) {
+            cart = newCart;
+            updateCartStorage();
+        }
+    }
+
+    function addToCart(backendId) {
+      if (!currentUser) {
+        showToast('Inicia sesión para agregar al carrito');
+        showModal = 'login';
+        render();
+        return;
+      }
+
+      const product = allProducts.find(p => p.__backendId === backendId);
+      if (!product || product.stock <= 0) {
+        showToast('Producto sin stock');
+        return;
+      }
+
+      const existing = cart.find(item => item.__backendId === backendId);
+      if (existing) {
+        if (existing.quantity < product.stock) {
+          existing.quantity++;
+          showToast('Cantidad actualizada');
+        } else {
+          showToast('No hay más stock disponible');
+        }
+      } else {
+        cart.push({ ...product, quantity: 1 });
+        showToast('Agregado al carrito');
+      }
+      updateCartStorage();
+      render();
+    }
+
+    function removeFromCart(index) {
+      cart.splice(index, 1);
+      updateCartStorage();
+      render();
+    }
+
+    // FILTROS
+    function filterByShop(shopName) {
+        selectedShopFilter = shopName;
+        selectedCategory = 'all'; 
+        showToast(`🛒 Viendo tienda: ${shopName}`);
+        render();
+    }
+
+    function clearShopFilter() {
+        selectedShopFilter = null;
+        render();
+    }
+
+    // CREAR PEDIDO
+    async function createOrder() {
+      if (cart.length === 0) return;
+      validateCart(); 
+      if (cart.length === 0) return;
+
+      // Agrupar productos por vendedor
+      const ordersBySeller = {};
+      cart.forEach(item => {
+        if (!ordersBySeller[item.seller_username]) {
+          ordersBySeller[item.seller_username] = {
+            seller: item.seller_username,
+            discord: item.seller_discord,
+            items: [],
+            total: 0
+          };
+        }
+        const itemPrice = item.discount > 0 ? item.final_price : item.price;
+        ordersBySeller[item.seller_username].items.push(item);
+        ordersBySeller[item.seller_username].total += itemPrice * item.quantity;
+      });
+
+      let allOk = true;
+      for (const sellerUsername in ordersBySeller) {
+        const orderInfo = ordersBySeller[sellerUsername];
+        const itemsDesc = orderInfo.items.map(item => {
+          return `${item.name} x${item.quantity} ($${(item.final_price * item.quantity).toFixed(2)})`;
+        }).join(' | ');
+
+        const itemsData = JSON.stringify(orderInfo.items.map(item => ({
+          backendId: item.__backendId,
+          name: item.name,
+          quantity: item.quantity
+        })));
+
+        // Asegurar Discord del Comprador y Vendedor
+        const buyerDiscord = currentUser.discord_tag || 'No Informado';
+        const sellerDiscord = orderInfo.discord || 'No Informado';
+
+        const orderData = {
+          id: Date.now().toString() + '_' + sellerUsername,
+          type: 'order',
+          buyer_username: currentUser.username,
+          buyer_discord: buyerDiscord, 
+          seller_username: sellerUsername,
+          seller_discord: sellerDiscord,
+          items: itemsDesc,
+          items_data: itemsData,
+          total: parseFloat(orderInfo.total.toFixed(2)), // Fix para consistencia
+          order_status: 'pending',
+          seller_confirmed: false,
+          buyer_confirmed: false,
+          needs_review: false, 
+          created_at: new Date().toISOString()
+        };
+
+        const result = await window.dataSdk.create(orderData);
+        if (!result.isOk) {
+          allOk = false;
+        } else {
+            // Notificación Interna para el vendedor
+            const notificationData = {
+                id: 'ntf_' + Date.now(), 
+                type: 'activity',
+                username: sellerUsername, 
+                message: `¡NUEVO PEDIDO de ${currentUser.username}!`,
+                dismissed: false, 
+                created_at: new Date().toISOString()
+            };
+            await window.dataSdk.create(notificationData);
+        }
+      }
+
+      if (!allOk) {
+          showToast('Error al crear uno o más pedidos');
+          return;
+      }
+
+      showToast('Pedido(s) creado(s) exitosamente! Esperando confirmación del vendedor.');
+      cart = [];
+      updateCartStorage();
+      currentView = 'orders';
+      render();
+    }
+
+    async function confirmOrder(backendId, isSeller) {
+      const order = allOrders.find(o => o.__backendId === backendId);
+      if (!order) return;
+
+      let updatedOrder = {...order};
+
+      if (isSeller) {
+        // Vendedor confirma entrega (PRIMER PASO)
+        updatedOrder.seller_confirmed = true;
+        showToast('Vendedor confirma entrega. ¡Ahora el comprador debe confirmar recepción!');
+      } else {
+        // Comprador confirma recepción (SEGUNDO PASO)
+        if (!order.seller_confirmed) {
+            showToast('⚠️ Error: El vendedor aún no ha marcado el pedido como entregado. Esto es obligatorio para confirmar la recepción.');
+            return;
+        }
+        updatedOrder.buyer_confirmed = true;
+      }
+
+      const result = await window.dataSdk.update(updatedOrder); 
+      
+      if (result.isOk) {
+          // SI AMBOS CONFIRMARON, RESTAR STOCK Y FINALIZAR
+          if (result.item.seller_confirmed && result.item.buyer_confirmed && result.item.order_status !== 'completed') {
+              
+              const completedOrder = {...result.item, order_status: 'completed', needs_review: true}; // <-- needs_review activado
+              
+              try {
+                const itemsData = JSON.parse(completedOrder.items_data);
+                
+                // 1. Restar Stock de todos los productos
+                for (const item of itemsData) {
+                  const product = allProducts.find(p => p.__backendId === item.backendId);
+                  if (product) {
+                    const updatedProduct = {...product, stock: Math.max(0, product.stock - item.quantity)};
+                    // Disparamos la actualización de producto, pero no esperamos.
+                    window.dataSdk.update(updatedProduct); 
+                  }
+                }
+                
+                // 2. Actualizar el estado de la orden a completada
+                await window.dataSdk.update(completedOrder); 
+                
+                showToast('✅ ¡Pedido completado y Stock actualizado! Tienda entra en el Ranking.');
+                
+                // 🚨 OPTIMIZACIÓN CRÍTICA: Forzar recarga completa de datos del BIN
+                await window.dataSdk.read(); 
+
+              } catch (e) { 
+                console.error("Error al procesar stock o actualizar orden final:", e);
+                showToast("Error crítico al finalizar la orden. Stock no actualizado.");
+              }
+          } else if (result.item.buyer_confirmed) {
+              showToast('✅ Recepción de items confirmada. Esperando finalización de la venta.');
+          } else if (result.item.seller_confirmed) {
+             // El vendedor ya confirmó, el toast ya se mostró arriba.
+          }
+      }
+      render();
+    }
 
     // ---------------------------------------------------------
     // 10. FUNCIONES DE RESEÑA
@@ -653,10 +1339,9 @@
         const content = input.value;
         if (!content.trim()) return;
         
+        // Usamos el __backendId que es el ID único del pedido en JSONBin
         await window.chatSdk.sendMessage(chatTargetOrder.__backendId, currentUser.username, content);
         input.value = ''; // Limpiar input
-        
-        // No forzamos el re-renderizado aquí; Supabase lo hará con el evento Realtime
         
         // Asegurar scroll al fondo
         setTimeout(() => {
@@ -776,9 +1461,288 @@
           d.innerHTML = modalHTML;
       }
     }
-    
-    // ... (Se omiten renderCatalog, renderCart y renderAdmin por longitud, ya que no cambiaron de forma crítica) ...
 
+    // --- VISTA CATÁLOGO (HOME) ---
+    function renderCatalog() {
+      const config = getConfig();
+      
+      let filteredProducts = allProducts;
+      
+      let shopStats = null;
+      
+      if (selectedShopFilter) {
+          filteredProducts = allProducts.filter(p => p.seller_shop_name === selectedShopFilter);
+          
+          // 1. Calcular estadísticas de la tienda seleccionada
+          const shopOwner = allUsers.find(u => u.shop_name === selectedShopFilter);
+          if (shopOwner) {
+                const sales = allOrders.filter(o => o.seller_username === shopOwner.username && o.order_status === 'completed').length;
+                const { rating, reviewCount } = getShopRating(shopOwner.username);
+                shopStats = { owner: shopOwner, salesCount: sales, rating, reviewCount };
+          }
+      } else {
+          filteredProducts = selectedCategory === 'all' 
+            ? allProducts 
+            : selectedCategory === 'promotions'
+            ? allProducts.filter(p => p.on_sale === true)
+            : allProducts.filter(p => p.category === selectedCategory);
+      }
+
+      const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+      const topShops = getTopShops(); 
+
+      return `
+        <div class="min-h-full pb-20">
+          <header class="shadow-lg sticky top-0 z-40 bg-slate-800 border-b border-slate-700 p-4">
+            <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+                <div class="text-center md:text-left">
+                  <h1 class="text-2xl font-bold text-blue-400 tracking-tight">MU MARKET <span class="text-white text-xs bg-blue-600 px-1 rounded">V30</span></h1>
+                  <p class="text-xs mt-1 opacity-60">${config.contact_info}</p>
+                </div>
+                <div class="flex flex-wrap gap-2 justify-center items-center">
+                  ${currentUser ? `
+                    <button onclick="currentView='cart'; render();" class="relative px-4 py-2 rounded-lg font-bold transition bg-slate-700 hover:bg-slate-600 text-sm border border-slate-600">
+                      🛒 Carrito ${cartCount > 0 ? `<span class="cart-badge">${cartCount}</span>` : ''}
+                    </button>
+                    <button onclick="currentView='orders'; render();" class="px-4 py-2 rounded-lg font-bold transition bg-slate-700 hover:bg-slate-600 text-sm border border-slate-600">
+                      📦 Mis Pedidos
+                    </button>
+                    ${currentUser.role !== 'buyer' ? `
+                      <button onclick="loadAdminView();" class="px-4 py-2 rounded-lg font-bold transition border border-blue-500 bg-slate-800 text-blue-400 text-sm hover:bg-blue-900/30">
+                        ⚙️ Panel Tienda
+                      </button>
+                    ` : ''}
+                    <button onclick="logout();" class="px-4 py-2 rounded-lg font-bold transition bg-red-600 hover:bg-red-500 text-white text-sm">
+                      🚪
+                    </button>
+                  ` : `
+                    <button onclick="showModal='register'; render();" class="px-4 py-2 rounded-lg font-bold transition bg-green-600 hover:bg-green-500 text-white text-sm shadow-lg">
+                      Crear Cuenta
+                    </button>
+                    <button onclick="showModal='registerReseller'; render();" class="px-4 py-2 rounded-lg font-bold transition bg-purple-600 hover:bg-purple-500 text-white text-sm shadow-lg">
+                      Vender
+                    </button>
+                    <button onclick="showModal='login'; render();" class="px-4 py-2 rounded-lg font-bold transition bg-blue-600 hover:bg-blue-500 text-white text-sm shadow-lg">
+                      Iniciar Sesión
+                    </button>
+                  `}
+                </div>
+            </div>
+          </header>
+
+          ${!selectedShopFilter && topShops.length > 0 ? `
+            <div class="max-w-7xl mx-auto px-4 py-6">
+              <div class="mb-4 text-center">
+                <h2 class="text-2xl font-bold text-yellow-400 mb-1">🏆 TOP VENDEDORES POR VENTAS</h2>
+                <p class="text-xs opacity-60">Basado en Pedidos Completados</p>
+              </div>
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+                ${topShops.map((shop, index) => `
+                  <div class="top-shop-card rank-${index+1} rounded-xl p-6 text-center bg-slate-800">
+                    <div class="text-4xl mb-2">${index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉'}</div>
+                    <h3 class="font-bold text-xl mb-1 shop-badge px-2 py-1 rounded inline-block hover:bg-white/10" onclick="filterByShop('${shop.shop_name}')">${shop.shop_name}</h3>
+                    <p class="text-sm opacity-70 mb-3">👤 ${shop.username}</p>
+                    
+                    <div class="flex justify-center mb-3 bg-slate-900/50 p-2 rounded-lg">
+                        <div class="text-center px-4">
+                          <p class="text-xl font-bold text-green-400">${shop.salesCount}</p>
+                          <p class="text-xs opacity-70 uppercase">Ventas</p>
+                        </div>
+                        <div class="border-l border-slate-700/50 mx-2"></div>
+                        <div class="text-center px-4">
+                          <p class="text-xl font-bold text-yellow-400">${getStarHtml(shop.rating)}</p>
+                          <p class="text-xs opacity-70 uppercase">(${shop.reviewCount} Reviews)</p>
+                        </div>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          ` : ''}
+
+          <div class="max-w-7xl mx-auto px-4 py-6">
+            ${selectedShopFilter ? `
+                <div class="bg-blue-900/30 border border-blue-500 p-4 rounded-lg mb-6 shadow-lg">
+                    <div class="flex items-center justify-between border-b border-blue-800/50 pb-3 mb-3">
+                        <h2 class="text-2xl font-bold text-blue-300">🏪 Tienda: ${selectedShopFilter}</h2>
+                        <button onclick="clearShopFilter()" class="bg-red-600 hover:bg-red-500 px-6 py-2 rounded font-bold text-sm shadow transition transform hover:scale-105">
+                            Ver Todas las Tiendas
+                        </button>
+                    </div>
+                    
+                    ${shopStats ? `
+                        <div class="flex justify-around text-center py-2 bg-slate-900/50 rounded-lg border border-slate-700">
+                            <div class="px-3">
+                                <p class="text-xl font-bold text-green-400">${shopStats.salesCount}</p>
+                                <p class="text-xs opacity-70">Ventas Totales</p>
+                            </div>
+                            <div class="border-l border-slate-700/50 mx-2"></div>
+                             <div class="px-3">
+                                <p class="text-xl font-bold text-yellow-400">${getStarHtml(shopStats.rating)}</p>
+                                <p class="text-xs opacity-70">(${shopStats.reviewCount} Reviews)</p>
+                            </div>
+                        </div>
+                    ` : `<p class="text-center text-sm opacity-60 py-2">Cargando estadísticas o tienda sin datos aún.</p>`}
+                    
+                </div>
+            ` : `
+                <div class="flex flex-wrap gap-3 justify-center">
+                  ${CATEGORIES.map(cat => `
+                    <button 
+                      onclick="selectedCategory='${cat.id}'; render();" 
+                      class="category-btn px-6 py-3 rounded-lg font-bold shadow-md border border-transparent ${selectedCategory === cat.id ? 'bg-blue-600 ring-2 ring-blue-400 border-blue-300' : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'}">
+                      ${cat.icon} ${cat.name}
+                    </button>
+                  `).join('')}
+                </div>
+            `}
+          </div>
+
+          <main class="max-w-7xl mx-auto px-4 pb-12">
+            ${filteredProducts.length === 0 ? `
+              <div class="text-center py-20 bg-slate-800/50 rounded-xl border border-slate-700 border-dashed">
+                <p class="text-3xl opacity-40">📦</p>
+                <p class="text-xl opacity-60 mt-2">No hay productos disponibles en esta tienda/categoría.</p>
+              </div>
+            ` : `
+              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                ${filteredProducts.map(product => {
+                  return `
+                    <div class="product-card rounded-xl shadow-lg overflow-hidden ${product.on_sale ? 'ring-2 ring-red-500' : 'border border-slate-700'} bg-slate-800 relative group">
+                      ${product.on_sale ? `
+                        <div class="absolute top-2 right-2 z-10">
+                          <span class="px-2 py-1 rounded text-xs font-bold bg-red-600 text-white animate-pulse shadow-lg">
+                            OFERTA
+                          </span>
+                        </div>
+                      ` : ''}
+                      
+                      <div class="h-48 bg-slate-900 flex items-center justify-center text-6xl relative overflow-hidden">
+                        ${product.image_url ? `
+                          <img src="${product.image_url}" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" onerror="this.style.display='none';">
+                        ` : getCategoryIcon(product.category)}
+                      </div>
+
+                      <div class="p-4 relative">
+                        <div class="flex justify-center -mt-8 mb-3 relative z-20">
+                            <button onclick="filterByShop('${product.seller_shop_name}')" class="shop-badge bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg border border-blue-400 tracking-wide">
+                              🏪 ${product.seller_shop_name}
+                            </button>
+                        </div>
+
+                        <h3 class="font-bold mb-1 truncate text-center text-lg">${product.name}</h3>
+                        
+                        <div class="text-center mb-3">
+                          <span class="text-xs font-bold px-2 py-1 rounded ${product.stock < 5 ? 'bg-red-900/50 text-red-400 animate-pulse border border-red-500/50' : 'bg-slate-700 text-slate-400'}">
+                              📦 Stock: ${product.stock}
+                          </span>
+                        </div>
+
+                        <div class="flex items-center justify-between mt-2 border-t border-slate-700 pt-3">
+                          <div>
+                            ${product.discount > 0 ? `
+                              <p class="text-xs line-through opacity-50">$${product.price}</p>
+                              <p class="font-bold text-green-400 text-lg">$${product.final_price.toFixed(2)}</p>
+                            ` : `
+                              <p class="font-bold text-green-400 text-lg">$${product.price.toFixed(2)}</p>
+                            `}
+                          </div>
+                          <button 
+                            onclick="addToCart('${product.__backendId}')" 
+                            ${product.stock <= 0 ? 'disabled' : ''}
+                            class="px-4 py-2 rounded text-sm font-bold bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white shadow transition transform active:scale-95">
+                            ${product.stock > 0 ? 'COMPRAR' : 'AGOTADO'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  `}).join('')}
+              </div>
+            `}
+          </main>
+          
+        </div>
+      `;
+    }
+
+    // --- VISTA CARRITO (EXPANDIDA) ---
+    function renderCart() {
+      const config = getConfig();
+      const total = cart.reduce((sum, item) => {
+        const itemPrice = item.discount > 0 ? item.final_price : item.price;
+        return sum + (itemPrice * item.quantity);
+      }, 0);
+
+      return `
+        <div class="min-h-full bg-slate-900 text-slate-100 p-8">
+            <div class="max-w-4xl mx-auto">
+                <h2 class="text-3xl font-bold mb-6 text-blue-400 flex items-center gap-3">
+                    🛒 Tu Carrito de Compras
+                </h2>
+                
+                ${cart.length === 0 ? `
+                    <div class="bg-slate-800 p-10 rounded-xl border border-slate-700 text-center shadow-lg">
+                        <p class="text-4xl mb-4">😢</p>
+                        <p class="text-xl font-bold mb-2">Tu carrito está vacío</p>
+                        <p class="text-slate-400 mb-6">¡Explora el catálogo y encuentra los mejores items!</p>
+                        <button onclick="currentView='catalog'; render();" class="bg-blue-600 px-6 py-3 rounded-lg font-bold hover:bg-blue-500 shadow transition">
+                            Volver al Catálogo
+                        </button>
+                    </div>
+                ` : `
+                    <div class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-xl mb-6">
+                        <div class="p-4 bg-slate-900/50 border-b border-slate-700 font-bold text-slate-400 grid grid-cols-12 gap-4 text-sm uppercase tracking-wider">
+                            <div class="col-span-6">Producto</div>
+                            <div class="col-span-2 text-center">Precio</div>
+                            <div class="col-span-2 text-center">Cantidad</div>
+                            <div class="col-span-2 text-right">Total</div>
+                        </div>
+                        
+                        ${cart.map((item, index) => `
+                            <div class="p-4 border-b border-slate-700 grid grid-cols-12 gap-4 items-center hover:bg-slate-700/20 transition">
+                                <div class="col-span-6 flex items-center gap-4">
+                                    <div class="h-12 w-12 bg-slate-900 rounded border border-slate-600 flex items-center justify-center text-xl shrink-0">
+                                        ${getCategoryIcon(item.category)}
+                                    </div>
+                                    <div class="overflow-hidden">
+                                        <div class="font-bold truncate">${item.name}</div>
+                                        <div class="text-xs text-blue-400">Tienda: ${item.seller_shop_name}</div>
+                                    </div>
+                                </div>
+                                <div class="col-span-2 text-center font-mono text-sm">
+                                    $${item.final_price.toFixed(2)}
+                                </div>
+                                <div class="col-span-2 text-center font-mono text-sm">
+                                    x${item.quantity}
+                                </div>
+                                <div class="col-span-2 text-right flex items-center justify-end gap-3">
+                                    <span class="font-bold text-green-400">$${(item.final_price * item.quantity).toFixed(2)}</span>
+                                    <button onclick="removeFromCart(${index})" class="text-red-500 hover:text-red-400 bg-red-900/20 hover:bg-red-900/40 h-8 w-8 rounded flex items-center justify-center transition">
+                                        ✕
+                                    </button>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+
+                    <div class="flex flex-col md:flex-row justify-end items-center gap-6 bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
+                        <div class="text-right">
+                            <p class="text-sm text-slate-400 uppercase">Total a Pagar</p>
+                            <p class="text-4xl font-bold text-green-400">$${total.toFixed(2)}</p>
+                        </div>
+                        <div class="flex gap-3">
+                            <button onclick="currentView='catalog';render()" class="bg-slate-700 hover:bg-slate-600 px-6 py-3 rounded-lg font-bold transition border border-slate-600">
+                                Seguir Viendo
+                            </button>
+                            <button onclick="createOrder()" class="bg-green-600 hover:bg-green-500 px-8 py-3 rounded-lg font-bold text-white shadow-lg transform hover:scale-105 transition flex items-center gap-2">
+                                ✅ CONFIRMAR COMPRA
+                            </button>
+                        </div>
+                    </div>
+                `}
+            </div>
+        </div>`;
+    }
 
     // --- VISTA PEDIDOS (EXPANDIDA) ---
     function renderOrders() {
@@ -879,14 +1843,342 @@
             </div>
         </div>`;
     }
-    
-    // ... (Se omiten renderAdmin y otros modals) ...
-    
-    // --- MODAL: CHAT (ACTUALIZADO PARA SUPABASE) ---
-    function renderChatModal() {
+
+    // --- VISTA ADMIN / RESELLER (PANEL COMPLETO) ---
+    function renderAdmin() {
+      const user = currentUser;
+      const viewingAs = adminViewTarget || user.username;
+      const viewingUser = allUsers.find(u => u.username === viewingAs) || user;
+      
+      const myProducts = allProducts.filter(p => p.seller_username === viewingAs);
+      const myOrders = allOrders.filter(o => o.seller_username === viewingAs);
+      const pending = myOrders.filter(o => o.order_status === 'pending').reverse();
+      
+      const completedOrdersLog = allOrders.filter(o => o.order_status === 'completed').reverse();
+      
+      // 1. Calcular las ventas de todos los revendedores (para la tabla global)
+      const sellerSalesMap = getSellerSalesMap();
+
+      const displayUsers = allUsers.sort((a, b) => {
+          if (a.status === 'pending' && b.status !== 'pending') return -1;
+          if (a.status !== 'pending' && b.status === 'pending') return 1;
+          if (a.role === 'admin') return 1;
+          if (b.role === 'admin') return -1;
+          return a.username.localeCompare(b.username);
+      });
+
+      const stats = {
+          total: myProducts.length,
+          sales: myOrders.filter(o => o.order_status === 'completed').length,
+          revenue: myOrders.filter(o => o.order_status === 'completed').reduce((a,b)=>a+b.total,0),
+          online: onlineUsers.size
+      };
+
+      return `
+        <div class="min-h-full bg-slate-900 text-slate-100 p-6">
+            <div class="max-w-7xl mx-auto">
+                <div class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4 border-b border-slate-700 pb-6">
+                    <div class="flex items-center gap-4">
+                        <h1 class="text-3xl font-bold flex items-center gap-2">
+                            ${adminViewTarget ? `👁️ GESTIONANDO TIENDA: <span class="text-yellow-400 underline">${viewingUser.shop_name}</span>` : (user.role==='admin'?'⚙️ PANEL ADMINISTRADOR':'🏪 MI TIENDA')}
+                        </h1>
+                        ${adminViewTarget ? `
+                            <button onclick="exitShopManagement()" class="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded font-bold text-sm shadow animate-pulse">
+                                ❌ SALIR DEL MODO GESTIÓN
+                            </button>
+                        ` : ''}
+                    </div>
+                    <div class="flex gap-2">
+                        ${user.role === 'admin' ? `
+                            <button onclick="showModal='dataTools';render()" class="bg-slate-700 px-6 py-2 rounded font-bold shadow hover:bg-slate-600 transition border border-slate-500 text-yellow-400 border-yellow-500/50">
+                                💾 RESPALDO SYSTEM
+                            </button>
+                        ` : ''}
+                        <button onclick="loadAdminView()" class="bg-slate-700 px-6 py-2 rounded font-bold shadow hover:bg-slate-600 transition border border-slate-500 text-blue-400 border-blue-500/50">
+                             🔄 REFRESCAR DATOS
+                        </button>
+                        <button onclick="currentView='catalog';render()" class="bg-blue-600 px-6 py-2 rounded font-bold shadow hover:bg-blue-500 transition">
+                            🏠 Volver al Inicio
+                        </button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                    <div class="bg-slate-800 p-6 rounded-xl border-t-4 border-purple-500 shadow-lg">
+                        <div class="text-3xl font-bold text-white">${stats.total}</div>
+                        <div class="text-xs opacity-70 font-bold uppercase tracking-wide">Productos Activos</div>
+                    </div>
+                    <div class="bg-slate-800 p-6 rounded-xl border-t-4 border-green-500 shadow-lg">
+                        <div class="text-3xl font-bold text-green-400">${stats.sales}</div>
+                        <div class="text-xs opacity-70 font-bold uppercase tracking-wide">Ventas Completadas</div>
+                    </div>
+                    <div class="bg-slate-800 p-6 rounded-xl border-t-4 border-yellow-500 shadow-lg">
+                        <div class="text-3xl font-bold text-yellow-400">${pending.length}</div>
+                        <div class="text-xs opacity-70 font-bold uppercase tracking-wide">Pedidos Pendientes</div>
+                    </div>
+                     <div class="bg-slate-800 p-6 rounded-xl border-t-4 border-blue-500 shadow-lg">
+                        <div class="text-xs opacity-70 font-bold uppercase tracking-wide mb-1">Discord Tienda</div>
+                        <div class="text-sm font-bold font-mono text-blue-300 truncate bg-slate-900/50 p-1 rounded">${viewingUser.discord_tag}</div>
+                    </div>
+                </div>
+                
+                ${(user.role === 'admin' && !adminViewTarget) ? `
+                    <div class="bg-slate-800 p-6 rounded-xl mb-8 border border-slate-700 shadow-lg">
+                        <h2 class="text-xl font-bold mb-6 text-green-400 border-b border-slate-700 pb-2 flex items-center gap-2">
+                            📜 LOG HISTÓRICO DE PEDIDOS (${completedOrdersLog.length})
+                            <button onclick="clearCompletedOrdersLog()" class="bg-red-700 hover:bg-red-600 text-white px-3 py-1 rounded text-xs font-bold transition ml-auto">
+                                🗑️ LIMPIAR LOG
+                            </button>
+                        </h2>
+                        <div class="overflow-x-auto rounded-lg border border-slate-700 max-h-64 overflow-y-auto">
+                            <table class="w-full text-sm text-left text-slate-300">
+                                <thead class="bg-slate-900 text-white uppercase font-bold text-xs sticky top-0 z-10">
+                                    <tr>
+                                        <th class="p-3">Fecha</th>
+                                        <th class="p-3">Tienda/Vendedor</th>
+                                        <th class="p-3">Comprador</th>
+                                        <th class="p-3">Items</th>
+                                        <th class="p-3 text-right">Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-700">
+                                    ${completedOrdersLog.length === 0 ? `
+                                        <tr><td colspan="5" class="p-4 text-center opacity-50">No hay registro de pedidos completados.</td></tr>
+                                    ` : completedOrdersLog.map(o => `
+                                        <tr class="hover:bg-slate-700/30 transition font-mono">
+                                            <td class="p-3 text-xs text-slate-500">${new Date(o.created_at).toLocaleDateString()}</td>
+                                            <td class="p-3 font-bold text-blue-300">${o.seller_username}</td>
+                                            <td class="p-3 text-white">${o.buyer_username}</td>
+                                            <td class="p-3 text-xs truncate max-w-xs">${o.items}</td>
+                                            <td class="p-3 text-right font-bold text-green-400">$${o.total.toFixed(2)}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                ` : ''}
+
+                <div class="bg-slate-800 p-6 rounded-xl mb-8 border border-slate-700 shadow-lg">
+                    <h2 class="text-xl font-bold mb-4 text-yellow-400 border-b border-slate-700 pb-2 flex items-center gap-2">
+                        📦 Pedidos por Despachar <span class="bg-slate-700 text-white px-2 rounded text-sm">${pending.length}</span>
+                    </h2>
+                    
+                    ${pending.length === 0 ? `
+                        <div class="text-center py-8 opacity-50">
+                            <p class="italic">No tienes pedidos pendientes. ¡Buen trabajo!</p>
+                        </div>
+                    ` : pending.map((o, i) => {
+                        const sellerConfirmed = o.seller_confirmed;
+                        const buyerConfirmed = o.buyer_confirmed;
+                        
+                        let buttonText, buttonClass, buttonAction;
+                        
+                        if (buyerConfirmed) {
+                             buttonText = 'Cliente CONFIRMADO';
+                             buttonClass = 'bg-orange-700/50 disabled:opacity-100 disabled:cursor-wait';
+                             buttonAction = 'disabled';
+                        } else if (sellerConfirmed) {
+                            buttonText = '⏳ Esperando Cliente';
+                            buttonClass = 'bg-yellow-600/50 disabled:opacity-100 disabled:cursor-wait';
+                            buttonAction = 'disabled';
+                        } else {
+                            buttonText = '✅ MARCAR ENTREGADO';
+                            buttonClass = 'bg-green-600 hover:bg-green-500';
+                            buttonAction = `onclick="confirmOrder('${o.__backendId}', true)"`;
+                        }
+                        
+                        const statusBadgeText = buyerConfirmed ? 'Cliente Confirmó' : (sellerConfirmed ? 'Tú Confirmaste (Esperando Cliente)' : 'Pendiente de tu Entrega');
+                        const statusBadgeClass = buyerConfirmed ? 'bg-orange-900 text-orange-200' : (sellerConfirmed ? 'bg-yellow-900 text-yellow-200' : 'bg-red-900 text-red-200');
+
+                        return `
+                        <div class="bg-slate-900 p-5 rounded-lg mb-4 border border-slate-600 flex flex-col md:flex-row justify-between gap-6 shadow-sm hover:bg-slate-900/80 transition">
+                            <div class="flex-1">
+                                <div class="flex items-center gap-3 mb-2">
+                                    <span class="font-bold text-lg text-blue-300">PEDIDO #${pending.length - i}</span>
+                                    <span class="px-2 py-1 rounded text-xs font-bold ${statusBadgeClass} whitespace-nowrap">${statusBadgeText}</span>
+                                </div>
+                                <div class="mb-1">Cliente: <span class="font-bold text-white">${o.buyer_username}</span></div>
+                                <div class="inline-block bg-purple-900/30 text-purple-300 px-2 py-1 rounded text-xs font-mono border border-purple-500/30 mb-3">
+                                    📱 Discord: ${o.buyer_discord}
+                                </div>
+                                <div class="text-sm text-slate-300 bg-slate-800/50 p-3 rounded border-l-2 border-green-500 font-mono">
+                                    ${o.items}
+                                </div>
+                            </div>
+                            <div class="text-right flex flex-col justify-between items-end min-w-[150px]">
+                                <div>
+                                    <p class="text-xs text-slate-500 uppercase">Total a Cobrar</p>
+                                    <div class="text-3xl font-bold text-green-400">$${o.total.toFixed(2)}</div>
+                                </div>
+                                <div class="flex gap-2">
+                                    <button onclick="openChatModal('${o.__backendId}')" class="bg-purple-600 hover:bg-purple-500 px-4 py-2 rounded font-bold text-sm shadow transition text-white">
+                                        💬 CHAT
+                                    </button>
+                                    <button ${buttonAction} class="${buttonClass} px-4 py-2 rounded font-bold text-sm shadow transition text-white">
+                                        ${buttonText}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `}).join('')}
+                </div>
+
+                <div class="bg-slate-800 p-6 rounded-xl mb-8 border border-slate-700 shadow-lg">
+                    <h2 class="text-xl font-bold mb-6 text-blue-400 border-b border-slate-700 pb-2">🛍️ Gestión de Inventario</h2>
+                    
+                    <div class="mb-8 p-5 bg-slate-900 rounded-lg border border-slate-600">
+                        <h3 class="text-sm font-bold mb-3 uppercase text-slate-400 flex items-center gap-2">
+                            <span>➕</span> Publicar Nuevo Item
+                        </h3>
+                        <form onsubmit="handleAddProduct(event)" class="grid grid-cols-1 md:grid-cols-12 gap-3">
+                            <div class="md:col-span-4">
+                                <input id="productName" placeholder="Nombre del Item" required class="w-full bg-slate-800 p-3 rounded text-white border border-slate-600 focus:border-blue-500 outline-none">
+                            </div>
+                            <div class="md:col-span-2">
+                                <select id="productCategory" class="w-full bg-slate-800 p-3 rounded text-white border border-slate-600 focus:border-blue-500">
+                                    <option value="items">Arma/Escudo</option>
+                                    <option value="sets">Set Completo</option>
+                                    <option value="wings">Alas</option>
+                                    <option value="jewels">Joyas</option>
+                                </select>
+                            </div>
+                            <div class="md:col-span-2">
+                                <input id="productPrice" type="number" step="0.01" placeholder="Precio $" required class="w-full bg-slate-800 p-3 rounded text-white border border-slate-600 focus:border-blue-500">
+                            </div>
+                            <div class="md:col-span-2">
+                                <input id="productStock" type="number" placeholder="Stock" required class="w-full bg-slate-800 p-3 rounded text-white border border-slate-600 focus:border-blue-500">
+                            </div>
+                            <div class="md:col-span-2">
+                                <button type="submit" class="w-full h-full bg-blue-600 hover:bg-blue-500 font-bold rounded text-white shadow transition uppercase text-sm">
+                                    Publicar
+                                </button>
+                            </div>
+                            
+                            <input id="productDiscount" type="hidden" value="0">
+                            <input id="productImage" type="hidden" value="">
+                            <input id="productDescription" type="hidden" value="">
+                            <input id="productOnSale" type="checkbox" class="hidden">
+                        </form>
+                        <p class="text-xs text-slate-500 mt-3 ml-1 flex items-center gap-1">
+                            ℹ️ Para agregar imagen, descuento o descripción, usa el botón <span class="font-bold text-blue-400 bg-slate-800 px-1 rounded">EDITAR</span> una vez creado el item.
+                        </p>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        ${myProducts.map(p => `
+                            <div class="bg-slate-900 rounded-lg border border-slate-600 p-4 relative group hover:border-blue-500 transition shadow-sm flex flex-col justify-between h-full">
+                                <div>
+                                    <div class="flex justify-between items-start mb-2">
+                                        <div class="font-bold truncate text-white text-lg pr-2" title="${p.name}">${p.name}</div>
+                                        <div class="font-mono text-xs bg-slate-800 px-2 py-1 rounded text-slate-400 border border-slate-700 whitespace-nowrap">
+                                            📦 Stock: ${p.stock}
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mb-4">
+                                        <div class="text-green-400 font-bold text-2xl">$${p.final_price.toFixed(2)}</div>
+                                        ${p.discount > 0 ? `<div class="text-xs text-red-400 font-bold bg-red-900/20 inline-block px-1 rounded border border-red-900/50">-${p.discount}% OFF</div>` : '<div class="h-5"></div>'}
+                                    </div>
+                                </div>
+                                
+                                <div class="flex gap-2 mt-auto pt-3 border-t border-slate-800">
+                                    <button onclick="openEditModal('${p.__backendId}')" class="flex-1 bg-blue-600 hover:bg-blue-500 py-2 rounded text-xs font-bold text-white shadow transition flex items-center justify-center gap-1">
+                                        ✏️ EDITAR
+                                    </button>
+                                    <button onclick="deleteProduct('${p.__backendId}')" class="bg-red-600 hover:bg-red-500 px-3 py-2 rounded text-xs font-bold text-white shadow transition flex items-center justify-center">
+                                        🗑️
+                                    </button>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+
+                ${(user.role === 'admin' && !adminViewTarget) ? `
+                    <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
+                        <h2 class="text-xl font-bold mb-6 text-purple-400 border-b border-slate-700 pb-2 flex items-center gap-2">
+                            🌍 Panel Global de Usuarios <span class="text-xs bg-slate-900 text-slate-400 px-2 py-1 rounded ml-auto">Total: ${displayUsers.length}</span>
+                        </h2>
+                        
+                        <div class="overflow-x-auto rounded-lg border border-slate-700">
+                            <table class="w-full text-sm text-left text-slate-300">
+                                <thead class="bg-slate-900 text-white uppercase font-bold text-xs">
+                                    <tr>
+                                        <th class="p-4">Usuario (Tienda)</th>
+                                        <th class="p-4">Rol</th>
+                                        <th class="p-4">Estado</th>
+                                        <th class="p-4 text-center">VENTAS</th> 
+                                        <th class="p-4">Discord</th>
+                                        <th class="p-4 text-right">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-700">
+                                    ${displayUsers.map(u => `
+                                        <tr class="hover:bg-slate-700/30 transition ${u.status === 'pending' ? 'bg-yellow-900/20 border-l-4 border-yellow-500' : ''}">
+                                            <td class="p-4 font-bold flex flex-col justify-start">
+                                                <span class="text-white cursor-pointer hover:text-blue-400" onclick="openManageUserModal('${u.username}')">
+                                                    ${u.username}
+                                                </span>
+                                                ${u.role === 'reseller' && u.shop_name ? `<span class="text-xs opacity-60 text-blue-300 italic">${u.shop_name}</span>` : ''}
+                                            </td>
+                                            <td class="p-4">
+                                                <span class="bg-slate-900 px-2 py-1 rounded text-xs border border-slate-600 font-mono">
+                                                    ${u.role.toUpperCase()}
+                                                </span>
+                                            </td>
+                                            <td class="p-4">
+                                                <span class="px-2 py-1 rounded text-xs font-bold ${u.status==='banned'?'bg-red-900/30 text-red-400':u.status==='pending'?'bg-yellow-900/30 text-yellow-400':'bg-green-900/30 text-green-400'}">
+                                                    ${u.status.toUpperCase()}
+                                                </span>
+                                            </td>
+                                            <td class="p-4 text-center">
+                                                ${u.role === 'reseller' ? `<span class="font-bold text-green-400">${sellerSalesMap[u.username] || 0}</span>` : 'N/A'}
+                                            </td>
+                                            <td class="p-4 font-mono text-xs text-blue-300">
+                                                ${u.discord_tag}
+                                            </td>
+                                            <td class="p-4 text-right flex justify-end gap-2">
+                                                ${u.status === 'pending' ? `
+                                                    <button onclick="approveUser('${u.__backendId}')" class="bg-green-600 px-3 py-1 rounded text-xs font-bold hover:bg-green-500 text-white shadow transition">ACEPTAR</button>
+                                                    <button onclick="deleteUserAccount('${u.__backendId}')" class="bg-red-600 px-3 py-1 rounded text-xs font-bold hover:bg-red-500 text-white shadow transition">RECHAZAR</button>
+                                                ` : `
+                                                    ${u.role === 'reseller' ? `
+                                                        <button onclick="enterShopManagement('${u.username}')" class="bg-indigo-600 hover:bg-indigo-500 px-3 py-1 rounded text-xs font-bold text-white shadow transition flex items-center gap-1 border border-indigo-400">
+                                                            👁️ GESTIONAR
+                                                        </button>
+                                                    ` : ''}
+                                                    
+                                                    <button onclick="banUser('${u.__backendId}')" class="border border-yellow-500 text-yellow-500 px-2 py-1 rounded text-xs font-bold hover:bg-yellow-500 hover:text-black transition">
+                                                        ${u.status.includes('banned') ? 'UNBAN' : 'BAN'}
+                                                    </button>
+                                                    
+                                                    <button onclick="deleteUserAccount('${u.__backendId}')" class="bg-red-900/20 hover:bg-red-600 text-red-500 hover:text-white px-3 py-1 rounded text-xs font-bold transition border border-red-900/50">
+                                                        DEL
+                                                    </button>
+                                                `}
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                ` : ''}
+
+            </div>
+        </div>
+      `;
+    }
+
+    // ---------------------------------------------------------
+    // 14. RENDERIZADO DE MODALES (HTML FORMS)
+    // ---------------------------------------------------------
+    function renderModal() {
         const close = `onclick="closeChatModal(); showModal=null;selectedProductToEdit=null;managedUser=null;selectedOrder=null;render()"`;
         const box = "bg-slate-800 p-8 rounded-xl shadow-2xl max-w-md w-full border border-slate-600 relative transform transition-all scale-100";
         
+        // --- MODAL: CHAT ---
         if (showModal === 'chat' && chatTargetOrder) {
             const partnerName = chatTargetOrder.buyer_username === currentUser.username ? chatTargetOrder.seller_username : chatTargetOrder.buyer_username;
             const partnerDiscord = chatTargetOrder.buyer_username === currentUser.username ? chatTargetOrder.seller_discord : chatTargetOrder.buyer_discord;
@@ -927,7 +2219,271 @@
             </div>`;
         }
         
-        // ... (El resto de los modals se mantienen) ...
+        // --- MODAL: GESTIÓN DE USUARIO (ADMIN) ---
+        if(showModal === 'manageUser' && managedUser) {
+             const u = managedUser;
+             const userOrders = allOrders.filter(o => o.buyer_username === u.username || o.seller_username === u.username);
+             const userProducts = allProducts.filter(p => p.seller_username === u.username);
+             
+             // Recalcular las ventas y rating para este modal
+             const sellerSalesMap = getSellerSalesMap();
+             const salesCount = sellerSalesMap[u.username] || 0;
+             const { rating, reviewCount } = getShopRating(u.username);
+             
+             return `
+            <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
+                <div class="${box} max-w-2xl w-full" onclick="event.stopPropagation()">
+                    <div class="flex justify-between items-center mb-6 border-b border-slate-700 pb-4">
+                        <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                           👤 Gestión de Usuario: <span class="text-blue-400">${u.username}</span>
+                        </h2>
+                        <button ${close} class="text-slate-400 hover:text-white font-bold text-xl">✕</button>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4 mb-6">
+                        <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
+                            <p class="text-xs uppercase text-slate-500 font-bold">Rol / Estado</p>
+                            <p class="font-bold text-lg">${u.role.toUpperCase()} / <span class="${u.status==='banned'?'text-red-400':u.status==='pending'?'text-yellow-400':'text-green-400'}">${u.status.toUpperCase()}</span></p>
+                        </div>
+                        <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
+                            <p class="text-xs uppercase text-slate-500 font-bold">Discord</p>
+                            <p class="font-mono text-blue-300 text-lg">${u.discord_tag}</p>
+                        </div>
+                        ${u.role === 'reseller' ? `
+                            <div class="col-span-2 bg-slate-900 p-3 rounded-lg border border-slate-700">
+                                <p class="text-xs uppercase text-slate-500 font-bold">Tienda</p>
+                                <p class="font-bold text-yellow-400 text-xl">${u.shop_name || 'Sin configurar'}</p>
+                            </div>
+                            <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
+                                <p class="text-xs uppercase text-slate-500 font-bold">Items Publicados</p>
+                                <p class="font-bold text-white text-xl">${userProducts.length}</p>
+                            </div>
+                             <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
+                                <p class="text-xs uppercase text-slate-500 font-bold">Ventas Completadas</p>
+                                <p class="font-bold text-green-400 text-xl">${salesCount}</p>
+                            </div>
+                            <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
+                                <p class="text-xs uppercase text-slate-500 font-bold">Rating / Reviews</p>
+                                <p class="font-bold text-yellow-400 text-lg">${rating} ${getStarHtml(rating)} (${reviewCount})</p>
+                            </div>
+                        ` : ''}
+                        <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
+                            <p class="text-xs uppercase text-slate-500 font-bold">Pedidos Involucrados</p>
+                            <p class="font-bold text-white text-xl">${userOrders.length}</p>
+                        </div>
+                    </div>
+                    
+                    <div class="border-t border-slate-700 pt-4 mb-4">
+                        <h3 class="text-lg font-bold text-purple-400 mb-2">Acciones Rápidas</h3>
+                        <div class="flex flex-wrap gap-2">
+                            ${u.role === 'reseller' ? `
+                                <button onclick="enterShopManagement('${u.username}')" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded text-sm font-bold">
+                                    👁️ Gestionar Items
+                                </button>
+                                ${u.status === 'pending' ? `
+                                    <button onclick="approveUser('${u.__backendId}')" class="bg-green-600 px-4 py-2 rounded text-sm font-bold text-white">Aprobar Tienda</button>
+                                ` : ''}
+                            ` : ''}
+                            
+                            <button onclick="banUser('${u.__backendId}')" class="border border-yellow-500 text-yellow-500 px-4 py-2 rounded text-sm font-bold hover:bg-yellow-500 hover:text-black">
+                                ${u.status.includes('banned') ? 'UNBAN' : 'BAN'}
+                            </button>
+                            <button onclick="deleteUserAccount('${u.__backendId}')" class="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded text-sm font-bold">
+                                🗑️ Eliminar Cuenta
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+        }
+
+        // --- MODAL: DATA TOOLS (IMPORT/EXPORT) ---
+        if(showModal === 'dataTools') {
+            return `
+            <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" ${close}>
+                <div class="${box}" onclick="event.stopPropagation()">
+                    <h2 class="text-2xl font-bold text-center mb-4 text-white">🛠️ Gestión de Datos (JSONBin)</h2>
+                    <p class="text-center text-slate-400 text-sm mb-6">Guarda una copia de seguridad o restaura los datos REMOTOS.</p>
+                    
+                    <div class="grid gap-4">
+                        <button onclick="downloadBackup()" class="bg-blue-600 hover:bg-blue-500 py-4 rounded-lg font-bold text-white shadow-lg transition flex items-center justify-center gap-3">
+                            ⬇️ EXPORTAR (Descargar Backup del BIN)
+                        </button>
+                        
+                        <div class="border-t border-slate-600 my-2"></div>
+                        
+                        <button onclick="triggerUpload()" class="bg-red-600 hover:bg-red-500 py-4 rounded-lg font-bold text-white shadow-lg transition flex items-center justify-center gap-3">
+                            ⬆️ IMPORTAR (Reemplazar BIN Remoto)
+                        </button>
+                        <input type="file" id="fileInput" accept=".json" class="hidden" onchange="handleFileUpload(event)">
+                    </div>
+                </div>
+            </div>`;
+        }
+
+        // --- MODAL: EDITAR PRODUCTO ---
+        if(showModal === 'editProduct' && selectedProductToEdit) {
+            const p = selectedProductToEdit;
+            return `
+            <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4 animate-fadeIn">
+                <div class="${box} max-w-lg" onclick="event.stopPropagation()">
+                    <div class="flex justify-between mb-6 border-b border-slate-700 pb-4">
+                        <h2 class="text-xl font-bold text-blue-400 flex items-center gap-2">✏️ Editar Producto</h2>
+                        <button ${close} class="text-slate-400 hover:text-white font-bold text-xl">✕</button>
+                    </div>
+                    <form onsubmit="handleUpdateProduct(event)" class="grid grid-cols-2 gap-5">
+                        <div class="col-span-2">
+                            <label class="text-xs text-slate-400 font-bold uppercase mb-1 block">Nombre del Item</label>
+                            <input id="editName" value="${p.name}" class="w-full bg-slate-700 p-3 rounded text-white border border-slate-600 focus:border-blue-500 outline-none font-bold">
+                        </div>
+                        <div>
+                            <label class="text-xs text-slate-400 font-bold uppercase mb-1 block">Precio (USDT)</label>
+                            <input id="editPrice" type="number" step="0.01" value="${p.price}" class="w-full bg-slate-700 p-3 rounded text-white border border-slate-600">
+                        </div>
+                         <div>
+                            <label class="text-xs text-slate-400 font-bold uppercase mb-1 block">Stock Disponible</label>
+                            <input id="editStock" type="number" value="${p.stock}" class="w-full bg-slate-700 p-3 rounded text-white border border-slate-600">
+                        </div>
+                        <div>
+                            <label class="text-xs text-slate-400 font-bold uppercase mb-1 block">Descuento (%)</label>
+                            <input id="editDiscount" type="number" value="${p.discount}" class="w-full bg-slate-700 p-3 rounded text-white border border-slate-600">
+                        </div>
+                        <div class="flex items-center justify-center h-full pt-6">
+                            <label class="flex items-center cursor-pointer bg-slate-700 px-3 py-2 rounded border border-slate-600 hover:bg-slate-600 transition w-full">
+                                <input id="editOnSale" type="checkbox" class="w-5 h-5 accent-red-500 mr-2" ${p.on_sale?'checked':''}> 
+                                <span class="text-sm font-bold text-red-400">🔥 En Oferta</span>
+                            </label>
+                        </div>
+                         <div class="col-span-2">
+                            <label class="text-xs text-slate-400 font-bold uppercase mb-1 block">URL Imagen (Imgur/Directa)</label>
+                            <input id="editImage" value="${p.image_url||''}" class="w-full bg-slate-700 p-3 rounded text-white border border-slate-600">
+                        </div>
+                         <div class="col-span-2">
+                            <label class="text-xs text-slate-400 font-bold uppercase mb-1 block">Descripción Detallada</label>
+                            <textarea id="editDescription" class="w-full bg-slate-700 p-3 rounded text-white mb-4 border border-slate-600 h-24 resize-none">${p.description||''}</textarea>
+                        </div>
+                        <button class="col-span-2 bg-blue-600 hover:bg-blue-500 py-4 rounded-lg font-bold text-white shadow-lg mt-2 uppercase tracking-wide transition transform hover:scale-[1.02]">
+                            Guardar Cambios
+                        </button>
+                    </form>
+                </div>
+            </div>`;
+        }
+
+        // --- MODAL: LOGIN ---
+        if(showModal === 'login') {
+            return `
+            <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" ${close}>
+                <div class="${box}" onclick="event.stopPropagation()">
+                    <h2 class="text-3xl font-bold text-center mb-6 text-white">Bienvenido</h2>
+                    <form onsubmit="handleLogin(event)">
+                        <div class="mb-4">
+                            <label class="text-xs text-slate-400 font-bold uppercase mb-1 block">Usuario</label>
+                            <input id="loginUsername" class="w-full p-3 rounded bg-slate-700 text-white border border-slate-600 focus:border-blue-500 outline-none" required>
+                        </div>
+                        <div class="mb-8">
+                            <label class="text-xs text-slate-400 font-bold uppercase mb-1 block">Contraseña</label>
+                            <input id="loginPassword" type="password" class="w-full p-3 rounded bg-slate-700 text-white border border-slate-600 focus:border-blue-500 outline-none" required>
+                        </div>
+                        <button class="w-full bg-blue-600 hover:bg-blue-500 py-4 rounded-lg font-bold text-white shadow-lg transition transform active:scale-95">
+                            INICIAR SESIÓN
+                        </button>
+                        <p class="text-center mt-4 text-sm text-slate-500 cursor-pointer hover:text-blue-400" onclick="showModal='register';render()">¿No tienes cuenta? Regístrate</p>
+                    </form>
+                </div>
+            </div>`;
+        }
+
+        // --- MODAL: REGISTRO COMPRADOR ---
+        if(showModal === 'register') {
+            return `
+            <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" ${close}>
+                <div class="${box}" onclick="event.stopPropagation()">
+                    <h2 class="text-2xl font-bold text-center mb-6 text-green-400">Registro Comprador</h2>
+                    <form onsubmit="handleRegisterBuyer(event)">
+                        <input id="buyerUsername" placeholder="Nombre de Usuario" class="w-full mb-3 p-3 rounded bg-slate-700 text-white border border-slate-600" required>
+                        <input id="buyerPassword" type="password" placeholder="Contraseña" class="w-full mb-3 p-3 rounded bg-slate-700 text-white border border-slate-600" required>
+                        <div class="mb-6 relative">
+                            <input id="buyerDiscord" placeholder="Discord Tag (Ej: User#1234)" class="w-full p-3 rounded bg-slate-700 text-white border border-slate-600 pl-10" required>
+                            <span class="absolute left-3 top-3 text-slate-400">📱</span>
+                        </div>
+                        <button class="w-full bg-green-600 hover:bg-green-500 py-3 rounded font-bold text-white shadow-lg transition">CREAR CUENTA</button>
+                    </form>
+                </div>
+            </div>`;
+        }
+
+        // --- MODAL: REGISTRO VENDEDOR ---
+        if(showModal === 'registerReseller') {
+            return `
+            <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" ${close}>
+                <div class="${box}" onclick="event.stopPropagation()">
+                    <h2 class="text-2xl font-bold text-center mb-6 text-purple-400">Solicitud Vendedor</h2>
+                    <p class="text-center text-slate-400 text-sm mb-4">La cuenta estará pendiente de aprobación por el Admin.</p>
+                    <form onsubmit="handleRegisterReseller(event)">
+                        <input id="resellerUsername" placeholder="Usuario" class="w-full mb-3 p-3 rounded bg-slate-700 text-white border border-slate-600" required>
+                        <input id="resellerPassword" type="password" placeholder="Contraseña" class="w-full mb-3 p-3 rounded bg-slate-700 text-white border border-slate-600" required>
+                        <input id="resellerShop" placeholder="Nombre de tu Tienda" class="w-full mb-3 p-3 rounded bg-slate-700 text-white border border-slate-600 font-bold" required>
+                        <input id="resellerDiscord" placeholder="Discord Tag" class="w-full mb-6 p-3 rounded bg-slate-700 text-white border border-slate-600" required>
+                        <button class="w-full bg-purple-600 hover:bg-purple-500 py-3 rounded font-bold text-white shadow-lg transition">ENVIAR SOLICITUD</button>
+                    </form>
+                </div>
+            </div>`;
+        }
+
+        // --- MODAL: SETUP TIENDA (Post-Login o Post-Aprobación) ---
+        if(showModal === 'setupShop' && selectedOrder) {
+            return `
+            <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" onclick="logout(false); showToast('Cierre de sesión forzado por configuración incompleta.');">
+                <div class="${box}" onclick="event.stopPropagation()">
+                    <h2 class="text-2xl font-bold text-center mb-4 text-blue-400">Configura tu Tienda</h2>
+                    <p class="text-center text-slate-400 text-sm mb-6">Necesitas completar estos datos para ${selectedOrder.status === 'pending' ? 'activar' : 'continuar con'} tu panel de vendedor.</p>
+                    <form onsubmit="handleSetupShop(event)">
+                        <label class="text-xs text-slate-400 font-bold uppercase mb-1 block">Nombre de la Tienda</label>
+                        <input id="setupShopName" placeholder="Ej: Kaleb Store" value="${selectedOrder.shop_name||''}" class="w-full mb-4 p-3 rounded bg-slate-700 text-white border border-slate-600" required>
+                        
+                        <label class="text-xs text-slate-400 font-bold uppercase mb-1 block">Tu Discord</label>
+                        <input id="setupDiscord" placeholder="User#0000" value="${selectedOrder.discord_tag||''}" class="w-full mb-6 p-3 rounded bg-slate-700 text-white border border-slate-600" required>
+                        
+                        <button class="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded font-bold text-white shadow-lg transition">GUARDAR Y ENTRAR</button>
+                        <p class="text-center mt-4 text-xs text-red-500">Nota: Al cerrar esta ventana, se cerrará tu sesión.</p>
+                    </form>
+                </div>
+            </div>`;
+        }
+        
+        // --- MODAL: RESEÑA ---
+        if(showModal === 'review' && selectedOrder) {
+            return `
+            <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4 animate-bounce-in" ${close}>
+                <div class="${box} max-w-lg" onclick="event.stopPropagation()">
+                    <h2 class="text-2xl font-bold text-center mb-2 text-yellow-400">¿Cómo fue tu experiencia?</h2>
+                    <p class="text-center text-slate-400 mb-6">Evalúa al vendedor: <span class="font-bold text-white">${selectedOrder.seller_username}</span></p>
+
+                    <form onsubmit="handleSubmitReview(event)">
+                        <div class="mb-6 text-center">
+                            <label class="text-xs text-slate-400 font-bold uppercase mb-1 block">Calificación (1 a 5)</label>
+                            <select id="reviewRating" class="w-full p-3 rounded bg-slate-700 text-white border border-slate-600 text-center font-bold text-lg" required>
+                                <option value="5">⭐⭐⭐⭐⭐ Excelente</option>
+                                <option value="4">⭐⭐⭐⭐ Muy Bueno</option>
+                                <option value="3">⭐⭐⭐ Neutral</option>
+                                <option value="2">⭐⭐ Malo</option>
+                                <option value="1">⭐ Pésimo</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-6">
+                            <label class="text-xs text-slate-400 font-bold uppercase mb-1 block">Comentario (Opcional)</label>
+                            <textarea id="reviewComment" rows="3" placeholder="Comparte tu opinión sobre la entrega y el servicio..." class="w-full p-3 rounded bg-slate-700 text-white border border-slate-600 resize-none"></textarea>
+                        </div>
+
+                        <button type="submit" class="w-full bg-green-600 hover:bg-green-500 py-3 rounded font-bold text-white shadow-lg transition transform active:scale-95">
+                            ENVIAR RESEÑA
+                        </button>
+                    </form>
+                </div>
+            </div>`;
+        }
 
         return '';
     }
