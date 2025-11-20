@@ -3,7 +3,7 @@
  <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mu Online 99B Marketplace - V16 FINAL (SYNC REVIEWS)</title>
+  <title>Mu Online 99B Marketplace - V17 FINAL (FIX REGISTRO SYNC)</title>
   
   <script src="https://cdn.tailwindcss.com"></script>
   
@@ -147,7 +147,7 @@
 
   <script>
     // Nombre de la llave para guardar en el navegador
-    const DB_KEY = 'mu_marketplace_db_v16_final'; 
+    const DB_KEY = 'mu_marketplace_db_v17_final'; 
     
     // Inicializar DB desde LocalStorage al cargar
     let savedData = localStorage.getItem(DB_KEY);
@@ -239,7 +239,7 @@
     };
 
     // Clave de sesión
-    const SESSION_KEY = 'mu_session_user_v16_final';
+    const SESSION_KEY = 'mu_session_user_v17_final';
     
     // Variables de Timeout para Auto-Logout
     let inactivityTimeout;
@@ -498,6 +498,8 @@
       if (result.isOk) {
         showToast('Registro exitoso! Ahora puedes iniciar sesión');
         showModal = 'login';
+        // Agregamos notify aquí para asegurar la sincronización inmediata del nuevo usuario en el panel admin/global
+        window.mockDb.notify();
         render();
       } else {
         showToast('Error al registrar usuario');
@@ -534,6 +536,8 @@
       if (result.isOk) {
         showToast('Solicitud enviada! Espera aprobación del admin');
         showModal = null;
+        // Agregamos notify aquí para asegurar la sincronización inmediata del nuevo usuario en el panel admin/global
+        window.mockDb.notify();
         render();
       } else {
         showToast('Error al enviar solicitud');
@@ -1009,7 +1013,6 @@
       showToast('¡Gracias por tu reseña! (La tienda se ha actualizado)');
       showModal = null;
       selectedOrder = null;
-      // *** IMPORTANTE: Se elimina la llamada manual a render() para evitar conflictos de sincronización ***
     }
     
     // FUNCIONES DE IMPORTAR/EXPORTAR
@@ -1178,7 +1181,7 @@
           <header class="shadow-lg sticky top-0 z-40 bg-slate-800 border-b border-slate-700 p-4">
             <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
                 <div class="text-center md:text-left">
-                  <h1 class="text-2xl font-bold text-blue-400 tracking-tight">MU MARKET <span class="text-white text-xs bg-blue-600 px-1 rounded">V16</span></h1>
+                  <h1 class="text-2xl font-bold text-blue-400 tracking-tight">MU MARKET <span class="text-white text-xs bg-blue-600 px-1 rounded">V17</span></h1>
                   <p class="text-xs mt-1 opacity-60">${config.contact_info}</p>
                 </div>
                 <div class="flex flex-wrap gap-2 justify-center items-center">
