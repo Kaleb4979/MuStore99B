@@ -24,8 +24,8 @@ const TIMEOUT_LIMIT = 5 * 60 * 1000; // 5 minutos
 let currentUser = null;
 let currentView = 'catalog'; 
 let selectedCategory = 'all';
-let selectedShopFilter = null; // AHORA ES UUID
-let adminViewTarget = null; // AHORA ES UUID
+let selectedShopFilter = null; 
+let adminViewTarget = null; 
 let selectedProductToEdit = null;
 let managedUser = null;
 
@@ -88,13 +88,11 @@ const dataHandler = {
         if (currentUser) {
              const newOrderAlert = activityRecords.find(a => 
                  a.type === 'activity' && a.message && !a.dismissed && 
-                 // MANTENEMOS username para NOTIFICACIONES y UI, NO para RLS
                  (a.username === currentUser.username || currentUser.role === 'admin') 
              );
 
              if (newOrderAlert) {
                  showToast(`🔔 ${newOrderAlert.message}`);
-                 // Marcar como dismiss (ocultado) para que no vuelva a saltar
                  const updatedAlert = {...newOrderAlert, dismissed: true};
                  window.dataSdk.update(updatedAlert); 
              }
@@ -105,7 +103,7 @@ const dataHandler = {
         onlineUsers = new Set(
           activityRecords
              .filter(a => a.type === 'activity' && new Date(a.last_activity).getTime() > fiveMinutesAgo)
-             .map(a => a.username) // Usa username para la UI, pero el mapeo viene de dataSdk
+             .map(a => a.username)
         );
         
         validateCart(); 
@@ -116,16 +114,13 @@ const dataHandler = {
 // Manejador del Chat Realtime
 const chatHandler = {
     onMessageReceived(message) {
-        // Añadir el mensaje nuevo
         chatMessages.push(message);
         
-        // 🔔 Lógica de Notificación de Sonido
         if (currentUser && message.sender !== currentUser.username) { 
             playNotificationSound();
             if (navigator.vibrate) navigator.vibrate(200); 
         }
         
-        // Renderizar solo el modal si está abierto
         if (showModal === 'chat') {
             const messagesContainer = document.querySelector('.chat-messages');
             if (messagesContainer) {
@@ -151,7 +146,6 @@ function showToast(message) {
 }
 
 function getConfig() {
-    // Retorna la configuración remota (si existe) o la local
     return appConfig || defaultConfig; 
 }
 
@@ -163,11 +157,7 @@ function getCategoryIcon(id) {
 function getTopShops() {
       const resellers = allUsers.filter(u => u.role === 'reseller' && u.approved);
       const shopsStats = resellers.map(seller => {
-        // CORREGIDO: Usar seller.id (UUID) para buscar rating
         const { rating, reviewCount } = getShopRating(seller.id); 
-        
-        // CORREGIDO: Contar ventas por el ID del vendedor (seller.id)
-        // allOrders.seller es el UUID del vendedor
         const sales = allOrders.filter(o => o.seller === seller.id && o.order_status === 'completed').length; 
         
         return { 
@@ -181,9 +171,7 @@ function getTopShops() {
           .sort((a, b) => b.salesCount - a.salesCount).slice(0, 3); 
 }
 
-// CORREGIDO: Ahora recibe el ID del vendedor (UUID)
 function getShopRating(sellerId) { 
-    // CORREGIDO: Filtra por el reviewed_seller (que es el UUID)
     const reviews = allReviews.filter(r => r.reviewed_seller === sellerId); 
     const avg = reviews.length ? (reviews.reduce((a,b)=>a+b.rating,0)/reviews.length).toFixed(1) : 0;
     return { rating: parseFloat(avg), reviewCount: reviews.length };
@@ -201,7 +189,6 @@ function getStarHtml(rating) {
 function getSellerSalesMap() {
     const salesMap = {};
     allOrders.forEach(order => {
-        // CORREGIDO: Mapea las ventas usando el ID del vendedor (order.seller es el UUID)
         if (order.order_status === 'completed' && order.seller) { 
             salesMap[order.seller] = (salesMap[order.seller] || 0) + 1;
         }
@@ -209,7 +196,6 @@ function getSellerSalesMap() {
     return salesMap;
 }
 
-// Lógica para reproducir sonido de notificación
 function playNotificationSound() {
     const notificationSound = document.getElementById('notification-sound');
     if (notificationSound) {
@@ -244,18 +230,17 @@ async function handleLogin(e) {
     }
 
     // --- SECCIÓN CRÍTICA: Autenticación con Supabase Client ---
-    // Usar el cliente supabase global para iniciar sesión, lo que garantiza
-    // que el token JWT se guarde en la sesión del navegador para RLS.
-    // NOTA: Usamos un email ficticio para cumplir con el esquema auth.users
+    // Usar el email ficticio que se creó durante el registro
+    const emailFicticio = user.username.toLowerCase() + "@marketplace.com";
+    
     const { data, error } = await supabase.auth.signInWithPassword({
-        email: user.username + "@marketplace.com", 
+        email: emailFicticio, 
         password: password,
     });
 
     if (error) {
         console.error("Error de autenticación Supabase:", error);
-        // Si falla la autenticación de Supabase (e.g., el email no existe en auth.users)
-        showToast('❌ Error al iniciar sesión en el backend (Auth.users).'); 
+        showToast('❌ Error de autenticación. ¿Has intentado registrarte con el email ficticio?'); 
         return;
     }
     // --- FIN SECCIÓN CRÍTICA ---
@@ -271,6 +256,7 @@ async function handleLogin(e) {
     render();
 }
 
+// CORREGIDA: Usa supabase.auth.signUp para obtener un UUID válido
 async function handleRegisterBuyer(e) {
     e.preventDefault();
     const username = e.target.username.value;
@@ -282,8 +268,24 @@ async function handleRegisterBuyer(e) {
         return;
     }
 
+    const emailFicticio = username.toLowerCase() + "@marketplace.com";
+    
+    // --- CAMBIO CLAVE: Registrar en Supabase Auth ---
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: emailFicticio,
+        password: password,
+    });
+    
+    if (authError) {
+        console.error("Error Supabase Auth:", authError);
+        showToast('❌ Error de autenticación al registrar. ¿Email en uso?');
+        return;
+    }
+    // --- FIN CAMBIO CLAVE ---
+    
     const newUser = {
         type: 'user',
+        id: authData.user.id, // <<-- Tomar el UUID generado por Supabase Auth
         username,
         password,
         contact,
@@ -292,17 +294,24 @@ async function handleRegisterBuyer(e) {
         shop_name: null 
     };
 
-    const { isOk, item } = await window.dataSdk.create(newUser);
+    // Crear el registro en public.users
+    const { isOk } = await window.dataSdk.create(newUser);
 
     if (isOk) {
-        showToast('✅ Registro de comprador exitoso. Inicia sesión.');
-        showModal = 'login';
+        // Loguear inmediatamente
+        currentUser = newUser;
+        localStorage.setItem(SESSION_KEY, JSON.stringify(newUser)); 
+        showToast('✅ Registro de comprador exitoso. ¡Bienvenido!');
+        currentView = 'catalog';
+        updateUserActivity();
     } else {
-        showToast('❌ Error al registrar.');
+        showToast('❌ Error al registrar en la tabla de datos. (Intente de nuevo)');
     }
+    showModal = null;
     render();
 }
 
+// CORREGIDA: Usa supabase.auth.signUp para obtener un UUID válido
 async function handleRegisterReseller(e) {
     e.preventDefault();
     const username = e.target.username.value;
@@ -314,8 +323,24 @@ async function handleRegisterReseller(e) {
         return;
     }
 
+    const emailFicticio = username.toLowerCase() + "@marketplace.com";
+    
+    // --- CAMBIO CLAVE: Registrar en Supabase Auth ---
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: emailFicticio,
+        password: password,
+    });
+    
+    if (authError) {
+        console.error("Error Supabase Auth:", authError);
+        showToast('❌ Error de autenticación al registrar. ¿Email en uso?');
+        return;
+    }
+    // --- FIN CAMBIO CLAVE ---
+
     const newUser = {
         type: 'user',
+        id: authData.user.id, // <<-- Tomar el UUID generado por Supabase Auth
         username,
         password,
         contact,
@@ -323,24 +348,22 @@ async function handleRegisterReseller(e) {
         approved: false, // Debe ser aprobado por el admin
         shop_name: null 
     };
-
-    const { isOk, item } = await window.dataSdk.create(newUser);
+    
+    // Crear el registro en public.users
+    const { isOk } = await window.dataSdk.create(newUser);
 
     if (isOk) {
         showToast('✅ Solicitud enviada. Espera la aprobación del administrador.');
-        // Notificar al admin
         window.dataSdk.create({
             type: 'activity',
             username: ADMIN_CREDENTIALS.username,
             message: `⚠️ Nueva solicitud de revendedor de ${username}.`,
             dismissed: false,
-            // Asumiendo que el admin tiene un registro de actividad con su username.
-            // Si el admin está logueado, esta actividad fallará si no es admin.uid(), lo cual es esperado.
             last_activity: new Date().toISOString()
         });
         showModal = 'login';
     } else {
-        showToast('❌ Error al registrar solicitud.');
+        showToast('❌ Error al registrar solicitud en la tabla de datos.');
     }
     render();
 }
@@ -349,39 +372,31 @@ async function handleRegisterReseller(e) {
 async function updateUserActivity() {
     if (!currentUser) return; 
 
-    // Limpiar timeout anterior
     if (userActivityTimeout) clearTimeout(userActivityTimeout);
     
-    // CORRECCIÓN 1: Buscar por ID (UUID)
-    // Busca el campo 'user' mapeado en dataSdk.js (que es el UUID)
     const activityRecord = window.mockDb.data.find(a => 
         a.type === 'activity' && (a.user === currentUser.id || a.user === currentUser.__backendId) && a.last_activity
     );
     
     const newActivity = {
         type: 'activity',
-        // CORRECCIÓN 2: Usar user (UUID) para RLS
-        user: currentUser.id || currentUser.__backendId, // UUID requerido para RLS (UPDATE/INSERT)
-        username: currentUser.username, // Mantenido para la UI
+        user: currentUser.id || currentUser.__backendId, // UUID
+        username: currentUser.username, 
         message: `${currentUser.username} está en línea.`,
         last_activity: new Date().toISOString(),
         dismissed: true 
     };
 
     if (activityRecord) {
-        // Actualizar registro existente (UPDATE)
         await window.dataSdk.update({...activityRecord, last_activity: newActivity.last_activity});
     } else {
-        // Crear nuevo registro (INSERT)
         await window.dataSdk.create(newActivity); 
     }
 
-    // Programar la próxima actualización
     userActivityTimeout = setTimeout(updateUserActivity, 3 * 60 * 1000); // Cada 3 minutos
 }
 
 function logout(auto = false) { 
-    // AGREGAR UNSUBSCRIBE EN LOGOUT
     window.chatSdk.unsubscribe();
     
     if (userActivityTimeout) clearTimeout(userActivityTimeout);
@@ -421,9 +436,6 @@ async function handleSetupShop(e) {
     render();
 }
 
-// --- NUEVAS FUNCIONES DE CONFIGURACIÓN DE PÁGINA (ADMIN) ---
-
-// AÑADIDA: Función para guardar la configuración visual
 async function handleSaveSettings(e) {
     e.preventDefault();
     const form = e.target;
@@ -442,16 +454,13 @@ async function handleSaveSettings(e) {
         footer_text: form.footer_text.value
     };
 
-    // La configuración siempre se almacena como un solo registro en la tabla 'config'.
     const existingConfigItem = window.mockDb.data.find(item => item.type === 'config');
 
     let result;
     if (existingConfigItem) {
-        // Si existe, actualizamos
         const updatedConfig = { ...existingConfigItem, config: newConfig };
         result = await window.dataSdk.update(updatedConfig);
     } else {
-        // Si no existe, creamos
         const newConfigItem = { type: 'config', config: newConfig };
         result = await window.dataSdk.create(newConfigItem);
     }
@@ -464,7 +473,6 @@ async function handleSaveSettings(e) {
     render();
 }
 
-// Función para cargar la vista de configuración
 function loadSettingsView() {
     if (currentUser && currentUser.role === 'admin') {
         currentView = 'settings';
@@ -476,7 +484,6 @@ function loadSettingsView() {
 
 
 // --- Productos / Admin ---
-// CORREGIDO: ahora recibe el ID del vendedor (UUID)
 function openProductManagement(sellerId) { 
     adminViewTarget = sellerId;
     currentView = 'admin';
@@ -488,7 +495,6 @@ async function handleAddProduct(e) {
     const form = e.target;
     const newProduct = {
         type: 'product',
-        // CORREGIDO: Usar currentUser.id (UUID)
         seller: currentUser.id, 
         name: form.name.value,
         category: form.category.value,
@@ -563,7 +569,6 @@ function openManageUserModal(username) {
     render();
 }
 
-// CORREGIDO: Usar dataSdk.delete para eliminar registros individuales
 async function clearCompletedOrdersLog() {
     if (!confirm('¿Estás seguro de que quieres ELIMINAR permanentemente todas las órdenes completadas?')) return;
     const ordersToDelete = allOrders.filter(o => o.order_status === 'completed');
@@ -576,7 +581,6 @@ async function clearCompletedOrdersLog() {
     showToast(`⏳ Eliminando ${ordersToDelete.length} órdenes...`);
     let successfulDeletions = 0;
     
-    // Usamos Promise.all para hacer las eliminaciones en paralelo
     const deletionPromises = ordersToDelete.map(order => 
         window.dataSdk.delete(order).then(result => {
             if (result.isOk) successfulDeletions++;
@@ -656,7 +660,6 @@ async function deleteUserAccount(backendId) {
     render();
 }
 
-// CORREGIDO: Ahora usa el ID del vendedor (UUID) para filtrar productos
 function enterShopManagement(targetId) {
     selectedShopFilter = targetId;
     currentView = 'catalog';
@@ -686,7 +689,6 @@ function updateCartStorage() {
 function validateCart() {
     cart = cart.filter(cartItem => {
         const product = allProducts.find(p => p.__backendId === cartItem.backendId);
-        // El producto existe y el stock es suficiente
         return product && product.available && product.stock >= cartItem.quantity;
     });
     updateCartStorage();
@@ -740,7 +742,6 @@ function removeFromCart(index) {
     render();
 }
 
-// CORREGIDO: Ahora usa el ID (UUID) para filtrar la tienda
 function filterByShop(sellerId) { 
     selectedShopFilter = sellerId;
     currentView = 'catalog';
@@ -752,14 +753,12 @@ function clearShopFilter() {
     render();
 }
 
-// CORREGIDO: Usa el ID del usuario y el ID del vendedor para crear la orden
 async function createOrder() {
     if (cart.length === 0) {
         showToast('❌ El carrito está vacío.');
         return;
     }
     
-    // Agrupar por vendedor (seller es el UUID)
     const ordersBySeller = cart.reduce((acc, item) => {
         (acc[item.seller] = acc[item.seller] || []).push(item);
         return acc;
@@ -771,17 +770,14 @@ async function createOrder() {
         const items = ordersBySeller[sellerId];
         const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
-        // Obtener nombres de usuario para UI/Notificaciones (necesario si aún se usan)
         const buyerUser = allUsers.find(u => u.id === currentUser.id);
         const sellerUser = allUsers.find(u => u.id === sellerId);
 
         const newOrder = {
             type: 'order',
-            // CORREGIDO: Usar UUIDs
             buyer: currentUser.id,      // UUID del comprador
             seller: sellerId,           // UUID del vendedor
             
-            // Mantener usernames para la UI/Notificaciones (si las columnas existen en BD)
             buyer_username: buyerUser ? buyerUser.username : 'UnknownBuyer',
             seller_username: sellerUser ? sellerUser.username : 'UnknownSeller', 
 
@@ -794,7 +790,6 @@ async function createOrder() {
         const { isOk } = await window.dataSdk.create(newOrder);
 
         if (isOk) {
-            // Notificar al vendedor (usa username para la UI)
             window.dataSdk.create({
                 type: 'activity',
                 username: sellerUser.username,
@@ -803,7 +798,6 @@ async function createOrder() {
                 last_activity: new Date().toISOString()
             });
             
-            // Reducir el stock de los productos
             for (const cartItem of items) {
                 const product = allProducts.find(p => p.__backendId === cartItem.backendId);
                 if (product) {
@@ -886,7 +880,6 @@ async function handleSubmitReview(e) {
         type: 'review',
         order_id: orderId,
         reviewer_username: currentUser.username,
-        // CORREGIDO: Usa el ID del vendedor (order.seller es el UUID)
         reviewed_seller: order.seller, 
         rating: rating,
         comment: comment,
@@ -916,11 +909,9 @@ async function openChatModal(orderId) {
     showModal = 'chat';
     render(); 
     
-    // Iniciar la suscripción de chat y obtener mensajes iniciales
     const initialMessages = await window.chatSdk.subscribeToOrder(orderId, chatHandler);
     chatMessages = initialMessages;
     
-    // Forzar el renderizado de mensajes iniciales y el scroll
     setTimeout(() => {
           const messagesContainer = document.querySelector('.chat-messages');
           if (messagesContainer) {
@@ -946,7 +937,6 @@ function handleChatMessageSend(e) {
     const content = input.value;
     if (!content.trim()) return;
     
-    // Usar el SDK real de Supabase
     window.chatSdk.sendMessage(chatTargetOrder.__backendId, currentUser.username, content);
     input.value = ''; 
     
@@ -977,7 +967,6 @@ function renderChatMessages(container) {
     }).join('');
     
     container.innerHTML = messagesHtml;
-    // El scroll se maneja en el handler y en handleChatMessageSend
 }
 
 
@@ -987,9 +976,8 @@ function renderChatMessages(container) {
 
 function render() {
     const app = document.getElementById('app');
-    const config = getConfig(); // Obtiene la config remota o local
+    const config = getConfig(); 
     
-    // Aplica estilos al body desde la configuración
     document.body.style.backgroundColor = config.background_color;
     document.body.style.color = config.text_color;
     document.body.style.fontSize = `${config.font_size}px`;
@@ -1001,7 +989,7 @@ function render() {
     else if (currentView === 'cart') content = renderCart();
     else if (currentView === 'orders') content = renderOrders();
     else if (currentView === 'admin') content = renderAdmin();
-    else if (currentView === 'settings') content = renderSettings(); // <-- NUEVO: Vista de Configuración
+    else if (currentView === 'settings') content = renderSettings(); 
 
     app.innerHTML = content;
 
@@ -1031,7 +1019,7 @@ function renderHeader(config) {
         ? `<button onclick="loadAdminView()" class="bg-yellow-500 hover:bg-yellow-600 text-gray-900 font-bold py-2 px-4 rounded transition ml-2">Admin</button>`
         : '';
         
-    const settingsButton = (currentUser && currentUser.role === 'admin') // <-- BOTÓN DE CONFIGURACIÓN
+    const settingsButton = (currentUser && currentUser.role === 'admin')
         ? `<button onclick="loadSettingsView()" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded transition ml-2">⚙️ Config</button>`
         : '';
 
@@ -1067,7 +1055,6 @@ function renderHeader(config) {
     `;
 }
 
-// --- NUEVO: Renderizado de la Vista de Configuración ---
 function renderSettings() {
     const config = getConfig();
 
@@ -1158,16 +1145,13 @@ function renderSettings() {
 
 function renderCatalog() {
     const config = getConfig();
-    const availableProducts = allProducts.filter(p => p.available && (currentUser && currentUser.role === 'reseller' ? p.seller === currentUser.id : true)); // Usar seller.id
+    const availableProducts = allProducts.filter(p => p.available && (currentUser && currentUser.role === 'reseller' ? p.seller === currentUser.id : true));
     
-    // Aplicar filtro por categoría
     let filteredProducts = selectedCategory === 'all'
         ? availableProducts
         : availableProducts.filter(p => p.category === selectedCategory || (selectedCategory === 'promotions' && p.is_promotion));
         
-    // Aplicar filtro por tienda
     if (selectedShopFilter) {
-        // CORREGIDO: Filtra por el ID del vendedor (UUID)
         filteredProducts = filteredProducts.filter(p => p.seller === selectedShopFilter); 
     }
         
@@ -1199,7 +1183,6 @@ function renderCatalog() {
     `).join('');
 
     const productsHtml = filteredProducts.map(p => {
-        // CORREGIDO: Buscar por ID (p.seller es el UUID)
         const shop = allUsers.find(u => u.id === p.seller);
         const shopName = shop ? shop.shop_name || shop.username : 'Vendedor Desconocido';
         const isReseller = shop && shop.role === 'reseller';
@@ -1230,7 +1213,7 @@ function renderCatalog() {
                             class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 rounded transition">
                             Añadir al Carrito
                         </button>`
-                        : (currentUser && currentUser.role === 'reseller' && p.seller === currentUser.id) // Compara con UUID
+                        : (currentUser && currentUser.role === 'reseller' && p.seller === currentUser.id)
                         ? `<button onclick="openEditModal('${p.__backendId}')" 
                             class="w-full bg-yellow-500 hover:bg-yellow-600 text-gray-900 font-bold py-2 rounded transition">
                             Editar Producto
@@ -1290,7 +1273,6 @@ function renderCart() {
     const cartHtml = cart.map((item, index) => {
         const product = allProducts.find(p => p.__backendId === item.backendId);
         const productValid = product && product.available && product.stock >= item.quantity;
-        // CORREGIDO: Busca el nombre por ID
         const shop = allUsers.find(u => u.id === item.seller); 
         const shopName = shop ? shop.shop_name || shop.username : 'Vendedor Desconocido';
 
@@ -1358,14 +1340,13 @@ function renderOrders() {
         return `<div class="p-6 text-center text-red-500">Acceso denegado.</div>`;
     }
     
-    // Filtrar órdenes por el usuario actual (usa los campos 'buyer'/'seller' que son los UUIDs)
     const myOrders = allOrders.filter(o => 
         o.buyer === currentUser.id || o.seller === currentUser.id
     ).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
     const ordersHtml = myOrders.map(order => {
-        const isBuyer = order.buyer === currentUser.id; // Usa UUID
-        const partner = isBuyer ? order.seller_username : order.buyer_username; // Usa username para la UI
+        const isBuyer = order.buyer === currentUser.id; 
+        const partner = isBuyer ? order.seller_username : order.buyer_username; 
         
         let statusClass = '';
         let statusText = '';
@@ -1439,7 +1420,7 @@ function renderOrders() {
                     </div>
                     <div>
                         <p class="text-xs text-gray-400">Total:</p>
-                        <p class="text-green-400 text-lg font-bold">${order.total_price} Zen}</p>
+                        <p class="text-green-400 text-lg font-bold">${order.total_price} Zen</p>
                     </div>
                 </div>
 
@@ -1480,11 +1461,9 @@ function renderAdmin() {
     let content = '';
     const targetUser = allUsers.find(u => u.id === adminViewTarget);
 
-    if (adminViewTarget && targetUser) { // Usar targetUser.id
-        // Vista de Gestión de Tienda Específica
+    if (adminViewTarget && targetUser) { 
         content = renderShopManagement(targetUser);
     } else {
-        // Vista de Dashboard Admin General
         const pendingResellers = allUsers.filter(u => u.role === 'reseller' && !u.approved);
         const allResellers = allUsers.filter(u => u.role === 'reseller' && u.approved);
         const allBuyers = allUsers.filter(u => u.role === 'buyer');
@@ -1498,7 +1477,6 @@ function renderAdmin() {
         
         const resellerHtml = allResellers.map(u => {
             const shopName = u.shop_name || 'Sin Tienda';
-            // CORREGIDO: Usar el ID del vendedor para mapear ventas
             const sales = getSellerSalesMap()[u.id] || 0; 
             return `
                 <div class="flex justify-between items-center p-3 mb-2 rounded-lg bg-slate-700">
@@ -1567,12 +1545,11 @@ function renderAdmin() {
     `;
 }
 
-// CORREGIDO: Acepta el objeto de usuario (targetUser)
 function renderShopManagement(targetUser) { 
     const config = getConfig();
-    const targetId = targetUser.id; // UUID
+    const targetId = targetUser.id; 
 
-    const products = allProducts.filter(p => p.seller === targetId); // Filtra por ID
+    const products = allProducts.filter(p => p.seller === targetId); 
     const shopName = targetUser.shop_name || targetUser.username;
 
     const productsHtml = products.map(p => `
@@ -1600,7 +1577,8 @@ function renderShopManagement(targetUser) {
             <div class="lg:col-span-1 p-6 rounded-xl shadow-xl" style="background-color: ${config.card_background};">
                 <h3 class="text-2xl font-bold mb-4">➕ Agregar Nuevo Producto</h3>
                 <form onsubmit="handleAddProduct(event)">
-                    <input type="hidden" name="seller" value="${targetUser.id}"> <div class="mb-3">
+                    <input type="hidden" name="seller" value="${targetUser.id}"> 
+                    <div class="mb-3">
                         <label class="block text-sm font-medium mb-1">Nombre</label>
                         <input type="text" name="name" required class="w-full p-2 rounded bg-slate-800 border border-slate-700">
                     </div>
@@ -1871,7 +1849,6 @@ function renderModal() {
             break;
     }
 
-    // Estructura de Modal Base
     return `
         <div class="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onclick="if(showModal !== 'chat') {showModal = null; render();}">
             <div class="relative w-full max-w-lg rounded-xl shadow-2xl animate-bounce-in" 
@@ -1891,7 +1868,6 @@ function renderModal() {
 
 // --- Inicialización ---
 async function init() {
-    // Nota: SESSION_KEY ahora es global gracias a la modificación en dataSdk.js
     const storedUser = localStorage.getItem(SESSION_KEY);
     if (storedUser) {
       currentUser = JSON.parse(storedUser);
@@ -1900,7 +1876,6 @@ async function init() {
 
     setupAutoLogout();
 
-    // Iniciar SDK de Datos (lee de Supabase y notifica a dataHandler)
     const { isOk } = await window.dataSdk.init(dataHandler);
     
     if (currentUser) {
@@ -1911,7 +1886,6 @@ async function init() {
             return; 
         }
         
-        // Solo llamar si la lectura de datos fue OK
         if(isOk) {
             updateUserActivity();
         } else {
