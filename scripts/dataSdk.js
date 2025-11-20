@@ -2,8 +2,7 @@
 // == 1. CONFIGURACIÓN CRÍTICA (SUPABASE ÚNICAMENTE)      ==
 // =========================================================
 
-// --- Supabase Config ---
-// ⚠️ TUS CLAVES REALES (CONFIRMADAS)
+// NOTA: Asegúrate de que tus claves REALES están aquí
 const SUPABASE_URL = 'https://ciysaobejtxfkpmbmswb.supabase.co'; 
 const SUPABASE_ANON_KEY = 'sb_publishable_ZVQXNGvJjurUNtqZNQrnPg_aw_wW9gY'; 
 
@@ -13,8 +12,9 @@ const TABLE_NAMES = {
     'product': 'products',
     'order': 'orders',
     'review': 'reviews',
-    'activity': 'activities',
-    'config': 'config'
+    'activity': 'activities', // Nueva tabla
+    'config': 'config',
+    'message': 'messages' // Nueva tabla para chat
 };
 
 const DB_KEY = 'mu_marketplace_db_v22_final'; 
@@ -24,7 +24,6 @@ const SESSION_KEY = 'mu_session_user_v22_final';
 let supabase = null;
 let chatSubscription = null;
 
-// Función placeholder para showToast (se define en app.js)
 function showToast(message) {
     if (window.app && window.app.showToast) {
         window.app.showToast(message);
@@ -87,19 +86,21 @@ window.dataSdk = {
         if (!supabase) return { isOk: false };
         
         try {
-            // Utilizamos el mapeo 'id' a '__backendId' para compatibilidad.
+            // Mapeamos 'id' a '__backendId' para compatibilidad con el frontend
             const [users, products, orders, reviews, activities, config] = await Promise.all([
                 supabase.from(TABLE_NAMES.user).select('*, __backendId:id'),
-                // AÑADIDO: Seleccionamos el seller_id (UUID)
+                // Seleccionamos el seller_id (UUID)
                 supabase.from(TABLE_NAMES.product).select('*, __backendId:id, seller_id'), 
-                supabase.from(TABLE_NAMES.order).select('*, __backendId:id'),
-                supabase.from(TABLE_NAMES.review).select('*, __backendId:id'),
-                supabase.from(TABLE_NAMES.activity).select('*, __backendId:id'),
+                // Seleccionamos buyer_id y seller_id (UUIDs)
+                supabase.from(TABLE_NAMES.order).select('*, __backendId:id, buyer_id, seller_id'),
+                // Seleccionamos reviewed_seller_id (UUID)
+                supabase.from(TABLE_NAMES.review).select('*, __backendId:id, reviewed_seller_id'), 
+                // Seleccionamos user_id (UUID)
+                supabase.from(TABLE_NAMES.activity).select('*, __backendId:id, user_id'), 
                 supabase.from(TABLE_NAMES.config).select('config, id').limit(1).single() 
             ]);
 
-            // Manejo de errores (Si falla, asumimos que es RLS y lo notificamos)
-            if (users.error || products.error || orders.error) {
+            if (users.error || products.error || orders.error || activities.error || reviews.error) {
                 console.error("Error leyendo tablas:", users.error || products.error || orders.error);
                 showToast('❌ Error de lectura de datos. Revise políticas RLS.');
                 return { isOk: false };
@@ -107,14 +108,41 @@ window.dataSdk = {
 
             // Normalizar y combinar los datos
             const combinedData = [
-                // Los usuarios son el único item que NO necesita mapeo adicional (ya es UUID)
+                // USERS: usa su ID nativo
                 ...(users.data || []).map(u => ({ ...u, type: 'user', __backendId: u.id })), 
-                // AÑADIDO: Mapeo de producto. El 'seller' ahora es el UUID del vendedor.
-                ...(products.data || []).map(p => ({ ...p, type: 'product', __backendId: p.id, seller: p.seller_id })),
-                // AÑADIDO: Mapeo de order. buyer/seller_username aún se usan si no migraste las FK de 'orders'
-                ...(orders.data || []).map(o => ({ ...o, type: 'order', __backendId: o.id })), 
-                ...(reviews.data || []).map(r => ({ ...r, type: 'review', __backendId: r.id })),
-                ...(activities.data || []).map(a => ({ ...a, type: 'activity', __backendId: a.id })),
+                
+                // PRODUCTS: Mapeo seller_id -> seller (para que la UI pueda usar .seller)
+                ...(products.data || []).map(p => ({ 
+                    ...p, 
+                    type: 'product', 
+                    __backendId: p.id, 
+                    seller: p.seller_id // Mapeo UUID
+                })),
+                
+                // ORDERS: Mapeo buyer_id/seller_id -> buyer/seller (para que la UI pueda usarlos)
+                ...(orders.data || []).map(o => ({ 
+                    ...o, 
+                    type: 'order', 
+                    __backendId: o.id, 
+                    buyer: o.buyer_id, // Mapeo UUID
+                    seller: o.seller_id // Mapeo UUID
+                })), 
+                
+                // REVIEWS: Mapeo reviewed_seller_id -> reviewed_seller
+                ...(reviews.data || []).map(r => ({ 
+                    ...r, 
+                    type: 'review', 
+                    __backendId: r.id, 
+                    reviewed_seller: r.reviewed_seller_id // Mapeo UUID
+                })),
+                
+                // ACTIVITIES: Mapeo user_id -> user
+                ...(activities.data || []).map(a => ({ 
+                    ...a, 
+                    type: 'activity', 
+                    __backendId: a.id, 
+                    user: a.user_id // Mapeo UUID
+                })), 
             ];
 
             // Añadir configuración (si existe)
@@ -134,18 +162,27 @@ window.dataSdk = {
         }
     },
     
-    // CREATE (Se mapea a INSERT)
+    // Función centralizada de escritura (CREATE/INSERT)
     create: async (item) => {
         if (!supabase) return { isOk: false };
         const tableName = window.dataSdk.getTableFromItem(item);
         
-        // El producto usa seller_id, el resto usa sus campos normales
-        const insertData = (item.type === 'product' && item.seller) 
-                           ? { ...item, seller_id: item.seller } 
-                           : item;
+        // Mapeo inverso de la UI a la BD para INSERT: 
+        let insertData = { ...item };
 
-        // Eliminamos las claves de mapeo y __backendId antes de insertar
-        const { __backendId, type, seller, id, ...finalInsertData } = insertData;
+        if (item.type === 'product' && item.seller) {
+            insertData.seller_id = item.seller; // seller (UUID) -> seller_id
+        } else if (item.type === 'order' && item.buyer && item.seller) {
+            insertData.buyer_id = item.buyer;   // buyer (UUID) -> buyer_id
+            insertData.seller_id = item.seller; // seller (UUID) -> seller_id
+        } else if (item.type === 'review' && item.reviewed_seller) {
+             insertData.reviewed_seller_id = item.reviewed_seller; // seller (UUID) -> reviewed_seller_id
+        } else if (item.type === 'activity' && item.user_id) {
+             insertData.user_id = item.user_id; // user (UUID) -> user_id
+        }
+
+        // Limpiar claves de mapeo y auxiliares (type, __backendId, etc.) antes de insertar
+        const { __backendId, type, seller, buyer, user, id, ...finalInsertData } = insertData;
         
         const { data, error } = await supabase
             .from(tableName)
@@ -162,18 +199,28 @@ window.dataSdk = {
         return { isOk: true, item: { ...data[0], type: item.type, __backendId: data[0].id } };
     },
 
-    // UPDATE (Se mapea a UPDATE con filtro por ID)
+    // Función centralizada de actualización (UPDATE)
     update: async (item) => {
         if (!supabase) return { isOk: false };
         const tableName = window.dataSdk.getTableFromItem(item);
         
-        // El producto usa seller_id, el resto usa sus campos normales
-        const updateData = (item.type === 'product' && item.seller) 
-                           ? { ...item, seller_id: item.seller } 
-                           : item;
+        // Mapeo inverso de la UI a la BD para UPDATE
+        let updateData = { ...item };
+        
+        if (item.type === 'product' && item.seller) {
+            updateData.seller_id = item.seller;
+        } else if (item.type === 'order' && item.buyer && item.seller) {
+            updateData.buyer_id = item.buyer;
+            updateData.seller_id = item.seller;
+        } else if (item.type === 'review' && item.reviewed_seller) {
+             updateData.reviewed_seller_id = item.reviewed_seller;
+        } else if (item.type === 'activity' && item.user_id) {
+             updateData.user_id = item.user_id;
+        }
 
-        // Quitamos __backendId, type, seller (que es el mapeo) y id para la actualización
-        const { __backendId, type, seller, id, ...finalUpdateData } = updateData;
+
+        // Quitamos claves de mapeo, auxiliares y la ID nativa (ya que la usamos en .eq)
+        const { __backendId, type, seller, buyer, user, id, ...finalUpdateData } = updateData;
 
         // Filtramos por la ID nativa de Supabase (item.id o item.__backendId)
         const { data, error } = await supabase
@@ -223,7 +270,6 @@ window.dataSdk = {
 // == 4. SDK DE CHAT (SUPABASE REALTIME)                  ==
 // =========================================================
 window.chatSdk = {
-    // ... (El código del chat se mantiene igual, no hubo cambios en la tabla 'messages')
     
     CHAT_TABLE_NAME: 'messages',
 
@@ -231,7 +277,7 @@ window.chatSdk = {
         if (!supabase) return [];
         
         const { data, error } = await supabase
-            .from('messages') 
+            .from(TABLE_NAMES.message) 
             .select('id, sender, content, created_at, order_id')
             .eq('order_id', orderId)
             .order('created_at', { ascending: true });
@@ -251,7 +297,7 @@ window.chatSdk = {
         if (!supabase || !content.trim()) return;
         
         const { error } = await supabase
-            .from('messages') 
+            .from(TABLE_NAMES.message) 
             .insert([{ order_id: orderId, sender: sender, content: content }]);
             
         if (error) {
@@ -291,7 +337,7 @@ window.chatSdk = {
                 { 
                     event: 'INSERT', 
                     schema: 'public', 
-                    table: 'messages', 
+                    table: TABLE_NAMES.message, 
                     filter: `order_id=eq.${orderId}` 
                 },
                 window.chatSdk.handleRealtimeChange
