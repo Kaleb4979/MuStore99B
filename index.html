@@ -3,12 +3,12 @@
  <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mu Online 99B Marketplace - V29 (Chat con Supabase Realtime)</title>
-
-  <script src="https://cdn.tailwindcss.com"></script>
-  
+  <title>Mu Online 99B Marketplace - V30 (Chat Realtime Supabase)</title>
+ 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   
+  <script src="https://cdn.tailwindcss.com"></script>
+ 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet">
@@ -106,33 +106,6 @@
       background: linear-gradient(145deg, rgba(205,127,50,0.1), rgba(0,0,0,0.4));
     }
 
-    /* Indicador de Usuario Online (Punto Verde) */
-    .live-indicator {
-      height: 12px;
-      width: 12px;
-      background-color: #22c55e; /* Green-500 */
-      border-radius: 50%;
-      display: inline-block;
-      margin-left: 8px;
-      box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
-      animation: pulse-green 2s infinite;
-    }
-
-    @keyframes pulse-green {
-      0% {
-        transform: scale(0.95);
-        box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
-      }
-      70% {
-        transform: scale(1);
-        box-shadow: 0 0 0 10px rgba(34, 197, 94, 0);
-      }
-      100% {
-        transform: scale(0.95);
-        box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
-      }
-    }
-    
     /* Animación Bounce In */
     @keyframes bounceIn {
         0% { transform: scale(0.8); opacity: 0; }
@@ -186,23 +159,18 @@
     const DB_KEY = 'mu_marketplace_db_v22_final'; 
     const SESSION_KEY = 'mu_session_user_v22_final';
     
-    // 📢 CONFIGURACIÓN SUPABASE (CHAT REALTIME)
-    // *** 🚨 REEMPLAZAR CON SUS CLAVES REALES DE SUPABASE 🚨 ***
+    // 📢 CONFIGURACIÓN SUPABASE (CHAT REALTIME) - UTILIZAR LOS VALORES REALES
+    // NOTA: Estas claves son públicas y se exponen en el cliente.
     const SUPABASE_URL = 'https://ciysaobejtxfkpmbmswb.supabase.co'; 
-    const SUPABASE_ANON_KEY = 'sb_publishable_ZVQXNGvJjurUNtqZNQrnPg_aw_wW9gY';
-    const CHAT_TABLE_NAME = 'messages'; // Nombre de tu tabla de mensajes en Supabase
-    // ---------------------------------------------------------
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNpeXNhb2JlanR4ZmtwbWJtc3diIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM2MTAyNTksImV4cCI6MjA3OTE4NjI1OX0.WDg1v-2UK8yow7uXK8UyqOt3xOp_-BMMEVqyJeExb3w'; 
     
-    // 2. INICIALIZAR CLIENTE SUPABASE
-    let supabase = null;
-    if (SUPABASE_URL !== 'https://su_instancia.supabase.co' && SUPABASE_ANON_KEY !== 'su_clave_publica_anonima' && window.supabase) {
-        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        // showToast('✅ Cliente Supabase inicializado.'); // Se comenta para evitar spam
+    let supabaseClient = null;
+    if (window.supabase) {
+        supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     } else {
-        console.warn("Supabase no inicializado. Usando la simulación local de chat.");
+        console.error("SDK de Supabase no cargado. El chat no funcionará en tiempo real.");
     }
     // ---------------------------------------------------------
-
 
     // Base de datos simulada (solo para mantener la estructura, los datos reales vienen del BIN)
     window.mockDb = {
@@ -224,7 +192,7 @@
     };
 
     // ---------------------------------------------------------
-    // SDK Base de Datos (Conexión JSONBin) - SIN CAMBIOS
+    // SDK Base de Datos (Conexión JSONBin)
     // ---------------------------------------------------------
     window.dataSdk = {
         init: async (handler) => {
@@ -344,189 +312,99 @@
             return { isOk: result.isOk };
         }
     };
-  </script>
- </head>
- <body>
-  <div id="app" class="min-h-full"></div>
-  
-  <script>
-    // ---------------------------------------------------------
-    // 1. CONFIGURACIÓN Y CONSTANTES
-    // ---------------------------------------------------------
-    const defaultConfig = {
-      site_title: "Mu Online 99B Marketplace",
-      contact_info: "Contacto: Discord/WhatsApp",
-      background_color: "#0f172a", // Slate-900
-      card_background: "#1e293b", // Slate-800
-      text_color: "#f1f5f9", // Slate-100
-      primary_button: "#3b82f6", // Blue-500
-      secondary_button: "#10b981", // Emerald-500
-      font_family: "Inter",
-      font_size: 16
-    };
-
-    // Variables de Timeout para Auto-Logout
-    let inactivityTimeout;
-    const TIMEOUT_LIMIT = 5 * 60 * 1000; // 5 minutos
 
     // ---------------------------------------------------------
-    // 2. ESTADO GLOBAL (VARIABLES EN MEMORIA)
+    // 3. SDK DE CHAT REALTIME (Conexión REAL a Supabase)
     // ---------------------------------------------------------
-    let currentUser = null;
-    let currentView = 'catalog'; // 'catalog', 'cart', 'orders', 'admin'
-    let selectedCategory = 'all';
-    let selectedShopFilter = null;
+    let chatChannel = null;
     
-    // Variables para el "Modo Dios" del Admin
-    let adminViewTarget = null; 
-    let selectedProductToEdit = null; 
-    let managedUser = null; 
-
-    // Arrays de datos (Poblados por dataSdk.read)
-    let allProducts = [];
-    let allUsers = [];
-    let allOrders = [];
-    let allReviews = []; 
-    
-    // Carrito
-    let cart = JSON.parse(localStorage.getItem('mu_cart_v22') || '[]');
-    
-    // Control de Modales
-    let showModal = null; 
-    let selectedOrder = null; 
-    
-    // ESTADO DEL CHAT
-    let chatTargetOrder = null; 
-    let chatMessages = []; // Almacena mensajes
-    let chatSubscription = null; // Variable para la suscripción de Supabase
-    
-    // Categorías del Mu Online
-    const CATEGORIES = [
-      { id: 'all', name: 'Todos', icon: '🎮' },
-      { id: 'promotions', name: 'Promociones', icon: '🔥' },
-      { id: 'items', name: 'Items', icon: '⚔️' },
-      { id: 'jewels', name: 'Joyas', icon: '💎' },
-      { id: 'wings', name: 'Alas', icon: '🦅' },
-      { id: 'sets', name: 'Sets', icon: '🛡️' }
-    ];
-
-    // Credenciales del Admin Supremo
-    const ADMIN_CREDENTIALS = {
-      username: 'Kaleb',
-      password: 'Kaleb.2021',
-      discord_tag: 'KalebAdmin#9999'
-    };
-    
-    // Control de Usuarios Online
-    let onlineUsers = new Set();
-    let userActivityTimeout = null;
-
-    // ---------------------------------------------------------
-    // 3. SDK DE CHAT (INTEGRACIÓN SUPABASE REALTIME)
-    // ---------------------------------------------------------
     window.chatSdk = {
         
-        // FUNCIÓN PARA OBTENER EL HISTORIAL DE MENSAJES
-        getMessages: async (orderId) => {
-            if (!supabase) return [];
+        // 🚨 3.1. FUNCIÓN DE ENVÍO DE MENSAJE (Inserción en la tabla 'chats')
+        sendMessage: async (orderId, sender, content) => {
+            if (!supabaseClient || !content.trim()) {
+                showToast('❌ Error de conexión o mensaje vacío.');
+                return;
+            }
             
-            const { data, error } = await supabase
-                .from(CHAT_TABLE_NAME)
-                .select('id, sender, content, created_at, order_id')
+            // Asegúrese de que la tabla 'chats' exista en su Supabase con la columna 'order_id'
+            const { error } = await supabaseClient
+                .from('chats')
+                .insert({ 
+                    order_id: orderId, 
+                    sender: sender, 
+                    content: content 
+                });
+
+            if (error) {
+                console.error("Error al enviar mensaje a Supabase:", error);
+                showToast('❌ Error al enviar mensaje: ' + error.message);
+            }
+        },
+
+        // 🚨 3.2. FUNCIÓN DE SUSCRIPCIÓN (Realtime y Carga Inicial)
+        subscribeToOrder: async (orderId) => {
+            if (!supabaseClient) {
+                showToast('❌ Error: Supabase Client no inicializado.');
+                return;
+            }
+
+            // 1. Desuscribirse del canal anterior
+            window.chatSdk.unsubscribe();
+            
+            // 2. Cargar historial de mensajes (primero)
+            const { data, error } = await supabaseClient
+                .from('chats')
+                .select('sender, content, created_at') // Seleccionamos solo las columnas necesarias
                 .eq('order_id', orderId)
                 .order('created_at', { ascending: true });
-                
+
             if (error) {
-                console.error('Error al obtener mensajes de Supabase:', error);
-                showToast('❌ Error al cargar mensajes del chat.');
-                return [];
+                console.error("Error al cargar historial de chat:", error);
+                showToast('❌ Error al cargar historial de chat.');
+                chatMessages = [{ sender: 'System', content: 'No se pudo cargar el chat.', created_at: new Date().toISOString() }];
+                window.chatSdk.listener(orderId); // Renderizar con mensaje de error
+                return;
             }
-            // Mapear created_at a timestamp para mantener consistencia con el código original
-            return data.map(msg => ({
-                ...msg,
-                timestamp: msg.created_at
-            }));
+            
+            chatMessages = data || [];
+            window.chatSdk.listener(orderId); // Renderizar historial
+            
+            // 3. Suscribirse a nuevos mensajes (Realtime)
+            // Se asume que usted habilitó la opción de Realtime para la tabla 'chats' en Supabase
+            chatChannel = supabaseClient.channel(`chat_${orderId}`);
+            
+            chatChannel
+                .on('postgres_changes', 
+                    { event: 'INSERT', schema: 'public', table: 'chats', filter: `order_id=eq.${orderId}` },
+                    (payload) => {
+                        // Un nuevo mensaje llegó, añadirlo y re-renderizar
+                        chatMessages.push(payload.new);
+                        window.chatSdk.listener(orderId);
+                        showToast(`🔔 Nuevo mensaje de ${payload.new.sender}`);
+                    }
+                )
+                .subscribe();
+
+            showToast('💬 Chat iniciado. Conectado en tiempo real con Supabase.');
         },
 
-        // FUNCIÓN PARA ENVIAR UN MENSAJE
-        sendMessage: async (orderId, sender, content) => {
-            if (!supabase || !content.trim()) return;
-            
-            const { error } = await supabase
-                .from(CHAT_TABLE_NAME)
-                .insert([
-                    {
-                        order_id: orderId,
-                        sender: sender,
-                        content: content,
-                        // created_at se genera automáticamente en Supabase si la columna está configurada
-                    }
-                ]);
-                
-            if (error) {
-                console.error('Error al enviar mensaje a Supabase:', error);
-                showToast('❌ Error al enviar mensaje.');
-            }
-        },
-
-        // MANEJADOR DE CAMBIOS DE REALTIME
-        handleRealtimeChange: (payload) => {
-            console.log('Realtime Change:', payload);
-            
-            if (payload.eventType === 'INSERT' && payload.new) {
-                const newMessage = {
-                    id: payload.new.id,
-                    sender: payload.new.sender,
-                    content: payload.new.content,
-                    timestamp: payload.new.created_at || new Date().toISOString()
-                };
-                
-                // Solo añadir si no existe (evita duplicados si se refresca la vista después de un INSERT)
-                if (!chatMessages.find(msg => msg.id === newMessage.id)) {
-                    chatMessages.push(newMessage);
-                    // Esto forza la actualización solo del modal de chat si está abierto
-                    if (showModal === 'chat') {
-                        const messagesContainer = document.querySelector('.chat-messages');
-                        if (messagesContainer) {
-                            renderChatMessages(messagesContainer);
-                        }
-                    }
+        // 3.3. Función para re-renderizar la interfaz de chat
+        listener: (orderId) => {
+            // Esto forza la actualización solo del modal de chat si está abierto
+            if (showModal === 'chat') {
+                const messagesContainer = document.querySelector('.chat-messages');
+                if (messagesContainer) {
+                    renderChatMessages(messagesContainer);
                 }
             }
         },
 
-        // FUNCIÓN PARA INICIAR LA SUSCRIPCIÓN EN TIEMPO REAL
-        subscribeToOrder: async (orderId) => {
-            if (!supabase) {
-                showToast('⚠️ Supabase no configurado. Chat en modo simulado/local.');
-                return;
-            }
-            
-            // 1. Limpiar suscripción anterior si existe
-            window.chatSdk.unsubscribe();
-            
-            // 2. Cargar mensajes iniciales
-            chatMessages = await window.chatSdk.getMessages(orderId);
-            
-            // 3. Crear la suscripción al canal
-            chatSubscription = supabase
-                .channel(`chat-order-${orderId}`) // Un canal único para cada orden
-                .on(
-                    'postgres_changes',
-                    { event: 'INSERT', schema: 'public', table: CHAT_TABLE_NAME, filter: `order_id=eq.${orderId}` },
-                    window.chatSdk.handleRealtimeChange
-                )
-                .subscribe();
-            
-            showToast('💬 Chat Realtime iniciado con Supabase.');
-        },
-
-        // FUNCIÓN PARA CERRAR LA SUSCRIPCIÓN
+        // 3.4. Función que se llamaría al cerrar el chat
         unsubscribe: () => {
-            if (chatSubscription) {
-                supabase.removeChannel(chatSubscription);
-                chatSubscription = null;
-                // console.log('Chat Subscription Unsubscribed');
+            if (chatChannel) {
+                supabaseClient.removeChannel(chatChannel);
+                chatChannel = null;
             }
         }
     };
@@ -534,7 +412,7 @@
 
 
     // ---------------------------------------------------------
-    // 4. MANEJADOR DE DATOS (JSONBin) - SIN CAMBIOS
+    // 4. MANEJADOR DE DATOS (JSONBin)
     // ---------------------------------------------------------
     const dataHandler = {
       onDataChanged(data) {
@@ -563,14 +441,6 @@
             }
         }
         
-        // Calcular quién está online (actividad < 5 min)
-        const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
-        onlineUsers = new Set(
-          activityRecords
-            .filter(a => a.type === 'activity' && new Date(a.last_activity).getTime() > fiveMinutesAgo)
-            .map(a => a.username)
-        );
-        
         // Funciones de refresco
         validateCart(); // Chequear si algo en el carrito cambió de precio o stock
         render(); // Volver a pintar la pantalla
@@ -578,7 +448,46 @@
     };
 
     // ---------------------------------------------------------
-    // 5. INICIALIZACIÓN (ARRANQUE) - SIN CAMBIOS
+    // 5. ESTADO GLOBAL (VARIABLES EN MEMORIA) - Corregido para definición temprana
+    // ---------------------------------------------------------
+    let currentUser = null; // 🚨 Corregido: Declaración al inicio
+    let currentView = 'catalog'; 
+    let selectedCategory = 'all';
+    let selectedShopFilter = null;
+    let adminViewTarget = null; 
+    let selectedProductToEdit = null; 
+    let managedUser = null; 
+    let allProducts = [];
+    let allUsers = [];
+    let allOrders = [];
+    let allReviews = []; 
+    let cart = JSON.parse(localStorage.getItem('mu_cart_v22') || '[]');
+    let showModal = null; 
+    let selectedOrder = null; 
+    let chatTargetOrder = null; 
+    let chatMessages = [];
+    let chatChannel = null; // Re-declarado aquí para claridad, aunque ya está en el SDK
+    let inactivityTimeout;
+    const TIMEOUT_LIMIT = 5 * 60 * 1000; 
+    const CATEGORIES = [
+      { id: 'all', name: 'Todos', icon: '🎮' },
+      { id: 'promotions', name: 'Promociones', icon: '🔥' },
+      { id: 'items', name: 'Items', icon: '⚔️' },
+      { id: 'jewels', name: 'Joyas', icon: '💎' },
+      { id: 'wings', name: 'Alas', icon: '🦅' },
+      { id: 'sets', name: 'Sets', icon: '🛡️' }
+    ];
+    const ADMIN_CREDENTIALS = {
+      username: 'Kaleb',
+      password: 'Kaleb.2021',
+      discord_tag: 'KalebAdmin#9999'
+    };
+    let onlineUsers = new Set();
+    let userActivityTimeout = null;
+    // ---------------------------------------------------------
+
+    // ---------------------------------------------------------
+    // 6. INICIALIZACIÓN (ARRANQUE)
     // ---------------------------------------------------------
     async function init() {
       // Intentar recuperar sesión guardada
@@ -589,7 +498,7 @@
       }
 
       // Configurar listeners de inactividad
-      setupAutoLogout();
+      setupAutoLogout(); // Ya no fallará porque currentUser está definido como null
 
       // Conectar a la "Base de Datos" (JSONBin)
       await window.dataSdk.init(dataHandler);
@@ -626,7 +535,7 @@
     }
 
     // ---------------------------------------------------------
-    // 6. FUNCIONES DE USUARIO (LOGIN/REGISTRO/LOGOUT) - SIN CAMBIOS
+    // 7. FUNCIONES DE USUARIO (LOGIN/REGISTRO/LOGOUT)
     // ---------------------------------------------------------
     async function handleLogin(e) {
       e.preventDefault();
@@ -634,6 +543,12 @@
       const password = document.getElementById('loginPassword').value;
 
       // Caso Especial: Login Admin Hardcodeado
+      const ADMIN_CREDENTIALS = {
+        username: 'Kaleb',
+        password: 'Kaleb.2021',
+        discord_tag: 'KalebAdmin#9999'
+      };
+      
       if (username === ADMIN_CREDENTIALS.username && password === ADMIN_CREDENTIALS.password) {
         currentUser = { 
             username, 
@@ -867,7 +782,7 @@
 
 
     // ---------------------------------------------------------
-    // 7. GESTIÓN DE PRODUCTOS (CRUD COMPLETO) - SIN CAMBIOS
+    // 8. GESTIÓN DE PRODUCTOS (CRUD COMPLETO)
     // ---------------------------------------------------------
     
     // Función centralizada para abrir la gestión de productos de cualquier usuario
@@ -1001,7 +916,7 @@
     }
 
     // ---------------------------------------------------------
-    // 8. GESTIÓN DE USUARIOS (ADMIN) - SIN CAMBIOS
+    // 9. GESTIÓN DE USUARIOS (ADMIN)
     // ---------------------------------------------------------
     
     // Nueva función para abrir el modal de gestión
@@ -1140,7 +1055,7 @@
     }
 
     // ---------------------------------------------------------
-    // 9. CARRITO Y PEDIDOS - SIN CAMBIOS RELEVANTES
+    // 10. CARRITO Y PEDIDOS
     // ---------------------------------------------------------
     function updateCartStorage() {
         localStorage.setItem('mu_cart_v22', JSON.stringify(cart));
@@ -1378,7 +1293,7 @@
     }
 
     // ---------------------------------------------------------
-    // 10. FUNCIONES DE RESEÑA - SIN CAMBIOS
+    // 11. FUNCIONES DE RESEÑA
     // ---------------------------------------------------------
     function getShopRating(username) {
         const reviews = allReviews.filter(r => r.reviewed_seller === username);
@@ -1434,9 +1349,9 @@
     }
     
     // ---------------------------------------------------------
-    // 11. FUNCIONES DE CHAT (AJUSTADAS PARA SUPABASE)
+    // 12. FUNCIONES DE CHAT
     // ---------------------------------------------------------
-    async function openChatModal(orderId) {
+    function openChatModal(orderId) {
         const order = allOrders.find(o => o.__backendId === orderId);
         if (!order) return;
         
@@ -1444,28 +1359,18 @@
         showModal = 'chat';
         render(); // Abrir el modal
         
-        // Iniciar la suscripción de chat (AHORA REALTIME SUPABASE)
-        await window.chatSdk.subscribeToOrder(orderId);
-        
-        // El renderChatMessages se llama automáticamente cuando se cargan los mensajes iniciales y en cada cambio
-        setTimeout(() => {
-             const messagesContainer = document.querySelector('.chat-messages');
-             if (messagesContainer) {
-                 renderChatMessages(messagesContainer);
-                 messagesContainer.scrollTop = messagesContainer.scrollHeight;
-             }
-        }, 50);
+        // Iniciar la conexión en tiempo real con Supabase
+        window.chatSdk.subscribeToOrder(orderId);
     }
     
     function closeChatModal() {
         window.chatSdk.unsubscribe();
         showModal = null;
         chatTargetOrder = null;
-        chatMessages = []; // Limpiar mensajes al cerrar
         render();
     }
     
-    function handleChatMessageSend(e) {
+    async function handleChatMessageSend(e) {
         e.preventDefault();
         if (!chatTargetOrder || !currentUser) return;
         
@@ -1473,16 +1378,16 @@
         const content = input.value;
         if (!content.trim()) return;
         
-        // Llama a la función de envío de Supabase
-        window.chatSdk.sendMessage(chatTargetOrder.__backendId, currentUser.username, content);
+        // Usamos el __backendId que es el ID único del pedido en JSONBin
+        await window.chatSdk.sendMessage(chatTargetOrder.__backendId, currentUser.username, content);
         input.value = ''; // Limpiar input
         
-        // Asegurar scroll al fondo (el realtime se encargará de añadir el mensaje)
+        // Asegurar scroll al fondo
         setTimeout(() => {
-              const messagesContainer = document.querySelector('.chat-messages');
-              if (messagesContainer) {
-                  messagesContainer.scrollTop = messagesContainer.scrollHeight;
-              }
+             const messagesContainer = document.querySelector('.chat-messages');
+             if (messagesContainer) {
+                 messagesContainer.scrollTop = messagesContainer.scrollHeight;
+             }
         }, 50);
     }
 
@@ -1490,8 +1395,10 @@
         if (!container) return;
         
         const messagesHtml = chatMessages.map(msg => {
+            // Supabase devuelve created_at como propiedad
+            const timestamp = msg.created_at || new Date().toISOString(); 
             const isSelf = msg.sender === currentUser.username;
-            const time = new Date(msg.timestamp).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+            const time = new Date(timestamp).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
 
             return `
                 <div class="flex ${isSelf ? 'justify-end' : 'justify-start'}">
@@ -1510,7 +1417,7 @@
 
 
     // ---------------------------------------------------------
-    // 12. UTILIDADES DE RENDERIZADO - SIN CAMBIOS
+    // 13. UTILIDADES DE RENDERIZADO
     // ---------------------------------------------------------
     function getTopShops() {
       const resellers = allUsers.filter(u => u.role === 'reseller' && u.approved);
@@ -1529,7 +1436,7 @@
       });
       // Ranking basado SOLO en Ventas (salesCount)
       return shopsStats.filter(s => s.salesCount > 0)
-          .sort((a, b) => b.salesCount - a.salesCount).slice(0, 3); 
+            .sort((a, b) => b.salesCount - a.salesCount).slice(0, 3); 
     }
     
     // Función para obtener el conteo de ventas de todos los vendedores
@@ -1564,7 +1471,7 @@
     }
 
     // ---------------------------------------------------------
-    // 13. RENDERIZADO PRINCIPAL (EL CÓDIGO VISUAL) - SIN CAMBIOS
+    // 14. RENDERIZADO PRINCIPAL (EL CÓDIGO VISUAL)
     // ---------------------------------------------------------
     function render() {
       const app = document.getElementById('app');
@@ -1608,9 +1515,9 @@
           // 1. Calcular estadísticas de la tienda seleccionada
           const shopOwner = allUsers.find(u => u.shop_name === selectedShopFilter);
           if (shopOwner) {
-              const sales = allOrders.filter(o => o.seller_username === shopOwner.username && o.order_status === 'completed').length;
-              const { rating, reviewCount } = getShopRating(shopOwner.username);
-              shopStats = { owner: shopOwner, salesCount: sales, rating, reviewCount };
+                const sales = allOrders.filter(o => o.seller_username === shopOwner.username && o.order_status === 'completed').length;
+                const { rating, reviewCount } = getShopRating(shopOwner.username);
+                shopStats = { owner: shopOwner, salesCount: sales, rating, reviewCount };
           }
       } else {
           filteredProducts = selectedCategory === 'all' 
@@ -1628,7 +1535,7 @@
           <header class="shadow-lg sticky top-0 z-40 bg-slate-800 border-b border-slate-700 p-4">
             <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
                 <div class="text-center md:text-left">
-                  <h1 class="text-2xl font-bold text-blue-400 tracking-tight">MU MARKET <span class="text-white text-xs bg-blue-600 px-1 rounded">V29</span></h1>
+                  <h1 class="text-2xl font-bold text-blue-400 tracking-tight">MU MARKET <span class="text-white text-xs bg-blue-600 px-1 rounded">V30</span></h1>
                   <p class="text-xs mt-1 opacity-60">${config.contact_info}</p>
                 </div>
                 <div class="flex flex-wrap gap-2 justify-center items-center">
@@ -2027,7 +1934,7 @@
                             </button>
                         ` : ''}
                         <button onclick="loadAdminView()" class="bg-slate-700 px-6 py-2 rounded font-bold shadow hover:bg-slate-600 transition border border-slate-500 text-blue-400 border-blue-500/50">
-                            🔄 REFRESCAR DATOS
+                             🔄 REFRESCAR DATOS
                         </button>
                         <button onclick="currentView='catalog';render()" class="bg-blue-600 px-6 py-2 rounded font-bold shadow hover:bg-blue-500 transition">
                             🏠 Volver al Inicio
@@ -2107,9 +2014,9 @@
                         let buttonText, buttonClass, buttonAction;
                         
                         if (buyerConfirmed) {
-                            buttonText = 'Cliente CONFIRMADO';
-                            buttonClass = 'bg-orange-700/50 disabled:opacity-100 disabled:cursor-wait';
-                            buttonAction = 'disabled';
+                             buttonText = 'Cliente CONFIRMADO';
+                             buttonClass = 'bg-orange-700/50 disabled:opacity-100 disabled:cursor-wait';
+                             buttonAction = 'disabled';
                         } else if (sellerConfirmed) {
                             buttonText = '⏳ Esperando Cliente';
                             buttonClass = 'bg-yellow-600/50 disabled:opacity-100 disabled:cursor-wait';
@@ -2153,7 +2060,7 @@
                                 </div>
                             </div>
                         </div>
-                        `}).join('')}
+                    `}).join('')}
                 </div>
 
                 <div class="bg-slate-800 p-6 rounded-xl mb-8 border border-slate-700 shadow-lg">
@@ -2304,18 +2211,18 @@
     }
 
     // ---------------------------------------------------------
-    // 14. RENDERIZADO DE MODALES (HTML FORMS)
+    // 15. RENDERIZADO DE MODALES (HTML FORMS)
     // ---------------------------------------------------------
     function renderModal() {
         const close = `onclick="closeChatModal(); showModal=null;selectedProductToEdit=null;managedUser=null;selectedOrder=null;render()"`;
         const box = "bg-slate-800 p-8 rounded-xl shadow-2xl max-w-md w-full border border-slate-600 relative transform transition-all scale-100";
         
-        // --- MODAL: CHAT (SUPABASE REALTIME) ---
+        // --- MODAL: CHAT ---
         if (showModal === 'chat' && chatTargetOrder) {
             const partnerName = chatTargetOrder.buyer_username === currentUser.username ? chatTargetOrder.seller_username : chatTargetOrder.buyer_username;
             const partnerDiscord = chatTargetOrder.buyer_username === currentUser.username ? chatTargetOrder.seller_discord : chatTargetOrder.buyer_discord;
             
-            // Renderiza los mensajes cargados
+            // Renderiza los mensajes cargados en chatMessages
             setTimeout(() => {
                 const messagesContainer = document.querySelector('.chat-messages');
                 if (messagesContainer) {
@@ -2328,7 +2235,7 @@
                 <div class="${box} max-w-lg p-0" onclick="event.stopPropagation()">
                     <div class="bg-slate-900 p-4 rounded-t-xl flex justify-between items-center border-b border-slate-700">
                         <div>
-                            <h2 class="text-xl font-bold text-blue-400">💬 Chat de Pedido #${chatTargetOrder.id.slice(-8)}</h2>
+                            <h2 class="text-xl font-bold text-blue-400">💬 Chat de Pedido #${chatTargetOrder.__backendId.slice(-8)}</h2>
                             <p class="text-sm text-slate-400">Hablando con: <span class="text-white font-bold">${partnerName}</span> (${partnerDiscord})</p>
                         </div>
                         <button onclick="closeChatModal()" class="text-slate-400 hover:text-white font-bold text-xl">✕</button>
@@ -2336,7 +2243,7 @@
 
                     <div class="p-4 flex flex-col">
                         <div class="chat-messages space-y-2 mb-4 p-2 bg-slate-900/50 rounded-lg border border-slate-700/50">
-                            ${chatMessages.length === 0 ? '<div class="text-center text-slate-500 text-xs py-10">Cargando historial de mensajes...</div>' : ''}
+                            <div class="text-center text-slate-500 text-xs py-10">Cargando historial de mensajes...</div>
                         </div>
 
                         <form onsubmit="handleChatMessageSend(event)" class="flex gap-2">
@@ -2345,7 +2252,7 @@
                                 ENVIAR
                             </button>
                         </form>
-                         <p class="text-xs text-slate-500 mt-2">Nota: Este chat está conectado a Supabase Realtime.</p>
+                         <p class="text-xs text-slate-500 mt-2">✅ Chat conectado a Supabase Realtime.</p>
                     </div>
                 </div>
             </div>`;
@@ -2353,80 +2260,80 @@
         
         // --- MODAL: GESTIÓN DE USUARIO (ADMIN) ---
         if(showModal === 'manageUser' && managedUser) {
-              const u = managedUser;
-              const userOrders = allOrders.filter(o => o.buyer_username === u.username || o.seller_username === u.username);
-              const userProducts = allProducts.filter(p => p.seller_username === u.username);
-              
-              // Recalcular las ventas y rating para este modal
-              const sellerSalesMap = getSellerSalesMap();
-              const salesCount = sellerSalesMap[u.username] || 0;
-              const { rating, reviewCount } = getShopRating(u.username);
-              
-              return `
-              <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
-                  <div class="${box} max-w-2xl w-full" onclick="event.stopPropagation()">
-                      <div class="flex justify-between items-center mb-6 border-b border-slate-700 pb-4">
-                          <h2 class="text-xl font-bold text-white flex items-center gap-2">
-                              👤 Gestión de Usuario: <span class="text-blue-400">${u.username}</span>
-                          </h2>
-                          <button ${close} class="text-slate-400 hover:text-white font-bold text-xl">✕</button>
-                      </div>
-                      
-                      <div class="grid grid-cols-2 gap-4 mb-6">
-                          <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
-                              <p class="text-xs uppercase text-slate-500 font-bold">Rol / Estado</p>
-                              <p class="font-bold text-lg">${u.role.toUpperCase()} / <span class="${u.status==='banned'?'text-red-400':u.status==='pending'?'text-yellow-400':'text-green-400'}">${u.status.toUpperCase()}</span></p>
-                          </div>
-                          <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
-                              <p class="text-xs uppercase text-slate-500 font-bold">Discord</p>
-                              <p class="font-mono text-blue-300 text-lg">${u.discord_tag}</p>
-                          </div>
-                          ${u.role === 'reseller' ? `
-                              <div class="col-span-2 bg-slate-900 p-3 rounded-lg border border-slate-700">
-                                  <p class="text-xs uppercase text-slate-500 font-bold">Tienda</p>
-                                  <p class="font-bold text-yellow-400 text-xl">${u.shop_name || 'Sin configurar'}</p>
-                              </div>
-                              <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
-                                  <p class="text-xs uppercase text-slate-500 font-bold">Items Publicados</p>
-                                  <p class="font-bold text-white text-xl">${userProducts.length}</p>
-                              </div>
-                               <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
-                                  <p class="text-xs uppercase text-slate-500 font-bold">Ventas Completadas</p>
-                                  <p class="font-bold text-green-400 text-xl">${salesCount}</p>
-                              </div>
-                              <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
-                                  <p class="text-xs uppercase text-slate-500 font-bold">Rating / Reviews</p>
-                                  <p class="font-bold text-yellow-400 text-lg">${rating} ${getStarHtml(rating)} (${reviewCount})</p>
-                              </div>
-                          ` : ''}
-                          <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
-                              <p class="text-xs uppercase text-slate-500 font-bold">Pedidos Involucrados</p>
-                              <p class="font-bold text-white text-xl">${userOrders.length}</p>
-                          </div>
-                      </div>
-                      
-                      <div class="border-t border-slate-700 pt-4 mb-4">
-                          <h3 class="text-lg font-bold text-purple-400 mb-2">Acciones Rápidas</h3>
-                          <div class="flex flex-wrap gap-2">
-                              ${u.role === 'reseller' ? `
-                                  <button onclick="enterShopManagement('${u.username}')" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded text-sm font-bold">
-                                      👁️ Gestionar Items
-                                  </button>
-                                  ${u.status === 'pending' ? `
-                                      <button onclick="approveUser('${u.__backendId}')" class="bg-green-600 px-4 py-2 rounded text-sm font-bold text-white">Aprobar Tienda</button>
-                                  ` : ''}
-                              ` : ''}
-                              
-                              <button onclick="banUser('${u.__backendId}')" class="border border-yellow-500 text-yellow-500 px-4 py-2 rounded text-sm font-bold hover:bg-yellow-500 hover:text-black">
-                                  ${u.status.includes('banned') ? 'UNBAN' : 'BAN'}
-                              </button>
-                              <button onclick="deleteUserAccount('${u.__backendId}')" class="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded text-sm font-bold">
-                                  🗑️ Eliminar Cuenta
-                              </button>
-                          </div>
-                      </div>
-                  </div>
-              </div>`;
+             const u = managedUser;
+             const userOrders = allOrders.filter(o => o.buyer_username === u.username || o.seller_username === u.username);
+             const userProducts = allProducts.filter(p => p.seller_username === u.username);
+             
+             // Recalcular las ventas y rating para este modal
+             const sellerSalesMap = getSellerSalesMap();
+             const salesCount = sellerSalesMap[u.username] || 0;
+             const { rating, reviewCount } = getShopRating(u.username);
+             
+             return `
+            <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
+                <div class="${box} max-w-2xl w-full" onclick="event.stopPropagation()">
+                    <div class="flex justify-between items-center mb-6 border-b border-slate-700 pb-4">
+                        <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                           👤 Gestión de Usuario: <span class="text-blue-400">${u.username}</span>
+                        </h2>
+                        <button ${close} class="text-slate-400 hover:text-white font-bold text-xl">✕</button>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4 mb-6">
+                        <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
+                            <p class="text-xs uppercase text-slate-500 font-bold">Rol / Estado</p>
+                            <p class="font-bold text-lg">${u.role.toUpperCase()} / <span class="${u.status==='banned'?'text-red-400':u.status==='pending'?'text-yellow-400':'text-green-400'}">${u.status.toUpperCase()}</span></p>
+                        </div>
+                        <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
+                            <p class="text-xs uppercase text-slate-500 font-bold">Discord</p>
+                            <p class="font-mono text-blue-300 text-lg">${u.discord_tag}</p>
+                        </div>
+                        ${u.role === 'reseller' ? `
+                            <div class="col-span-2 bg-slate-900 p-3 rounded-lg border border-slate-700">
+                                <p class="text-xs uppercase text-slate-500 font-bold">Tienda</p>
+                                <p class="font-bold text-yellow-400 text-xl">${u.shop_name || 'Sin configurar'}</p>
+                            </div>
+                            <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
+                                <p class="text-xs uppercase text-slate-500 font-bold">Items Publicados</p>
+                                <p class="font-bold text-white text-xl">${userProducts.length}</p>
+                            </div>
+                             <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
+                                <p class="text-xs uppercase text-slate-500 font-bold">Ventas Completadas</p>
+                                <p class="font-bold text-green-400 text-xl">${salesCount}</p>
+                            </div>
+                            <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
+                                <p class="text-xs uppercase text-slate-500 font-bold">Rating / Reviews</p>
+                                <p class="font-bold text-yellow-400 text-lg">${rating} ${getStarHtml(rating)} (${reviewCount})</p>
+                            </div>
+                        ` : ''}
+                        <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
+                            <p class="text-xs uppercase text-slate-500 font-bold">Pedidos Involucrados</p>
+                            <p class="font-bold text-white text-xl">${userOrders.length}</p>
+                        </div>
+                    </div>
+                    
+                    <div class="border-t border-slate-700 pt-4 mb-4">
+                        <h3 class="text-lg font-bold text-purple-400 mb-2">Acciones Rápidas</h3>
+                        <div class="flex flex-wrap gap-2">
+                            ${u.role === 'reseller' ? `
+                                <button onclick="enterShopManagement('${u.username}')" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded text-sm font-bold">
+                                    👁️ Gestionar Items
+                                </button>
+                                ${u.status === 'pending' ? `
+                                    <button onclick="approveUser('${u.__backendId}')" class="bg-green-600 px-4 py-2 rounded text-sm font-bold text-white">Aprobar Tienda</button>
+                                ` : ''}
+                            ` : ''}
+                            
+                            <button onclick="banUser('${u.__backendId}')" class="border border-yellow-500 text-yellow-500 px-4 py-2 rounded text-sm font-bold hover:bg-yellow-500 hover:text-black">
+                                ${u.status.includes('banned') ? 'UNBAN' : 'BAN'}
+                            </button>
+                            <button onclick="deleteUserAccount('${u.__backendId}')" class="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded text-sm font-bold">
+                                🗑️ Eliminar Cuenta
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
         }
 
         // --- MODAL: DATA TOOLS (IMPORT/EXPORT) ---
@@ -2621,11 +2528,9 @@
     }
 
     // ---------------------------------------------------------
-    // 15. INICIO DE LA APLICACIÓN
+    // 16. INICIO DE LA APLICACIÓN
     // ---------------------------------------------------------
     init();
   </script>
  </body>
 </html>
-
-
