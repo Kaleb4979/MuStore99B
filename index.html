@@ -25,17 +25,20 @@
     .star { cursor: pointer; transition: all 0.2s ease; }
     .star:hover { transform: scale(1.2); }
     
-    /* Estilos Ranking Top 3 */
+    /* Estilos Ranking Top 3 Exclusivos */
     .top-shop-card { transition: all 0.3s ease; position: relative; overflow: hidden; }
     .top-shop-card:hover { transform: translateY(-5px); }
+    /* Oro */
     .rank-1 { border: 2px solid #FFD700; box-shadow: 0 0 20px rgba(255, 215, 0, 0.3); background: linear-gradient(145deg, rgba(255,215,0,0.1), rgba(0,0,0,0.4)); }
+    /* Plata */
     .rank-2 { border: 2px solid #C0C0C0; box-shadow: 0 0 15px rgba(192, 192, 192, 0.2); background: linear-gradient(145deg, rgba(192,192,192,0.1), rgba(0,0,0,0.4)); }
+    /* Bronce */
     .rank-3 { border: 2px solid #CD7F32; box-shadow: 0 0 10px rgba(205, 127, 50, 0.2); background: linear-gradient(145deg, rgba(205,127,50,0.1), rgba(0,0,0,0.4)); }
   </style>
   <style>@view-transition { navigation: auto; }</style>
 
   <script>
-    const DB_KEY = 'mu_marketplace_db_v4_final'; 
+    const DB_KEY = 'mu_marketplace_db_v_final_real'; 
     
     // Inicializar DB
     let savedData = localStorage.getItem(DB_KEY);
@@ -116,9 +119,9 @@
     };
 
     // --- VARIABLES DE SESIÓN Y AUTO-LOGOUT ---
-    const SESSION_KEY = 'mu_session_user_v4';
+    const SESSION_KEY = 'mu_session_user_real';
     let inactivityTimeout;
-    const TIMEOUT_LIMIT = 5 * 60 * 1000; // 5 minutos
+    const TIMEOUT_LIMIT = 5 * 60 * 1000; // 5 minutos exactos
 
     let currentUser = null;
     let currentView = 'catalog';
@@ -157,7 +160,7 @@
         allReviews = data.filter(item => item.type === 'review') || [];
         const activityRecords = data.filter(item => item.type === 'activity') || [];
         
-        // Notificaciones (SIN SONIDO)
+        // Notificaciones (SIN SONIDO) - Solo visuales
         if (currentUser) {
             const newOrderAlert = activityRecords.find(a => 
                 a.type === 'activity' &&
@@ -567,15 +570,13 @@
       return { average: (sum / sellerReviews.length).toFixed(1), count: sellerReviews.length };
     }
 
-    // --- NUEVA LÓGICA TOP 3: VENTAS > RESEÑAS > RATING ---
+    // --- LÓGICA TOP 3 CORREGIDA: VENTAS > RESEÑAS > RATING ---
     function getTopShops() {
       const resellers = allUsers.filter(u => u.role === 'reseller' && u.approved);
       
       const shopsStats = resellers.map(seller => {
-        // 1. Calcular Rating
         const rating = getSellerRating(seller.username);
-        
-        // 2. Calcular Ventas Completadas (Nuevo criterio principal)
+        // Calculamos ventas COMPLETADAS
         const salesCount = allOrders.filter(o => 
             o.seller_username === seller.username && 
             o.order_status === 'completed'
@@ -589,14 +590,14 @@
         };
       });
 
-      // Filtrar: Debe tener al menos 1 venta O 1 review para aparecer
+      // Filtro: Debe tener al menos 1 venta O 1 review
       const activeShops = shopsStats.filter(s => s.salesCount > 0 || s.reviewCount > 0);
 
-      // Ordenar: Ventas > Reseñas > Estrellas
+      // Orden: Ventas > Reseñas > Rating
       return activeShops.sort((a, b) => {
-        if (b.salesCount !== a.salesCount) return b.salesCount - a.salesCount; // Mas ventas gana
-        if (b.reviewCount !== a.reviewCount) return b.reviewCount - a.reviewCount; // Mas reseñas gana
-        return b.rating - a.rating; // Mejor calificacion gana
+        if (b.salesCount !== a.salesCount) return b.salesCount - a.salesCount;
+        if (b.reviewCount !== a.reviewCount) return b.reviewCount - a.reviewCount;
+        return b.rating - a.rating;
       }).slice(0, 3); // SOLO TOP 3
     }
 
@@ -656,6 +657,7 @@
               <div class="flex flex-col lg:flex-row justify-between items-center gap-4">
                 <div class="text-center lg:text-left">
                   <h1 class="text-2xl font-bold text-blue-400">MU ONLINE 99B <span class="text-white text-xs">MARKETPLACE</span></h1>
+                  <p class="text-xs mt-1 opacity-60">${config.contact_info}</p>
                 </div>
                 <div class="flex flex-wrap gap-2 justify-center">
                   ${currentUser ? `
@@ -677,7 +679,7 @@
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
               <div class="mb-4 text-center">
                 <h2 class="text-2xl font-bold text-yellow-400 mb-1">🏆 MEJORES VENDEDORES</h2>
-                <p class="text-xs opacity-60">Ordenado por Ventas y Reseñas</p>
+                <p class="text-xs opacity-60">Top 3 por Ventas y Reseñas</p>
               </div>
               <div class="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
                 ${topShops.map((shop, index) => `
@@ -714,7 +716,7 @@
 
           <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-12">
             ${filteredProducts.length === 0 ? `
-              <div class="text-center py-20"><p class="text-2xl opacity-60">📦 No hay productos</p></div>
+              <div class="text-center py-20"><p class="text-2xl opacity-60">📦 No hay productos disponibles</p></div>
             ` : `
               <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 ${filteredProducts.map(product => {
