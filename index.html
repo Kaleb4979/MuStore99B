@@ -12,48 +12,35 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet">
   
   <style>
-    body {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      height: 100%;
-      font-family: 'Inter', sans-serif;
-      background-color: #0f172a;
-      color: #f1f5f9;
-    }
-    /* Animaciones y Estilos Específicos */
+    body { box-sizing: border-box; margin: 0; padding: 0; height: 100%; font-family: 'Inter', sans-serif; }
+    html { height: 100%; }
+    
+    /* Animaciones y Estilos */
     .category-btn { transition: all 0.3s ease; }
     .category-btn:hover { transform: translateY(-2px); }
     
     .product-card { transition: all 0.3s ease; }
-    .product-card:hover { transform: translateY(-5px); box-shadow: 0 10px 25px rgba(0,0,0,0.4); }
+    .product-card:hover { transform: translateY(-5px); box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
     
-    .cart-badge {
-      position: absolute; top: -8px; right: -8px;
-      background-color: #ef4444; color: white;
-      border-radius: 50%; width: 24px; height: 24px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 12px; font-weight: bold;
-    }
+    .cart-badge { position: absolute; top: -8px; right: -8px; background-color: #ef4444; color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; }
     
     .modal-backdrop { background-color: rgba(0, 0, 0, 0.8); backdrop-filter: blur(4px); }
     
-    /* Estilos Ranking Top 3 */
+    .star { cursor: pointer; transition: all 0.2s ease; }
+    .star:hover { transform: scale(1.3); }
+
+    /* RANKING TOP 3 */
     .rank-card { transition: all 0.3s ease; border: 1px solid rgba(255,255,255,0.05); }
     .rank-card:hover { transform: scale(1.03); }
     .rank-1 { border: 2px solid #FFD700; box-shadow: 0 0 20px rgba(255, 215, 0, 0.2); }
     .rank-2 { border: 2px solid #C0C0C0; box-shadow: 0 0 15px rgba(192, 192, 192, 0.2); }
     .rank-3 { border: 2px solid #CD7F32; box-shadow: 0 0 10px rgba(205, 127, 50, 0.2); }
-    
-    .star { cursor: pointer; transition: transform 0.2s; }
-    .star:hover { transform: scale(1.3); }
   </style>
 
   <script>
-    // --- BASE DE DATOS PERSISTENTE ---
-    const DB_KEY = 'mu_marketplace_master_v1'; 
-
+    const DB_KEY = 'mu_marketplace_final_v99'; 
     let savedData = localStorage.getItem(DB_KEY);
+    
     window.mockDb = {
       data: savedData ? JSON.parse(savedData) : [],
       handler: null,
@@ -63,7 +50,6 @@
       }
     };
 
-    // --- DATA SDK (Con Notificación Tiempo Real) ---
     window.dataSdk = {
       init: async (handler) => {
         window.mockDb.handler = handler;
@@ -92,18 +78,17 @@
       }
     };
     
-    // Element SDK Simulado
     window.elementSdk = {
       config: {
         site_title: "Mu Online 99B Marketplace",
+        welcome_message: "Items, Alas y Sets Exclusivos",
+        background_color: "#0f172a",
         card_background: "#1e293b",
+        text_color: "#f1f5f9",
         primary_button: "#3b82f6",
-        secondary_button: "#10b981",
-        text_color: "#f1f5f9"
+        secondary_button: "#10b981"
       },
-      init: (options) => {
-        if(options.onConfigChange) options.onConfigChange(window.elementSdk.config);
-      }
+      init: (options) => { if(options.onConfigChange) options.onConfigChange(window.elementSdk.config); }
     };
   </script>
  </head>
@@ -115,13 +100,11 @@
     let currentUser = null;
     let currentView = 'catalog';
     let selectedCategory = 'all';
-    let allProducts = [];
-    let allUsers = [];
-    let allOrders = [];
-    let allReviews = [];
+    let allProducts = [], allUsers = [], allOrders = [], allReviews = [];
     let cart = [];
     let showModal = null;
     let selectedOrder = null;
+    let onlineUsers = new Set();
 
     const CATEGORIES = [
       { id: 'all', name: 'Todos', icon: '🎮' },
@@ -133,8 +116,8 @@
     ];
 
     const ADMIN_CREDENTIALS = { username: 'Kaleb', password: 'Kaleb.2021' };
-    
-    // --- AUDIO ARREGLADO (URL PÚBLICA) ---
+
+    // --- AUDIO SYSTEM (FIXED) ---
     let audioContextResumed = false;
     const notificationAudio = new Audio('https://freesound.org/data/previews/389/389332_7366710-lq.mp3'); 
 
@@ -142,10 +125,10 @@
         if (!audioContextResumed) return;
         const audioClone = notificationAudio.cloneNode(true);
         audioClone.volume = 0.5;
-        audioClone.play().catch(e => console.error("Audio error:", e));
+        audioClone.play().catch(e => console.error("Audio:", e));
     }
 
-    // --- DATA HANDLER (LÓGICA CENTRAL) ---
+    // --- DATA HANDLER (CORE) ---
     const dataHandler = {
       onDataChanged(data) {
         allProducts = data.filter(item => item.type === 'product') || [];
@@ -153,14 +136,13 @@
         allOrders = data.filter(item => item.type === 'order') || [];
         allReviews = data.filter(item => item.type === 'review') || [];
         
-        // 1. Notificaciones de Actividad
+        // 1. Notificaciones
         const activityRecords = data.filter(item => item.type === 'activity') || [];
         if (currentUser) {
             const newOrderAlert = activityRecords.find(a => 
-                a.type === 'activity' && a.message && !a.dismissed && 
+                a.type === 'activity' && !a.dismissed && 
                 (a.username === currentUser.username || currentUser.role === 'admin') 
             );
-
             if (newOrderAlert) {
                 showToast(`🔔 ${newOrderAlert.message}`);
                 playNotificationSound();
@@ -168,14 +150,17 @@
             }
         }
 
-        // 2. Validar Carrito (Stock)
+        // 2. Usuarios Online
+        const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+        onlineUsers = new Set(
+          activityRecords.filter(a => a.type === 'activity' && new Date(a.last_activity).getTime() > fiveMinutesAgo).map(a => a.username)
+        );
+        
+        // 3. Validaciones automáticas
         validateCart();
+        checkPendingReviews(); // <--- ESTO ABRE EL MODAL AUTOMÁTICAMENTE
         
-        // 3. REVISIÓN AUTOMÁTICA (Fix Crítico)
-        checkPendingReviews();
-        
-        // 4. Renderizar
-        render();
+        render(); 
       }
     };
 
@@ -188,18 +173,17 @@
 
     function checkPendingReviews() {
       if (!currentUser || currentUser.role !== 'buyer') return;
-      
-      // Busca orden completada que requiera review
-      const pendingOrder = allOrders.find(o => 
+      // Buscar orden completada que necesite review
+      const pending = allOrders.find(o => 
         o.buyer_username === currentUser.username && 
         o.order_status === 'completed' && 
         o.needs_review === true
       );
 
-      if (pendingOrder) {
-        // Si hay una orden pendiente y NO estamos viendo el modal de esa orden, abrirlo
-        if (showModal !== 'review' || (selectedOrder && selectedOrder.__backendId !== pendingOrder.__backendId)) {
-            selectedOrder = pendingOrder;
+      if (pending) {
+        // Si encontramos una y no estamos ya viendo SU modal, abrirlo
+        if (showModal !== 'review' || (selectedOrder && selectedOrder.__backendId !== pending.__backendId)) {
+            selectedOrder = pending;
             showModal = 'review';
         }
       }
@@ -208,14 +192,13 @@
     function validateCart() {
         if (cart.length === 0) return;
         let modified = false;
-        const newCart = cart.filter(item => {
+        cart = cart.filter(item => {
             const real = allProducts.find(p => p.__backendId === item.__backendId);
-            if (!real) { showToast(`Item "${item.name}" ya no existe.`); modified = true; return false; }
+            if (!real) { showToast(`Item "${item.name}" retirado.`); modified = true; return false; }
             if (item.quantity > real.stock) { item.quantity = real.stock; modified = true; }
             if (item.price !== real.price || item.final_price !== real.final_price) { Object.assign(item, real); modified = true; }
             return item.quantity > 0;
         });
-        if (modified) cart = newCart;
     }
 
     function getSellerRating(username) {
@@ -231,96 +214,96 @@
             const r = getSellerRating(u.username);
             return { ...u, rating: parseFloat(r.average), count: r.count };
         });
-        // Orden: Mayor Rating > Mayor Cantidad Reviews
-        return shops.filter(s => s.count > 0)
-                    .sort((a, b) => (b.rating - a.rating) || (b.count - a.count))
-                    .slice(0, 3);
+        return shops.filter(s => s.count > 0).sort((a, b) => (b.rating - a.rating) || (b.count - a.count)).slice(0, 3);
     }
 
-    // --- ACCIONES DE USUARIO ---
+    // --- ACCIONES USUARIO ---
 
     async function handleLogin(e) {
       e.preventDefault();
-      const u = document.getElementById('loginUsername').value.trim();
-      const p = document.getElementById('loginPassword').value;
+      const u = document.getElementById('loginUser').value.trim();
+      const p = document.getElementById('loginPass').value;
 
       if (u === ADMIN_CREDENTIALS.username && p === ADMIN_CREDENTIALS.password) {
         currentUser = { username: 'Kaleb', role: 'admin', __backendId: 'admin' };
         currentView = 'admin'; showModal = null; render(); return;
       }
 
-      const user = allUsers.find(us => us.username === u && us.password === p);
+      const user = allUsers.find(x => x.username === u && x.password === p);
       if (user) {
-        if (user.status === 'banned') { showToast('🚫 TU CUENTA ESTÁ BANEADA'); return; }
-        if (user.role === 'reseller' && !user.approved) { showToast('Tu cuenta de vendedor aún no ha sido aprobada'); return; }
+        if (user.status === 'banned') { showToast('🚫 CUENTA SUSPENDIDA'); return; }
+        if (user.role === 'reseller' && !user.approved) { showToast('Cuenta en revisión'); return; }
         
         currentUser = user;
         showModal = null;
         
-        if (user.role === 'reseller' && (!user.shop_name || !user.discord_tag)) {
-          selectedOrder = user; showModal = 'setupShop';
-        } else if (user.role === 'reseller') {
+        if (user.role === 'reseller' && !user.shop_name) {
+            selectedOrder = user; showModal = 'setupShop';
+        } else if (user.role !== 'buyer') {
             currentView = 'admin';
         }
         
-        showToast(`Bienvenido ${user.username}`);
+        // Actualizar actividad
+        const actId = 'act_' + user.username;
+        const exist = window.mockDb.data.find(x => x.id === actId);
+        if(exist) window.dataSdk.update({...exist, last_activity: new Date().toISOString()});
+        else window.dataSdk.create({id: actId, type:'activity', username:user.username, last_activity: new Date().toISOString()});
+
+        showToast(`Bienvenido ${u}`);
         render();
       } else {
-        showToast('Credenciales incorrectas');
+        showToast('Error de credenciales');
       }
     }
 
     async function registerUser(type, e) {
-      e.preventDefault();
-      const u = document.getElementById(type === 'buyer' ? 'buyerUsername' : 'resellerUsername').value.trim();
-      if(allUsers.find(x => x.username === u)) { showToast('Usuario ya existe'); return; }
+        e.preventDefault();
+        const form = e.target;
+        const u = form.querySelector('[name="u"]').value.trim();
+        if (allUsers.find(x => x.username === u)) { showToast('Usuario ya existe'); return; }
+        
+        const data = {
+            type: 'user',
+            username: u,
+            password: form.querySelector('[name="p"]').value,
+            discord_tag: form.querySelector('[name="d"]').value,
+            role: type,
+            approved: type === 'buyer',
+            status: type === 'buyer' ? 'active' : 'pending',
+            created_at: new Date().toISOString()
+        };
+        if (type === 'reseller') data.shop_name = form.querySelector('[name="s"]').value;
 
-      const data = {
-          type: 'user',
-          username: u,
-          password: document.getElementById(type === 'buyer' ? 'buyerPassword' : 'resellerPassword').value,
-          discord_tag: document.getElementById(type === 'buyer' ? 'buyerDiscord' : 'resellerDiscord').value,
-          role: type,
-          approved: type === 'buyer',
-          status: type === 'buyer' ? 'active' : 'pending',
-          created_at: new Date().toISOString()
-      };
-      
-      if (type === 'reseller') data.shop_name = document.getElementById('resellerShop').value;
-
-      await window.dataSdk.create(data);
-      showToast(type === 'buyer' ? '✅ Registrado. Inicia sesión.' : '✅ Solicitud enviada al Admin.');
-      showModal = type === 'buyer' ? 'login' : null;
-      render();
+        await window.dataSdk.create(data);
+        showToast(type === 'buyer' ? '✅ Registrado' : '✅ Solicitud enviada');
+        showModal = type === 'buyer' ? 'login' : null;
+        render();
     }
+
+    // --- PEDIDOS Y CARRITO ---
 
     async function createOrder() {
         validateCart();
         if (cart.length === 0) return;
 
-        // Agrupar items por vendedor
         const groups = {};
-        cart.forEach(item => {
-            if(!groups[item.seller_username]) groups[item.seller_username] = { items: [], total: 0, disc: item.seller_discord };
-            const price = item.discount > 0 ? item.final_price : item.price;
-            groups[item.seller_username].items.push(item);
-            groups[item.seller_username].total += price * item.quantity;
+        cart.forEach(i => {
+            if(!groups[i.seller_username]) groups[i.seller_username] = {items:[], total:0, discord: i.seller_discord};
+            groups[i.seller_username].items.push(i);
+            groups[i.seller_username].total += (i.final_price * i.quantity);
         });
 
-        for (const seller in groups) {
+        for(const seller in groups) {
             const g = groups[seller];
-            const itemsDesc = g.items.map(i => `${i.name} x${i.quantity}`).join(', ');
-            const itemsJson = JSON.stringify(g.items.map(i => ({ backendId: i.__backendId, quantity: i.quantity })));
-
             const order = {
                 type: 'order',
                 id: Date.now() + '_' + Math.floor(Math.random()*100),
                 buyer_username: currentUser.username,
                 buyer_discord: currentUser.discord_tag,
                 seller_username: seller,
-                seller_discord: g.disc,
-                items: itemsDesc,
-                items_data: itemsJson,
+                seller_discord: g.discord,
+                items: g.items.map(i => `${i.name} x${i.quantity}`).join(', '),
+                items_data: JSON.stringify(g.items.map(i => ({backendId: i.__backendId, quantity: i.quantity}))),
                 total: g.total,
                 order_status: 'pending',
                 seller_confirmed: false,
@@ -330,15 +313,14 @@
             };
             
             const res = await window.dataSdk.create(order);
-            if (res.isOk) {
-                // Notificar al Vendedor
+            if(res.isOk) {
                 window.dataSdk.create({
-                    type: 'activity', username: seller, message: `💰 Nuevo Pedido de ${currentUser.username}`, dismissed: false, created_at: new Date().toISOString()
+                    type: 'activity', username: seller, message: `💰 Nuevo Pedido de ${currentUser.username}`, dismissed: false
                 });
             }
         }
         cart = [];
-        showToast('✅ Pedido realizado correctamente');
+        showToast('✅ Pedido Enviado');
         currentView = 'orders';
         render();
     }
@@ -351,31 +333,31 @@
         if (isSeller) update.seller_confirmed = true;
         else update.buyer_confirmed = true;
 
-        // Lógica de Completado
+        // COMPLETAR
         if ((isSeller && update.buyer_confirmed) || (!isSeller && update.seller_confirmed)) {
-            if (update.order_status !== 'completed') {
+            if(update.order_status !== 'completed') {
                 update.order_status = 'completed';
-                update.needs_review = true; // Esto dispara el modal en el comprador
+                update.needs_review = true; 
                 
-                // Descontar Stock
+                // Bajar Stock
                 try {
                     const items = JSON.parse(update.items_data);
-                    for (const i of items) {
+                    for(const i of items) {
                         const p = allProducts.find(x => x.__backendId === i.backendId);
-                        if (p) await window.dataSdk.update({...p, stock: Math.max(0, p.stock - i.quantity)});
+                        if(p) await window.dataSdk.update({...p, stock: Math.max(0, p.stock - i.quantity)});
                     }
                 } catch(e) {}
             }
         }
 
         await window.dataSdk.update(update);
-        showToast(update.order_status === 'completed' ? '✅ Orden Completada' : '✅ Confirmado. Esperando otra parte.');
+        showToast(update.order_status === 'completed' ? '✅ Orden Completada' : '✅ Confirmado');
     }
 
     async function submitReview(e) {
         e.preventDefault();
         const rating = document.querySelector('input[name="rating"]:checked')?.value;
-        if (!rating) { showToast('Selecciona estrellas'); return; }
+        if(!rating) { showToast('Selecciona estrellas'); return; }
 
         await window.dataSdk.create({
             type: 'review',
@@ -385,97 +367,52 @@
             review_text: document.getElementById('reviewText').value,
             created_at: new Date().toISOString()
         });
-
         await window.dataSdk.update({...selectedOrder, needs_review: false});
-        showToast('⭐ Reseña enviada');
-        showModal = null; selectedOrder = null;
-        render();
-    }
-
-    // --- GESTIÓN ADMIN / VENDEDOR ---
-    async function addProduct(e) {
-        e.preventDefault();
-        const f = e.target;
-        const p = parseFloat(f.price.value);
-        const d = parseInt(f.discount.value) || 0;
         
-        await window.dataSdk.create({
-            type: 'product',
-            name: f.pname.value,
-            category: f.cat.value,
-            price: p,
-            final_price: d > 0 ? p * (1 - d/100) : p,
-            discount: d,
-            stock: parseInt(f.stock.value),
-            image_url: f.img.value,
-            description: f.desc.value,
-            on_sale: f.sale.checked,
-            seller_username: currentUser.username,
-            seller_shop_name: currentUser.shop_name || 'Admin Shop',
-            seller_discord: currentUser.discord_tag || 'Admin',
-            created_at: new Date().toISOString()
-        });
-        showToast('Producto Agregado');
-        f.reset();
+        showToast('⭐ Reseña Enviada');
+        showModal = null; selectedOrder = null; render();
     }
 
-    // --- UTILIDADES ---
+    // --- UI RENDER ---
     function showToast(msg) {
-        const d = document.createElement('div');
-        d.className = 'fixed bottom-5 right-5 bg-blue-600 text-white px-6 py-3 rounded shadow-xl z-50 font-bold animate-bounce';
-        d.innerText = msg;
-        document.body.appendChild(d);
-        setTimeout(() => d.remove(), 3000);
+        const t = document.createElement('div');
+        t.className = 'fixed bottom-5 right-5 bg-blue-600 text-white px-6 py-3 rounded shadow-xl z-50 font-bold animate-bounce';
+        t.textContent = msg;
+        document.body.appendChild(t);
+        setTimeout(() => t.remove(), 3000);
     }
 
-    function exportData() {
-        const blob = new Blob([JSON.stringify(window.mockDb.data)], {type: 'application/json'});
-        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'backup.json'; a.click();
-    }
-    
-    function importData(e) {
-        const r = new FileReader();
-        r.onload = (ev) => {
-            window.mockDb.data = JSON.parse(ev.target.result);
-            window.mockDb.notify();
-            showToast('Datos Restaurados');
-            setTimeout(()=>location.reload(),1000);
-        };
-        r.readAsText(e.target.files[0]);
-    }
-
-    // --- RENDERIZADO UI ---
     function render() {
         const app = document.getElementById('app');
         const conf = window.elementSdk.config;
         
-        // Autoplay Hack
+        // Audio Fix
         if (!audioContextResumed) {
             document.body.addEventListener('click', () => {
                 if(!audioContextResumed) {
                     notificationAudio.play().then(() => {
-                        audioContextResumed = true; 
-                        notificationAudio.pause(); 
-                        notificationAudio.currentTime=0;
+                        audioContextResumed = true; notificationAudio.pause(); notificationAudio.currentTime=0;
                     }).catch(()=>{});
                 }
             }, { once: true });
         }
 
-        // Routing
+        // Vistas
         if (currentView === 'catalog') app.innerHTML = renderCatalog();
         else if (currentView === 'cart') app.innerHTML = renderCart();
         else if (currentView === 'orders') app.innerHTML = renderOrders();
         else if (currentView === 'admin') app.innerHTML = renderAdmin();
 
         // Modals
-        const modalDiv = document.getElementById('modalContainer');
-        if (!modalDiv) {
-            const m = document.createElement('div'); m.id = 'modalContainer';
-            document.body.appendChild(m);
-            m.innerHTML = showModal ? renderModal() : '';
+        let modalHtml = '';
+        if (showModal) modalHtml = renderModal();
+        
+        const cont = document.getElementById('modalContainer');
+        if(!cont) {
+            const d = document.createElement('div'); d.id = 'modalContainer'; 
+            document.body.appendChild(d); d.innerHTML = modalHtml;
         } else {
-            modalDiv.innerHTML = showModal ? renderModal() : '';
+            cont.innerHTML = modalHtml;
         }
     }
 
@@ -484,23 +421,25 @@
         const filtered = selectedCategory === 'all' ? allProducts : 
                          selectedCategory === 'promotions' ? allProducts.filter(p => p.on_sale) :
                          allProducts.filter(p => p.category === selectedCategory);
-        
+
         return `
-        <div class="min-h-screen pb-10">
+        <div class="min-h-screen pb-10 bg-slate-900 text-slate-100">
             <header class="bg-slate-800 shadow-lg sticky top-0 z-40">
                 <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
                     <h1 class="text-2xl font-bold text-blue-400">MU MARKET <span class="text-xs text-white opacity-50">99B</span></h1>
                     <div class="flex gap-2">
                         ${!currentUser ? `
-                            <button onclick="showModal='login'; render()" class="bg-blue-600 px-4 py-2 rounded font-bold">Login</button>
-                            <button onclick="showModal='register'; render()" class="bg-green-600 px-4 py-2 rounded font-bold">Registro</button>
-                            <button onclick="showModal='reseller'; render()" class="bg-purple-600 px-4 py-2 rounded font-bold">Vender</button>
+                            <button onclick="showModal='login'; render()" class="bg-blue-600 px-4 py-2 rounded font-bold hover:bg-blue-500">Entrar</button>
+                            <button onclick="showModal='register'; render()" class="bg-green-600 px-4 py-2 rounded font-bold hover:bg-green-500">Registro</button>
+                            <button onclick="showModal='reseller'; render()" class="bg-purple-600 px-4 py-2 rounded font-bold hover:bg-purple-500">Vender</button>
                         ` : `
-                            <button onclick="currentView='catalog'; render()" class="bg-slate-700 px-3 py-2 rounded">🏠</button>
-                            <button onclick="currentView='cart'; render()" class="bg-slate-700 px-3 py-2 rounded relative">🛒 ${cart.length>0?`<span class="cart-badge">${cart.reduce((a,b)=>a+b.quantity,0)}</span>`:''}</button>
-                            <button onclick="currentView='orders'; render()" class="bg-slate-700 px-3 py-2 rounded">📦</button>
-                            ${currentUser.role!=='buyer'?`<button onclick="currentView='admin'; render()" class="bg-slate-700 px-3 py-2 rounded font-bold border border-blue-500">⚙️</button>`:''}
-                            <button onclick="currentUser=null; currentView='catalog'; cart=[]; render()" class="bg-red-600 px-3 py-2 rounded font-bold">Salir</button>
+                            <button onclick="currentView='catalog'; render()" class="bg-slate-700 px-3 py-2 rounded hover:bg-slate-600">🏠</button>
+                            <button onclick="currentView='cart'; render()" class="bg-slate-700 px-3 py-2 rounded relative hover:bg-slate-600">
+                                🛒 ${cart.length>0 ? `<span class="cart-badge">${cart.reduce((a,b)=>a+b.quantity,0)}</span>` : ''}
+                            </button>
+                            <button onclick="currentView='orders'; render()" class="bg-slate-700 px-3 py-2 rounded hover:bg-slate-600">📦</button>
+                            ${currentUser.role!=='buyer' ? `<button onclick="currentView='admin'; render()" class="bg-slate-700 px-3 py-2 rounded font-bold border border-blue-500">⚙️</button>`:''}
+                            <button onclick="currentUser=null; currentView='catalog'; cart=[]; render()" class="bg-red-600 px-3 py-2 rounded font-bold hover:bg-red-500">Salir</button>
                         `}
                     </div>
                 </div>
@@ -509,11 +448,11 @@
             <div class="max-w-7xl mx-auto px-4 mt-8">
                 ${top.length > 0 ? `
                 <div class="mb-10">
-                    <h2 class="text-center text-2xl font-bold mb-6 text-yellow-400">🏆 TOP 3 MEJORES TIENDAS</h2>
+                    <h2 class="text-center text-2xl font-bold mb-6 text-yellow-400">🏆 MEJORES TIENDAS</h2>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        ${top.map((s, idx) => `
-                            <div class="rank-card rank-${idx+1} bg-slate-800 p-6 rounded-xl text-center relative">
-                                <div class="text-4xl mb-2">${idx===0?'👑':idx===1?'🥈':'🥉'}</div>
+                        ${top.map((s, i) => `
+                            <div class="rank-card rank-${i+1} bg-slate-800 p-6 rounded-xl text-center relative">
+                                <div class="text-4xl mb-2">${i===0?'👑':i===1?'🥈':'🥉'}</div>
                                 <h3 class="text-xl font-bold">${s.shop_name}</h3>
                                 <p class="text-sm opacity-70">${s.username}</p>
                                 <div class="mt-2 text-yellow-400 text-xl font-bold">⭐ ${s.rating.toFixed(1)} <span class="text-xs text-white opacity-50">(${s.count})</span></div>
@@ -531,18 +470,20 @@
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                    ${filtered.map(p => `
-                        <div class="product-card bg-slate-800 rounded-xl overflow-hidden shadow-lg relative">
+                    ${filtered.map(p => {
+                        const r = getSellerRating(p.seller_username);
+                        return `
+                        <div class="product-card bg-slate-800 rounded-xl overflow-hidden shadow-lg relative border border-slate-700">
                             ${p.on_sale ? '<span class="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded z-10 animate-pulse">OFERTA</span>' : ''}
                             <div class="h-40 bg-slate-900 flex items-center justify-center overflow-hidden">
                                 ${p.image_url ? `<img src="${p.image_url}" class="w-full h-full object-cover">` : '<span class="text-4xl">📦</span>'}
                             </div>
                             <div class="p-4">
                                 <h3 class="font-bold truncate">${p.name}</h3>
-                                <p class="text-xs text-slate-400 mb-2">🏪 ${p.seller_shop_name}</p>
-                                <div class="flex justify-between items-center">
+                                <p class="text-xs text-slate-400 mb-2">🏪 ${p.seller_shop_name} (${r.average}⭐)</p>
+                                <div class="flex justify-between items-center mt-4">
                                     <div>
-                                        ${p.discount > 0 ? `<div class="text-xs line-through text-slate-500">$${p.price}</div><div class="text-lg font-bold text-green-400">$${p.final_price}</div>` : `<div class="text-lg font-bold text-green-400">$${p.price}</div>`}
+                                        ${p.discount > 0 ? `<div class="text-xs line-through text-slate-500">$${p.price}</div><div class="text-lg font-bold text-green-400">$${p.final_price.toFixed(2)}</div>` : `<div class="text-lg font-bold text-green-400">$${p.price.toFixed(2)}</div>`}
                                     </div>
                                     <button onclick="const pr=allProducts.find(x=>x.__backendId=='${p.__backendId}'); if(cart.find(x=>x.__backendId==pr.__backendId)){showToast('Ya en carrito')}else{cart.push({...pr, quantity:1}); showToast('Agregado'); render();}" ${p.stock<1?'disabled':''} class="bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded text-sm font-bold ${p.stock<1?'opacity-50 cursor-not-allowed':''}">
                                         ${p.stock<1?'AGOTADO':'COMPRAR'}
@@ -550,7 +491,7 @@
                                 </div>
                             </div>
                         </div>
-                    `).join('')}
+                    `}).join('')}
                 </div>
             </div>
         </div>`;
@@ -559,18 +500,18 @@
     function renderCart() {
         const total = cart.reduce((a,b)=>a+(b.final_price*b.quantity),0);
         return `
-        <div class="max-w-4xl mx-auto p-6">
-            <h2 class="text-3xl font-bold mb-6">🛒 Carrito</h2>
+        <div class="max-w-4xl mx-auto p-6 bg-slate-900 min-h-screen text-white">
+            <h2 class="text-3xl font-bold mb-6">🛒 Tu Carrito</h2>
             ${cart.length===0 ? '<p>Vacío</p><button onclick="currentView=\'catalog\';render()" class="mt-4 bg-blue-600 px-4 py-2 rounded">Volver</button>' : `
                 ${cart.map((item, idx) => `
-                    <div class="bg-slate-800 p-4 rounded mb-2 flex justify-between items-center">
+                    <div class="bg-slate-800 p-4 rounded mb-2 flex justify-between items-center border border-slate-700">
                         <div>
                             <div class="font-bold">${item.name}</div>
                             <div class="text-sm opacity-70">$${item.final_price} x ${item.quantity}</div>
                         </div>
                         <div class="flex items-center gap-4">
                             <div class="font-bold text-green-400">$${(item.final_price*item.quantity).toFixed(2)}</div>
-                            <button onclick="cart.splice(${idx},1); render()" class="text-red-500 font-bold">X</button>
+                            <button onclick="cart.splice(${idx},1); render()" class="text-red-500 font-bold hover:text-red-400">X</button>
                         </div>
                     </div>
                 `).join('')}
@@ -585,16 +526,16 @@
     function renderOrders() {
         const myOrders = allOrders.filter(o => o.buyer_username === currentUser.username).reverse();
         return `
-        <div class="max-w-4xl mx-auto p-6">
-            <div class="flex justify-between mb-6"><h2 class="text-3xl font-bold">📦 Mis Pedidos</h2><button onclick="currentView='catalog';render()" class="bg-blue-600 px-4 py-2 rounded">Volver</button></div>
+        <div class="max-w-4xl mx-auto p-6 bg-slate-900 min-h-screen text-white">
+            <div class="flex justify-between mb-6"><h2 class="text-3xl font-bold">📦 Historial</h2><button onclick="currentView='catalog';render()" class="bg-blue-600 px-4 py-2 rounded">Volver</button></div>
             ${myOrders.map(o => `
-                <div class="bg-slate-800 p-6 rounded-lg mb-4 border-l-4 ${o.order_status==='completed'?'border-green-500':'border-yellow-500'}">
+                <div class="bg-slate-800 p-6 rounded-lg mb-4 border-l-4 ${o.order_status==='completed'?'border-green-500':'border-yellow-500'} shadow-lg">
                     <div class="flex justify-between mb-2">
                         <span class="font-bold">#${o.id.slice(-6)}</span>
                         <span class="text-xs font-bold px-2 py-1 rounded ${o.order_status==='completed'?'bg-green-900':'bg-yellow-900'}">${o.order_status.toUpperCase()}</span>
                     </div>
-                    <p class="text-sm text-slate-400 mb-2">Vendedor: ${o.seller_username} | Discord: ${o.seller_discord}</p>
-                    <div class="bg-slate-900 p-2 rounded text-sm mb-4 font-mono">${o.items}</div>
+                    <p class="text-sm text-slate-400 mb-2">Vendedor: ${o.seller_username} (${o.seller_discord})</p>
+                    <div class="bg-slate-900 p-2 rounded text-sm mb-4 font-mono text-slate-300">${o.items}</div>
                     <div class="flex justify-between items-center">
                         <div class="font-bold text-xl">$${o.total.toFixed(2)}</div>
                         ${o.order_status==='pending' ? `
@@ -613,80 +554,66 @@
         const myProds = isAdm ? allProducts : allProducts.filter(p => p.seller_username === currentUser.username);
         const myOrders = isAdm ? allOrders : allOrders.filter(o => o.seller_username === currentUser.username);
         const pendingOrders = myOrders.filter(o => o.order_status === 'pending');
-        const pendingResellers = allUsers.filter(u => u.role === 'reseller' && !u.approved);
+        const resellers = allUsers.filter(u => u.role === 'reseller' && !u.approved);
 
         return `
-        <div class="max-w-7xl mx-auto p-6">
+        <div class="max-w-7xl mx-auto p-6 bg-slate-900 min-h-screen text-white">
             <div class="flex justify-between items-center mb-8">
-                <h1 class="text-3xl font-bold">${isAdm ? '⚙️ PANEL ADMIN' : '🏪 MI TIENDA'}</h1>
-                <div class="flex gap-2">
-                    <button onclick="exportData()" class="bg-slate-600 px-4 py-2 rounded">📥 Backup</button>
-                    <label class="bg-slate-600 px-4 py-2 rounded cursor-pointer">📤 Restaurar <input type="file" hidden onchange="importData(event)"></label>
-                    <button onclick="currentView='catalog';render()" class="bg-blue-600 px-4 py-2 rounded">Inicio</button>
-                </div>
+                <h1 class="text-3xl font-bold">${isAdm ? '⚙️ ADMIN' : '🏪 TIENDA'}</h1>
+                <button onclick="currentView='catalog';render()" class="bg-blue-600 px-4 py-2 rounded">Inicio</button>
             </div>
 
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-                <div class="bg-slate-800 p-4 rounded text-center border-t-4 border-blue-500">
-                    <div class="text-2xl font-bold">${myProds.length}</div><div class="text-xs">PRODUCTOS</div>
-                </div>
-                <div class="bg-slate-800 p-4 rounded text-center border-t-4 border-green-500">
-                    <div class="text-2xl font-bold">$${myOrders.filter(o=>o.order_status==='completed').reduce((a,b)=>a+b.total,0)}</div><div class="text-xs">VENTAS</div>
-                </div>
-                <div class="bg-slate-800 p-4 rounded text-center border-t-4 border-yellow-500">
-                    <div class="text-2xl font-bold">${pendingOrders.length}</div><div class="text-xs">PENDIENTES</div>
-                </div>
-                <div class="bg-slate-800 p-4 rounded text-center border-t-4 border-purple-500">
-                    <div class="text-2xl font-bold">${getSellerRating(currentUser.username).average}⭐</div><div class="text-xs">RATING</div>
-                </div>
+                <div class="bg-slate-800 p-4 rounded text-center border-t-4 border-blue-500"><div class="text-2xl font-bold">${myProds.length}</div><div class="text-xs">PRODUCTOS</div></div>
+                <div class="bg-slate-800 p-4 rounded text-center border-t-4 border-green-500"><div class="text-2xl font-bold">$${myOrders.filter(o=>o.order_status==='completed').reduce((a,b)=>a+b.total,0)}</div><div class="text-xs">VENTAS</div></div>
+                <div class="bg-slate-800 p-4 rounded text-center border-t-4 border-yellow-500"><div class="text-2xl font-bold">${pendingOrders.length}</div><div class="text-xs">PENDIENTES</div></div>
+                <div class="bg-slate-800 p-4 rounded text-center border-t-4 border-purple-500"><div class="text-2xl font-bold">${getSellerRating(currentUser.username).average}⭐</div><div class="text-xs">RATING</div></div>
             </div>
 
-            <div class="bg-slate-800 p-6 rounded-xl mb-8">
+            <div class="bg-slate-800 p-6 rounded-xl mb-8 shadow-lg">
                 <h2 class="text-xl font-bold mb-4">📦 Pedidos Entrantes</h2>
-                ${pendingOrders.length === 0 ? '<p class="opacity-50">Todo al día.</p>' : pendingOrders.map(o => `
-                    <div class="bg-slate-900 p-4 rounded mb-2 flex flex-wrap justify-between items-center gap-4">
+                ${pendingOrders.length===0 ? '<p class="opacity-50">Sin pedidos pendientes.</p>' : pendingOrders.map(o => `
+                    <div class="bg-slate-900 p-4 rounded mb-2 flex flex-wrap justify-between items-center gap-4 border border-slate-700">
                         <div>
-                            <div class="font-bold text-yellow-500">#${o.id.slice(-6)} <span class="text-slate-400 text-xs">(${o.created_at.split('T')[0]})</span></div>
-                            <div class="text-sm">Cliente: ${o.buyer_username} (${o.buyer_discord})</div>
+                            <div class="font-bold text-yellow-500">#${o.id.slice(-6)}</div>
+                            <div class="text-sm">De: ${o.buyer_username} (${o.buyer_discord})</div>
                             <div class="text-xs opacity-60 mt-1">${o.items}</div>
                         </div>
                         <div class="flex items-center gap-4">
                             <div class="font-bold text-xl">$${o.total}</div>
                             <button onclick="confirmOrder('${o.__backendId}', true)" ${o.seller_confirmed?'disabled':''} class="bg-green-600 hover:bg-green-500 disabled:opacity-50 px-4 py-2 rounded font-bold">
-                                ${o.seller_confirmed ? 'Esperando Cliente...' : '✅ Confirmar Entrega'}
+                                ${o.seller_confirmed ? 'Esperando Cliente...' : '✅ Entregar'}
                             </button>
                         </div>
                     </div>
                 `).join('')}
             </div>
 
-            <div class="bg-slate-800 p-6 rounded-xl mb-8">
+            <div class="bg-slate-800 p-6 rounded-xl mb-8 shadow-lg">
                 <h2 class="text-xl font-bold mb-4">➕ Publicar Item</h2>
                 <form onsubmit="event.preventDefault(); const f=event.target; const p={type:'product',name:f.n.value,category:f.c.value,price:parseFloat(f.p.value),stock:parseInt(f.s.value),discount:parseInt(f.d.value)||0,image_url:f.i.value,description:f.desc.value,on_sale:f.os.checked,seller_username:currentUser.username,seller_shop_name:currentUser.shop_name,seller_discord:currentUser.discord_tag,created_at:new Date().toISOString()}; p.final_price=p.price*(1-p.discount/100); window.dataSdk.create(p); f.reset(); showToast('✅ Publicado');" class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <input name="n" placeholder="Nombre" required class="bg-slate-700 p-3 rounded text-white">
-                    <select name="c" class="bg-slate-700 p-3 rounded text-white">
-                        <option value="items">Arma/Escudo</option><option value="sets">Set</option><option value="wings">Alas</option><option value="jewels">Joya</option>
-                    </select>
+                    <select name="c" class="bg-slate-700 p-3 rounded text-white"><option value="items">Arma/Escudo</option><option value="sets">Set</option><option value="wings">Alas</option><option value="jewels">Joya</option></select>
                     <input name="p" type="number" placeholder="Precio" required class="bg-slate-700 p-3 rounded text-white">
                     <input name="s" type="number" placeholder="Stock" required class="bg-slate-700 p-3 rounded text-white">
-                    <input name="d" type="number" placeholder="Descuento %" class="bg-slate-700 p-3 rounded text-white">
-                    <input name="i" placeholder="URL Imagen (Imgur)" class="bg-slate-700 p-3 rounded text-white">
+                    <input name="d" type="number" placeholder="% Descuento" class="bg-slate-700 p-3 rounded text-white">
+                    <input name="i" placeholder="URL Imagen" class="bg-slate-700 p-3 rounded text-white">
                     <textarea name="desc" placeholder="Descripción" class="md:col-span-2 bg-slate-700 p-3 rounded text-white h-20"></textarea>
-                    <label class="flex items-center gap-2"><input name="os" type="checkbox" class="w-5 h-5"> <span class="font-bold text-red-400">🔥 Es Oferta</span></label>
-                    <button class="md:col-span-2 bg-blue-600 py-3 rounded font-bold">PUBLICAR</button>
+                    <label class="flex items-center gap-2"><input name="os" type="checkbox" class="w-5 h-5"> <span class="font-bold text-red-400">🔥 Oferta</span></label>
+                    <button class="md:col-span-2 bg-blue-600 hover:bg-blue-500 py-3 rounded font-bold text-white">PUBLICAR</button>
                 </form>
             </div>
 
             ${isAdm ? `
-                <div class="bg-slate-800 p-6 rounded-xl">
-                    <h2 class="text-xl font-bold mb-4">👮 GESTIÓN DE USUARIOS (ADMIN)</h2>
+                <div class="bg-slate-800 p-6 rounded-xl shadow-lg">
+                    <h2 class="text-xl font-bold mb-4">👮 Gestión de Usuarios</h2>
                     
-                    ${pendingResellers.length > 0 ? `
+                    ${resellers.length > 0 ? `
                         <div class="bg-yellow-900/30 border border-yellow-600 p-4 rounded mb-6">
-                            <h3 class="font-bold text-yellow-500 mb-2">⏳ Solicitudes de Vendedor</h3>
-                            ${pendingResellers.map(u => `
+                            <h3 class="font-bold text-yellow-500 mb-2">⏳ Pendientes de Aprobación</h3>
+                            ${resellers.map(u => `
                                 <div class="flex justify-between items-center bg-slate-900 p-2 rounded mb-1">
-                                    <span>${u.username} - ${u.shop_name} (${u.discord_tag})</span>
+                                    <span>${u.username} - ${u.shop_name}</span>
                                     <div class="flex gap-2">
                                         <button onclick="window.dataSdk.update({...allUsers.find(x=>x.__backendId=='${u.__backendId}'), approved:true, status:'approved'})" class="bg-green-600 px-2 py-1 rounded text-xs">APROBAR</button>
                                         <button onclick="window.dataSdk.delete(allUsers.find(x=>x.__backendId=='${u.__backendId}'))" class="bg-red-600 px-2 py-1 rounded text-xs">RECHAZAR</button>
@@ -698,16 +625,16 @@
 
                     <div class="overflow-x-auto">
                         <table class="w-full text-sm text-left text-slate-400">
-                            <thead class="bg-slate-900 text-slate-200"><tr><th class="p-3">Usuario</th><th>Rol</th><th>Estado</th><th>Acción</th></tr></thead>
+                            <thead class="bg-slate-900 text-slate-200"><tr><th class="p-3">User</th><th>Rol</th><th>Estado</th><th>Acción</th></tr></thead>
                             <tbody>${allUsers.map(u => `
-                                <tr class="border-b border-slate-700">
+                                <tr class="border-b border-slate-700 hover:bg-slate-700">
                                     <td class="p-3">${u.username}</td><td>${u.role}</td>
                                     <td><span class="px-2 py-0.5 rounded text-xs ${u.status==='banned'?'bg-red-900 text-white':'bg-green-900 text-white'}">${u.status}</span></td>
                                     <td>
                                         <button onclick="window.dataSdk.update({...allUsers.find(x=>x.__backendId=='${u.__backendId}'), status: '${u.status.includes('banned')?'active':'banned'}'})" class="text-yellow-500 hover:underline mr-2">
                                             ${u.status.includes('banned')?'UNBAN':'BAN'}
                                         </button>
-                                        <button onclick="if(confirm('Borrar?')) window.dataSdk.delete(allUsers.find(x=>x.__backendId=='${u.__backendId}'))" class="text-red-500 hover:underline">BORRAR</button>
+                                        <button onclick="if(confirm('¿Borrar?')) window.dataSdk.delete(allUsers.find(x=>x.__backendId=='${u.__backendId}'))" class="text-red-500 hover:underline">BORRAR</button>
                                     </td>
                                 </tr>
                             `).join('')}</tbody>
@@ -725,11 +652,11 @@
         if (showModal === 'login') return `
         <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" ${close}>
             <div class="${box}">
-                <h2 class="text-2xl font-bold text-center mb-4">Acceso</h2>
+                <h2 class="text-2xl font-bold text-center mb-4 text-white">Acceso</h2>
                 <form onsubmit="handleLogin(event)">
-                    <input id="loginUsername" placeholder="Usuario" class="w-full mb-3 p-3 rounded bg-slate-700 text-white" required>
-                    <input id="loginPassword" type="password" placeholder="Contraseña" class="w-full mb-6 p-3 rounded bg-slate-700 text-white" required>
-                    <button class="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded font-bold">ENTRAR</button>
+                    <input id="loginUser" placeholder="Usuario" class="w-full mb-3 p-3 rounded bg-slate-700 text-white" required>
+                    <input id="loginPass" type="password" placeholder="Contraseña" class="w-full mb-6 p-3 rounded bg-slate-700 text-white" required>
+                    <button class="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded font-bold text-white">ENTRAR</button>
                 </form>
             </div>
         </div>`;
@@ -737,12 +664,12 @@
         if (showModal === 'register') return `
         <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" ${close}>
             <div class="${box}">
-                <h2 class="text-2xl font-bold text-center mb-4 text-green-400">Registro Comprador</h2>
+                <h2 class="text-2xl font-bold text-center mb-4 text-green-400">Registro</h2>
                 <form onsubmit="registerUser('buyer', event)">
-                    <input id="buyerUsername" placeholder="Usuario" class="w-full mb-3 p-3 rounded bg-slate-700 text-white" required>
-                    <input id="buyerPassword" type="password" placeholder="Contraseña" class="w-full mb-3 p-3 rounded bg-slate-700 text-white" required>
-                    <input id="buyerDiscord" placeholder="Discord Tag" class="w-full mb-6 p-3 rounded bg-slate-700 text-white" required>
-                    <button class="w-full bg-green-600 hover:bg-green-500 py-3 rounded font-bold">CREAR CUENTA</button>
+                    <input name="u" placeholder="Usuario" class="w-full mb-3 p-3 rounded bg-slate-700 text-white" required>
+                    <input name="p" type="password" placeholder="Contraseña" class="w-full mb-3 p-3 rounded bg-slate-700 text-white" required>
+                    <input name="d" placeholder="Discord Tag" class="w-full mb-6 p-3 rounded bg-slate-700 text-white" required>
+                    <button class="w-full bg-green-600 hover:bg-green-500 py-3 rounded font-bold text-white">CREAR CUENTA</button>
                 </form>
             </div>
         </div>`;
@@ -752,24 +679,11 @@
             <div class="${box}">
                 <h2 class="text-2xl font-bold text-center mb-4 text-purple-400">Solicitud Vendedor</h2>
                 <form onsubmit="registerUser('reseller', event)">
-                    <input id="resellerUsername" placeholder="Usuario" class="w-full mb-3 p-3 rounded bg-slate-700 text-white" required>
-                    <input id="resellerPassword" type="password" placeholder="Contraseña" class="w-full mb-3 p-3 rounded bg-slate-700 text-white" required>
-                    <input id="resellerShop" placeholder="Nombre Tienda" class="w-full mb-3 p-3 rounded bg-slate-700 text-white" required>
-                    <input id="resellerDiscord" placeholder="Discord Tag" class="w-full mb-6 p-3 rounded bg-slate-700 text-white" required>
-                    <button class="w-full bg-purple-600 hover:bg-purple-500 py-3 rounded font-bold">ENVIAR SOLICITUD</button>
-                </form>
-            </div>
-        </div>`;
-
-        if (showModal === 'setupShop') return `
-        <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
-            <div class="${box}">
-                <h2 class="text-2xl font-bold text-center mb-2">⚙️ Configura tu Tienda</h2>
-                <p class="text-center text-slate-400 text-sm mb-6">Información obligatoria para vender.</p>
-                <form onsubmit="event.preventDefault(); const u={...currentUser, shop_name:document.getElementById('sShop').value, discord_tag:document.getElementById('sDisc').value, role:'reseller', approved:true, status:'approved'}; window.dataSdk.update(u); currentUser=u; showModal=null; currentView='admin'; render();">
-                    <input id="sShop" placeholder="Nombre de Tienda" class="w-full mb-3 p-3 rounded bg-slate-700 text-white" required>
-                    <input id="sDisc" placeholder="Discord Tag" value="${currentUser.discord_tag||''}" class="w-full mb-6 p-3 rounded bg-slate-700 text-white" required>
-                    <button class="w-full bg-blue-600 py-3 rounded font-bold">GUARDAR Y CONTINUAR</button>
+                    <input name="u" placeholder="Usuario" class="w-full mb-3 p-3 rounded bg-slate-700 text-white" required>
+                    <input name="p" type="password" placeholder="Contraseña" class="w-full mb-3 p-3 rounded bg-slate-700 text-white" required>
+                    <input name="s" placeholder="Nombre Tienda" class="w-full mb-3 p-3 rounded bg-slate-700 text-white" required>
+                    <input name="d" placeholder="Discord Tag" class="w-full mb-6 p-3 rounded bg-slate-700 text-white" required>
+                    <button class="w-full bg-purple-600 hover:bg-purple-500 py-3 rounded font-bold text-white">ENVIAR</button>
                 </form>
             </div>
         </div>`;
@@ -777,19 +691,26 @@
         if (showModal === 'review' && selectedOrder) return `
         <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
             <div class="${box} border-2 border-yellow-500">
-                <h2 class="text-2xl font-bold text-center mb-2 text-yellow-400">⭐ Califica tu Compra</h2>
-                <p class="text-center text-slate-400 mb-6">¿Qué tal tu experiencia con <b>${selectedOrder.seller_username}</b>?</p>
+                <h2 class="text-2xl font-bold text-center mb-2 text-yellow-400">⭐ Califícanos</h2>
+                <p class="text-center text-slate-400 mb-6">Tu pedido con <b>${selectedOrder.seller_username}</b> ha finalizado.</p>
                 <form onsubmit="submitReview(event)">
                     <div class="flex justify-center gap-2 mb-6">
-                        ${[1,2,3,4,5].map(n => `
-                            <label class="cursor-pointer">
-                                <input type="radio" name="rating" value="${n}" class="hidden peer" required>
-                                <span class="text-4xl text-slate-600 peer-checked:text-yellow-400 hover:text-yellow-400 transition star">★</span>
-                            </label>
-                        `).join('')}
+                        ${[1,2,3,4,5].map(n => `<label><input type="radio" name="rating" value="${n}" class="hidden peer"><span class="text-4xl text-slate-600 peer-checked:text-yellow-400 hover:text-yellow-400 cursor-pointer">★</span></label>`).join('')}
                     </div>
-                    <textarea id="reviewText" class="w-full h-24 bg-slate-700 p-3 rounded mb-4 text-white" placeholder="Comentario (opcional)..."></textarea>
-                    <button class="w-full bg-yellow-600 hover:bg-yellow-500 py-3 rounded font-bold">ENVIAR CALIFICACIÓN</button>
+                    <textarea id="reviewText" class="w-full bg-slate-700 p-3 rounded text-white mb-4" placeholder="Comentario..."></textarea>
+                    <button class="w-full bg-yellow-600 hover:bg-yellow-500 py-3 rounded font-bold text-white">ENVIAR</button>
+                </form>
+            </div>
+        </div>`;
+
+        if (showModal === 'setupShop') return `
+        <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
+            <div class="${box}">
+                <h2 class="text-2xl font-bold text-center mb-4">Configura tu Tienda</h2>
+                <form onsubmit="event.preventDefault(); const u={...currentUser, shop_name:document.getElementById('shopN').value, discord_tag:document.getElementById('discN').value, role:'reseller', approved:true, status:'approved'}; window.dataSdk.update(u); currentUser=u; showModal=null; currentView='admin'; render();">
+                    <input id="shopN" placeholder="Nombre Tienda" class="w-full mb-3 p-3 rounded bg-slate-700 text-white" required>
+                    <input id="discN" placeholder="Discord" value="${currentUser.discord_tag||''}" class="w-full mb-6 p-3 rounded bg-slate-700 text-white" required>
+                    <button class="w-full bg-blue-600 py-3 rounded font-bold text-white">GUARDAR</button>
                 </form>
             </div>
         </div>`;
