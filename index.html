@@ -3,7 +3,7 @@
  <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mu Online 99B Marketplace - V19 FINAL (FIX LECTURA DB CRÍTICA)</title>
+  <title>Mu Online 99B Marketplace - V20 FINAL (Aviso LocalStorage)</title>
   
   <script src="https://cdn.tailwindcss.com"></script>
   
@@ -147,12 +147,12 @@
 
   <script>
     // Nombre de la llave para guardar en el navegador
-    const DB_KEY = 'mu_marketplace_db_v19_final'; 
+    const DB_KEY = 'mu_marketplace_db_v20_final'; 
     
     // Inicializar DB desde LocalStorage al cargar (LECTURA CRÍTICA AQUÍ)
     let savedData = localStorage.getItem(DB_KEY);
     window.mockDb = {
-      // **CORRECCIÓN CRÍTICA:** Cargar datos inmediatamente al definir mockDb
+      // **LECTURA CRÍTICA:** Cargar datos inmediatamente al definir mockDb
       data: savedData ? JSON.parse(savedData) : [], 
       handler: null,
       notify() {
@@ -240,7 +240,7 @@
     };
 
     // Clave de sesión
-    const SESSION_KEY = 'mu_session_user_v19_final';
+    const SESSION_KEY = 'mu_session_user_v20_final';
     
     // Variables de Timeout para Auto-Logout
     let inactivityTimeout;
@@ -1182,7 +1182,7 @@
           <header class="shadow-lg sticky top-0 z-40 bg-slate-800 border-b border-slate-700 p-4">
             <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
                 <div class="text-center md:text-left">
-                  <h1 class="text-2xl font-bold text-blue-400 tracking-tight">MU MARKET <span class="text-white text-xs bg-blue-600 px-1 rounded">V19</span></h1>
+                  <h1 class="text-2xl font-bold text-blue-400 tracking-tight">MU MARKET <span class="text-white text-xs bg-blue-600 px-1 rounded">V20</span></h1>
                   <p class="text-xs mt-1 opacity-60">${config.contact_info}</p>
                 </div>
                 <div class="flex flex-wrap gap-2 justify-center items-center">
@@ -1521,8 +1521,7 @@
       // LOG DE PEDIDOS COMPLETADOS
       const completedOrdersLog = allOrders.filter(o => o.order_status === 'completed').reverse();
       
-      // FILTRADO ROBUSTO DE USUARIOS (El punto de corrección V18)
-      // Asegura que allUsers esté poblado al renderizar el panel del administrador
+      // FILTRADO ROBUSTO DE USUARIOS 
       const displayUsers = allUsers.sort((a, b) => {
           // Priorizar los pendientes al inicio (para el admin)
           if (a.status === 'pending' && b.status !== 'pending') return -1;
@@ -1736,6 +1735,16 @@
                             🌍 Panel Global de Usuarios <span class="text-xs bg-slate-900 text-slate-400 px-2 py-1 rounded ml-auto">Total: ${displayUsers.length}</span>
                         </h2>
                         
+                        <div class="bg-red-900/30 border border-red-500 p-4 rounded-lg mb-6 shadow-md">
+                            <h3 class="font-bold text-red-300 flex items-center gap-2">⚠️ ATENCIÓN: SINCRONIZACIÓN LIMITADA</h3>
+                            <p class="text-sm text-red-400 mt-2">
+                                Esta aplicación usa **Local Storage**, no una base de datos central en la nube.
+                                Por lo tanto, **solo puedes ver las solicitudes de registro de los usuarios que se crearon en tu propia PC.**
+                            </p>
+                            <p class="text-sm text-red-400 mt-2 font-bold">
+                                Para ver las solicitudes de otras personas, ellas deben **enviarte su archivo de Backup** (Usando la herramienta "💾 RESPALDO SYSTEM" y luego "⬆️ IMPORTAR" sus datos aquí).
+                            </p>
+                        </div>
                         <div class="overflow-x-auto rounded-lg border border-slate-700">
                             <table class="w-full text-sm text-left text-slate-300">
                                 <thead class="bg-slate-900 text-white uppercase font-bold text-xs">
