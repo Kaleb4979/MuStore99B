@@ -8,7 +8,6 @@ const SUPABASE_URL = 'https://ciysaobejtxfkpmbmswb.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_ZVQXNGvJjurUNtqZNQrnPg_aw_wW9gY'; 
 
 // --- NOMBRES DE TABLAS (DEBEN COINCIDIR CON EL SQL) ---
-// CLAVE: Tipo de dato en el JSON. VALOR: Nombre de la tabla en Supabase.
 const TABLE_NAMES = {
     'user': 'users',
     'product': 'products',
@@ -46,14 +45,12 @@ if (SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase) {
 // == 2. ESTADO BASE y SDKs GLOBALES                      ==
 // =========================================================
 
-// Usamos esta estructura de mockDb para mantener compatibilidad con app.js
 window.mockDb = {
     data: [], 
     handler: null,
     notify() {} 
 };
 
-// SDK de Configuración Visual (Local)
 window.elementSdk = {
     config: {},
     init: (options) => {
@@ -67,7 +64,7 @@ window.elementSdk = {
 
 
 // =========================================================
-// == 3. SDK DE DATOS (SUPABASE CRUD) - REESCRITO         ==
+// == 3. SDK DE DATOS (SUPABASE CRUD con Mapeo a UUID)    ==
 // =========================================================
 window.dataSdk = {
     
@@ -76,7 +73,6 @@ window.dataSdk = {
         return window.dataSdk.readAllTables();
     },
 
-    // Función auxiliar para obtener el nombre de la tabla
     getTableFromItem: (item) => {
         const typeKey = item.type;
         const tableName = TABLE_NAMES[typeKey];
@@ -91,28 +87,32 @@ window.dataSdk = {
         if (!supabase) return { isOk: false };
         
         try {
-            // Lee todas las tablas en paralelo
+            // Utilizamos el mapeo 'id' a '__backendId' para compatibilidad.
             const [users, products, orders, reviews, activities, config] = await Promise.all([
                 supabase.from(TABLE_NAMES.user).select('*, __backendId:id'),
-                supabase.from(TABLE_NAMES.product).select('*, __backendId:id'), 
+                // AÑADIDO: Seleccionamos el seller_id (UUID)
+                supabase.from(TABLE_NAMES.product).select('*, __backendId:id, seller_id'), 
                 supabase.from(TABLE_NAMES.order).select('*, __backendId:id'),
                 supabase.from(TABLE_NAMES.review).select('*, __backendId:id'),
                 supabase.from(TABLE_NAMES.activity).select('*, __backendId:id'),
-                supabase.from(TABLE_NAMES.config).select('config, id').limit(1).single() // Solo necesitamos la configuración
+                supabase.from(TABLE_NAMES.config).select('config, id').limit(1).single() 
             ]);
 
-            // Manejo de errores de lectura
-            if (users.error && users.error.code !== '406') { // El 406 lo manejamos con el toast RLS
-                console.error("Error leyendo tablas:", users.error || products.error);
-                showToast('❌ Error al cargar datos iniciales. Revise políticas RLS.');
+            // Manejo de errores (Si falla, asumimos que es RLS y lo notificamos)
+            if (users.error || products.error || orders.error) {
+                console.error("Error leyendo tablas:", users.error || products.error || orders.error);
+                showToast('❌ Error de lectura de datos. Revise políticas RLS.');
                 return { isOk: false };
             }
 
             // Normalizar y combinar los datos
             const combinedData = [
-                ...(users.data || []).map(u => ({ ...u, type: 'user', __backendId: u.id })),
-                ...(products.data || []).map(p => ({ ...p, type: 'product', __backendId: p.id })),
-                ...(orders.data || []).map(o => ({ ...o, type: 'order', __backendId: o.id })),
+                // Los usuarios son el único item que NO necesita mapeo adicional (ya es UUID)
+                ...(users.data || []).map(u => ({ ...u, type: 'user', __backendId: u.id })), 
+                // AÑADIDO: Mapeo de producto. El 'seller' ahora es el UUID del vendedor.
+                ...(products.data || []).map(p => ({ ...p, type: 'product', __backendId: p.id, seller: p.seller_id })),
+                // AÑADIDO: Mapeo de order. buyer/seller_username aún se usan si no migraste las FK de 'orders'
+                ...(orders.data || []).map(o => ({ ...o, type: 'order', __backendId: o.id })), 
                 ...(reviews.data || []).map(r => ({ ...r, type: 'review', __backendId: r.id })),
                 ...(activities.data || []).map(a => ({ ...a, type: 'activity', __backendId: a.id })),
             ];
@@ -124,11 +124,6 @@ window.dataSdk = {
             
             window.mockDb.data = combinedData;
             window.mockDb.handler.onDataChanged(combinedData); 
-            
-            // Si hubo error 406 en config, mostramos el toast después de cargar
-            if (config.error && config.error.code === '406') {
-                showToast('❌ RLS en tabla CONFIG. Asegure SELECT para anon.');
-            }
             
             return { isOk: true };
             
@@ -144,12 +139,17 @@ window.dataSdk = {
         if (!supabase) return { isOk: false };
         const tableName = window.dataSdk.getTableFromItem(item);
         
-        // El ID lo genera Supabase, eliminamos __backendId y type para la inserción
-        const { __backendId, type, id, ...insertData } = item;
+        // El producto usa seller_id, el resto usa sus campos normales
+        const insertData = (item.type === 'product' && item.seller) 
+                           ? { ...item, seller_id: item.seller } 
+                           : item;
+
+        // Eliminamos las claves de mapeo y __backendId antes de insertar
+        const { __backendId, type, seller, id, ...finalInsertData } = insertData;
         
         const { data, error } = await supabase
             .from(tableName)
-            .insert([insertData])
+            .insert([finalInsertData])
             .select();
 
         if (error) {
@@ -158,7 +158,6 @@ window.dataSdk = {
             return { isOk: false };
         }
         
-        // Forzamos un re-lectura total para refrescar el estado global
         await window.dataSdk.readAllTables();
         return { isOk: true, item: { ...data[0], type: item.type, __backendId: data[0].id } };
     },
@@ -168,13 +167,18 @@ window.dataSdk = {
         if (!supabase) return { isOk: false };
         const tableName = window.dataSdk.getTableFromItem(item);
         
-        // Quitamos __backendId, type y id para el objeto de actualización
-        const { __backendId, type, id, ...updateData } = item;
-        
-        // Usamos la ID original de Supabase (item.id) o la backendId para el filtro
+        // El producto usa seller_id, el resto usa sus campos normales
+        const updateData = (item.type === 'product' && item.seller) 
+                           ? { ...item, seller_id: item.seller } 
+                           : item;
+
+        // Quitamos __backendId, type, seller (que es el mapeo) y id para la actualización
+        const { __backendId, type, seller, id, ...finalUpdateData } = updateData;
+
+        // Filtramos por la ID nativa de Supabase (item.id o item.__backendId)
         const { data, error } = await supabase
             .from(tableName)
-            .update(updateData)
+            .update(finalUpdateData)
             .eq('id', item.id || item.__backendId) 
             .select(); 
 
@@ -216,9 +220,10 @@ window.dataSdk = {
 
 
 // =========================================================
-// == 4. SDK DE CHAT (SUPABASE REALTIME) - SIN CAMBIOS     ==
+// == 4. SDK DE CHAT (SUPABASE REALTIME)                  ==
 // =========================================================
 window.chatSdk = {
+    // ... (El código del chat se mantiene igual, no hubo cambios en la tabla 'messages')
     
     CHAT_TABLE_NAME: 'messages',
 
