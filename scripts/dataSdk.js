@@ -1,4 +1,69 @@
 // =========================================================
+// == 1. CONFIGURACIÓN CRÍTICA (SUPABASE ÚNICAMENTE)      ==
+// =========================================================
+
+// NOTA: Asegúrate de que tus claves REALES están aquí
+const SUPABASE_URL = 'https://ciysaobejtxfkpmbmswb.supabase.co'; 
+const SUPABASE_ANON_KEY = 'sb_publishable_ZVQXNGvJjurUNtqZNQrnPg_aw_wW9gY'; 
+
+// --- NOMBRES DE TABLAS (DEBEN COINCIDIR CON EL SQL) ---
+const TABLE_NAMES = {
+    'user': 'users',
+    'product': 'products',
+    'order': 'orders',
+    'review': 'reviews',
+    'activity': 'activities', // Nueva tabla
+    'config': 'config',
+    'message': 'messages' // Nueva tabla para chat
+};
+
+// --- CLAVES GLOBALES (PARA EVITAR ReferenceError en app.js) ---
+DB_KEY = 'mu_marketplace_db_v22_final'; 
+SESSION_KEY = 'mu_session_user_v22_final'; 
+
+// --- Inicialización de Cliente ---
+let supabase = null;
+let chatSubscription = null;
+
+function showToast(message) {
+    if (window.app && window.app.showToast) {
+        window.app.showToast(message);
+    } else {
+        console.log("TOAST:", message);
+    }
+}
+
+if (SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase) {
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    console.log("✅ Cliente Supabase inicializado y listo para usar el Backend.");
+} else {
+    console.error("❌ Cliente Supabase no inicializado. Verifique las claves y el CDN.");
+}
+
+
+// =========================================================
+// == 2. ESTADO BASE y SDKs GLOBALES                      ==
+// =========================================================
+
+window.mockDb = {
+    data: [], 
+    handler: null,
+    notify() {} 
+};
+
+window.elementSdk = {
+    config: {},
+    init: (options) => {
+        window.elementSdk.config = options.defaultConfig;
+        if(options.onConfigChange) options.onConfigChange(options.defaultConfig);
+    },
+    setConfig: (newConfig) => {
+        window.elementSdk.config = { ...window.elementSdk.config, ...newConfig };
+    }
+};
+
+
+// =========================================================
 // == 3. SDK DE DATOS (SUPABASE CRUD con Mapeo a UUID)    ==
 // =========================================================
 window.dataSdk = {
@@ -31,8 +96,8 @@ window.dataSdk = {
                 supabase.from(TABLE_NAMES.order).select('*, __backendId:id, buyer_id, seller_id'),
                 // Seleccionamos reviewed_seller_id (UUID)
                 supabase.from(TABLE_NAMES.review).select('*, __backendId:id, reviewed_seller_id'), 
-                // Seleccionamos user_id (UUID)
-                supabase.from(TABLE_NAMES.activity).select('*, __backendId:id, user_id, username'), // AGREGAMOS USERNAME EN READ
+                // Seleccionamos user_id (UUID) y username
+                supabase.from(TABLE_NAMES.activity).select('*, __backendId:id, user_id, username'), 
                 supabase.from(TABLE_NAMES.config).select('config, id').limit(1).single() 
             ]);
 
@@ -73,7 +138,6 @@ window.dataSdk = {
                 })),
                 
                 // ACTIVITIES: Mapeo user_id -> user
-                // Mantenemos 'username' y 'user' (UUID)
                 ...(activities.data || []).map(a => ({ 
                     ...a, 
                     type: 'activity', 
@@ -122,7 +186,6 @@ window.dataSdk = {
         }
 
         // Limpiar claves de mapeo y auxiliares (type, __backendId, etc.) antes de insertar
-        // Quitamos "user" ya que lo mapeamos a user_id
         const { __backendId, type, seller, buyer, user, id, ...finalInsertData } = insertData; 
         
         const { data, error } = await supabase
@@ -164,7 +227,6 @@ window.dataSdk = {
 
 
         // Quitamos claves de mapeo, auxiliares y la ID nativa (ya que la usamos en .eq)
-        // Quitamos "user" ya que lo mapeamos a user_id
         const { __backendId, type, seller, buyer, user, id, ...finalUpdateData } = updateData;
 
         // Filtramos por la ID nativa de Supabase (item.id o item.__backendId)
@@ -214,4 +276,90 @@ window.dataSdk = {
 // =========================================================
 // == 4. SDK DE CHAT (SUPABASE REALTIME)                  ==
 // =========================================================
-// ... (El resto del SDK de Chat se mantiene igual)
+window.chatSdk = {
+    
+    CHAT_TABLE_NAME: 'messages',
+
+    getMessages: async (orderId) => {
+        if (!supabase) return [];
+        
+        const { data, error } = await supabase
+            .from(TABLE_NAMES.message) 
+            .select('id, sender, content, created_at, order_id')
+            .eq('order_id', orderId)
+            .order('created_at', { ascending: true });
+            
+        if (error) {
+            console.error('Error al obtener mensajes de Supabase:', error);
+            showToast('❌ Error al cargar mensajes del chat.');
+            return [];
+        }
+        return data.map(msg => ({
+            ...msg,
+            timestamp: msg.created_at
+        }));
+    },
+
+    sendMessage: async (orderId, sender, content) => {
+        if (!supabase || !content.trim()) return;
+        
+        const { error } = await supabase
+            .from(TABLE_NAMES.message) 
+            .insert([{ order_id: orderId, sender: sender, content: content }]);
+            
+        if (error) {
+            console.error('Error al enviar mensaje a Supabase:', error);
+            showToast('❌ Error al enviar mensaje.');
+        }
+    },
+
+    handleRealtimeChange: null,
+
+    subscribeToOrder: async (orderId, handler) => {
+        if (!supabase) {
+            showToast('⚠️ Supabase no configurado. Chat en modo simulado/local.');
+            return;
+        }
+        
+        window.chatSdk.unsubscribe();
+        
+        let initialMessages = await window.chatSdk.getMessages(orderId);
+        
+        window.chatSdk.handleRealtimeChange = (payload) => {
+             if (payload.eventType === 'INSERT' && payload.new) {
+                const newMessage = {
+                    id: payload.new.id,
+                    sender: payload.new.sender,
+                    content: payload.new.content,
+                    timestamp: payload.new.created_at || new Date().toISOString()
+                };
+                handler.onMessageReceived(newMessage);
+            }
+        };
+
+        chatSubscription = supabase
+            .channel(`chat-order-${orderId}`) 
+            .on(
+                'postgres_changes',
+                { 
+                    event: 'INSERT', 
+                    schema: 'public', 
+                    table: TABLE_NAMES.message, 
+                    filter: `order_id=eq.${orderId}` 
+                },
+                window.chatSdk.handleRealtimeChange
+            )
+            .subscribe();
+        
+        showToast('💬 Chat Realtime iniciado con Supabase.');
+        return initialMessages;
+    },
+
+    unsubscribe: () => {
+        if (chatSubscription) {
+            supabase.removeChannel(chatSubscription);
+            chatSubscription = null;
+            showToast('Chat desconectado.');
+        }
+    }
+};
