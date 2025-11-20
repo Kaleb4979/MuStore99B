@@ -2,7 +2,7 @@
 // == 1. CONFIGURACIÓN Y ESTADO GLOBAL (Variables de App) ==
 // =========================================================
 
-const SESSION_KEY = 'mu_session_user_v22_final'; // Definida originalmente en el HTML
+const SESSION_KEY = 'mu_session_user_v22_final';
 
 const defaultConfig = {
     site_title: "Mu Online 99B Marketplace",
