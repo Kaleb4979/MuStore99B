@@ -226,11 +226,24 @@ async function handleLogin(e) {
     
     currentUser = user;
     localStorage.setItem(SESSION_KEY, JSON.stringify(user)); 
-    currentView = user.role === 'admin' ? 'admin' : 'catalog';
     showModal = null;
     showToast(`Bienvenido, ${user.username}!`);
     
-    // CORRECCIÓN: Eliminada la llamada a updateUserActivity()
+    // CORRECCIÓN 1: Forzar configuración de tienda si es Reseller sin shop_name
+    if (user.role === 'reseller' && !user.shop_name) {
+        showModal = 'setupShop';
+        currentView = 'catalog'; // Permanece en catálogo mientras el modal está abierto
+        showToast('⚠️ Por favor, configura el nombre de tu tienda para continuar.');
+        render(); 
+        return;
+    }
+    
+    // Setear la vista principal
+    if (user.role === 'admin' || user.role === 'reseller') {
+        currentView = 'admin'; // Dirigir Resellers y Admin al panel
+    } else {
+        currentView = 'catalog';
+    }
     
     render();
 }
@@ -280,7 +293,6 @@ async function handleRegisterBuyer(e) {
         localStorage.setItem(SESSION_KEY, JSON.stringify(newUser)); 
         showToast('✅ Registro de comprador exitoso. ¡Bienvenido!');
         currentView = 'catalog';
-        // CORRECCIÓN: Eliminada la llamada a updateUserActivity()
     } else {
         showToast('❌ Error al registrar en la tabla de datos. (Intente de nuevo)');
     }
@@ -329,15 +341,12 @@ async function handleRegisterReseller(e) {
 
     if (isOk) {
         showToast('✅ Solicitud enviada. Espera la aprobación del administrador.');
-        // CORRECCIÓN: Eliminada la lógica de notificación al admin (INSERT INTO activities)
         showModal = 'login';
     } else {
         showToast('❌ Error al registrar solicitud en la tabla de datos.');
     }
     render();
 }
-
-// REMOVIDA: La función updateUserActivity() fue eliminada.
 
 function logout(auto = false) { 
     window.chatSdk.unsubscribe();
@@ -365,7 +374,8 @@ async function handleSetupShop(e) {
         return;
     }
 
-    const updatedUser = { ...currentUser, shop_name: shopName };
+    const updatedUser = { ...currentUser, shop_name: shopName, approved: true }; // Se aprueba automáticamente al configurar
+
     const { isOk, item } = await window.dataSdk.update(updatedUser);
 
     if (isOk) {
@@ -373,6 +383,7 @@ async function handleSetupShop(e) {
         localStorage.setItem(SESSION_KEY, JSON.stringify(item));
         showToast('✅ Tienda configurada con éxito.');
         showModal = null;
+        currentView = 'admin'; // Redirige al panel al finalizar
     } else {
         showToast('❌ Error al configurar tienda.');
     }
@@ -604,17 +615,15 @@ async function deleteUserAccount(backendId) {
 }
 
 function enterShopManagement(targetId) {
-    selectedShopFilter = targetId;
-    currentView = 'catalog';
-    const shopUser = allUsers.find(u => u.id === targetId);
-    showToast(`🛒 Filtrando por tienda: ${shopUser ? shopUser.username : 'Desconocida'}`);
+    adminViewTarget = targetId;
+    currentView = 'admin';
     render();
 }
 
 function exitShopManagement() {
-    selectedShopFilter = null;
-    currentView = 'catalog';
-    showToast('Filtro de tienda eliminado.');
+    adminViewTarget = null;
+    currentView = 'admin';
+    showToast('Volviendo al panel principal.');
     render();
 }
 
@@ -734,6 +743,10 @@ async function createOrder() {
 
         if (isOk) {
             
+            // Ya no restamos stock aquí, sino en confirmOrder, como se hace en el código original.
+            // La lógica de stock ya se había movido a confirmOrder en el código que me pasaste.
+            // Para mantener la consistencia con el código original V29/V30:
+            /*
             for (const cartItem of items) {
                 const product = allProducts.find(p => p.__backendId === cartItem.backendId);
                 if (product) {
@@ -741,6 +754,7 @@ async function createOrder() {
                     await window.dataSdk.update(updatedProduct);
                 }
             }
+            */
         }
     }
     
@@ -765,6 +779,15 @@ async function confirmOrder(backendId, isSeller) {
         } else if (order.order_status === 'confirmed_by_buyer') {
              updatedOrder.order_status = 'completed';
              toastMessage = '🎉 Orden completada y registrada.';
+             
+             // Restar Stock solo al completar
+             for (const cartItem of order.items) {
+                 const product = allProducts.find(p => p.__backendId === cartItem.backendId);
+                 if (product) {
+                     const updatedProduct = {...product, stock: product.stock - cartItem.quantity};
+                     await window.dataSdk.update(updatedProduct);
+                 }
+             }
         }
     } else { // Es el comprador
         if (order.order_status === 'confirmed_by_seller') {
@@ -934,8 +957,8 @@ function renderHeader(config) {
         ? `<button onclick="logout()" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded transition">Logout (${currentUser.username})</button>`
         : `<button onclick="showModal = 'login'; render()" class="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded transition">Login/Registro</button>`;
 
-    const adminButton = (currentUser && currentUser.role === 'admin')
-        ? `<button onclick="loadAdminView()" class="bg-yellow-500 hover:bg-yellow-600 text-gray-900 font-bold py-2 px-4 rounded transition ml-2">Admin</button>`
+    const adminButton = (currentUser && (currentUser.role === 'admin' || currentUser.role === 'reseller'))
+        ? `<button onclick="loadAdminView()" class="bg-yellow-500 hover:bg-yellow-600 text-gray-900 font-bold py-2 px-4 rounded transition ml-2">Panel Tienda</button>`
         : '';
         
     const settingsButton = (currentUser && currentUser.role === 'admin')
@@ -1064,7 +1087,7 @@ function renderSettings() {
 
 function renderCatalog() {
     const config = getConfig();
-    const availableProducts = allProducts.filter(p => p.available && (currentUser && currentUser.role === 'reseller' ? p.seller === currentUser.id : true));
+    const availableProducts = allProducts.filter(p => p.available); // Eliminado filtro de Reseller en catálogo principal
     
     let filteredProducts = selectedCategory === 'all'
         ? availableProducts
@@ -1089,8 +1112,7 @@ function renderCatalog() {
                 <div class="text-[10px] text-yellow-400">${getStarHtml(shop.rating)} (${shop.reviewCount})</div>
                 <div class="text-xs text-gray-400 mt-1">${shop.salesCount} ventas</div>
                 
-                <!-- REMOVIDO: Indicador de "en línea" -->
-            </div>
+                </div>
         `;
     }).join('');
 
@@ -1374,16 +1396,24 @@ function renderOrders() {
 function renderAdmin() {
     const config = getConfig();
 
-    if (!currentUser || currentUser.role !== 'admin') {
+    // CORRECCIÓN 2.1: Permitir acceso a Resellers
+    if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'reseller')) {
         return `<div class="p-6 text-center text-red-500">Acceso denegado.</div>`;
     }
     
     let content = '';
-    const targetUser = allUsers.find(u => u.id === adminViewTarget);
+    let targetUser = allUsers.find(u => u.id === adminViewTarget);
 
-    if (adminViewTarget && targetUser) { 
+    // CORRECCIÓN 3: Redirigir Reseller a su propia tienda por defecto
+    if (currentUser.role === 'reseller' && !adminViewTarget) {
+        targetUser = currentUser;
+    }
+    
+    // Si es un revendedor con tienda o un Admin en modo gestión
+    if (targetUser) { 
         content = renderShopManagement(targetUser);
     } else {
+        // Dashboard de Admin Global (solo si el usuario es Admin)
         const pendingResellers = allUsers.filter(u => u.role === 'reseller' && !u.approved);
         const allResellers = allUsers.filter(u => u.role === 'reseller' && u.approved);
         const allBuyers = allUsers.filter(u => u.role === 'buyer');
@@ -1446,8 +1476,8 @@ function renderAdmin() {
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                    <h3 class="text-2xl font-bold mb-4">Gestión de Resellers (${allResellers.length})</h3>
-                    ${resellerHtml.length > 0 ? resellerHtml : `<p class="text-gray-400">No hay resellers activos.</p>`}
+                    <h3 class="text-2xl font-bold mb-4">Gestión de Revendedores (${allResellers.length})</h3>
+                    ${resellerHtml.length > 0 ? resellerHtml : `<p class="text-gray-400">No hay revendedores activos.</p>`}
                 </div>
                 <div>
                     <h3 class="text-2xl font-bold mb-4">Gestión de Compradores (${allBuyers.length})</h3>
@@ -1471,6 +1501,10 @@ function renderShopManagement(targetUser) {
 
     const products = allProducts.filter(p => p.seller === targetId); 
     const shopName = targetUser.shop_name || targetUser.username;
+    
+    const isCurrentUserAdmin = currentUser && currentUser.role === 'admin';
+    const isManagingOwnShop = currentUser && currentUser.id === targetUser.id;
+    const isEditable = isCurrentUserAdmin || isManagingOwnShop;
 
     const productsHtml = products.map(p => `
         <div class="flex justify-between items-center p-3 mb-2 rounded-lg bg-slate-700">
@@ -1478,22 +1512,27 @@ function renderShopManagement(targetUser) {
                 <span class="font-semibold">${p.name}</span>
                 <span class="text-xs text-gray-400">Stock: ${p.stock} | Precio: ${p.price} Zen</span>
             </div>
-            <div class="flex space-x-2">
-                <button onclick="openEditModal('${p.__backendId}')" class="bg-yellow-500 hover:bg-yellow-600 text-gray-900 py-1 px-3 rounded transition text-sm">Editar</button>
-                <button onclick="deleteProduct('${p.__backendId}')" class="bg-red-500 hover:bg-red-600 text-white py-1 px-3 rounded transition text-sm">Eliminar</button>
-            </div>
+            ${isEditable ? `
+                <div class="flex space-x-2">
+                    <button onclick="openEditModal('${p.__backendId}')" class="bg-yellow-500 hover:bg-yellow-600 text-gray-900 py-1 px-3 rounded transition text-sm">Editar</button>
+                    <button onclick="deleteProduct('${p.__backendId}')" class="bg-red-500 hover:bg-red-600 text-white py-1 px-3 rounded transition text-sm">Eliminar</button>
+                </div>
+            ` : ''}
         </div>
     `).join('');
 
     return `
         <div class="flex justify-between items-center mb-6 border-b pb-3">
             <h2 class="text-3xl font-bold">🛠️ Gestión de Tienda: ${shopName}</h2>
-            <button onclick="adminViewTarget = null; render()" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded transition">
-                Volver al Admin Dashboard
-            </button>
+            ${isCurrentUserAdmin && !isManagingOwnShop ? 
+                `<button onclick="exitShopManagement()" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded transition">
+                    Volver al Admin Dashboard
+                </button>` : ''
+            }
         </div>
         
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            ${isEditable ? `
             <div class="lg:col-span-1 p-6 rounded-xl shadow-xl" style="background-color: ${config.card_background};">
                 <h3 class="text-2xl font-bold mb-4">➕ Agregar Nuevo Producto</h3>
                 <form onsubmit="handleAddProduct(event)">
@@ -1535,8 +1574,9 @@ function renderShopManagement(targetUser) {
                     </button>
                 </form>
             </div>
+            ` : ''}
 
-            <div class="lg:col-span-2 p-6 rounded-xl shadow-xl" style="background-color: ${config.card_background};">
+            <div class="${isEditable ? 'lg:col-span-2' : 'lg:col-span-3'} p-6 rounded-xl shadow-xl" style="background-color: ${config.card_background};">
                 <h3 class="text-2xl font-bold mb-4">Productos Publicados (${products.length})</h3>
                 <div class="max-h-96 overflow-y-auto pr-2">
                     ${productsHtml.length > 0 ? productsHtml : '<p class="text-gray-400">No has publicado ningún producto.</p>'}
@@ -1805,9 +1845,16 @@ async function init() {
             showToast('🚫 Sesión cerrada: tu cuenta fue baneada.');
             return; 
         }
-        
-        // CORRECCIÓN: Eliminada la llamada a updateUserActivity
     }
+    
+    // Corregir la vista inicial si el revendedor necesita configurar su tienda
+    if (currentUser && currentUser.role === 'reseller' && !currentUser.shop_name) {
+        showModal = 'setupShop';
+        currentView = 'catalog'; // Muestra el modal sobre el catálogo
+    } else if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'reseller')) {
+        currentView = 'admin'; // Dirige al panel
+    }
+    
     render();
 }
 
