@@ -45,8 +45,8 @@
         transition: all 0.2s ease;
     }
     .shop-badge:hover {
-        transform: scale(1.05);
-        background-color: #4f46e5; /* Indigo-600 */
+      transform: scale(1.05);
+      background-color: #4f46e5; /* Indigo-600 */
     }
 
     /* Spinner de Carga */
@@ -188,13 +188,13 @@
         // FUNCIÓN DE LECTURA: Obtiene todos los datos del BIN
         read: async () => {
             if (!BIN_ID || !SECRET_KEY || BIN_ID.includes('AQUI')) {
-                 console.error("JSONBin Config Error: BIN_ID o SECRET_KEY no configurados.");
-                 showToast('❌ Error de Config: BIN ID o Key faltantes.');
-                 // Forzar a usar localStorage si no hay configuración de BIN
-                 const localData = localStorage.getItem(DB_KEY);
-                 window.mockDb.data = localData ? JSON.parse(localData) : [];
-                 window.mockDb.handler.onDataChanged(window.mockDb.data);
-                 return { isOk: false };
+                console.error("JSONBin Config Error: BIN_ID o SECRET_KEY no configurados.");
+                showToast('❌ Error de Config: BIN ID o Key faltantes.');
+                // Forzar a usar localStorage si no hay configuración de BIN
+                const localData = localStorage.getItem(DB_KEY);
+                window.mockDb.data = localData ? JSON.parse(localData) : [];
+                window.mockDb.handler.onDataChanged(window.mockDb.data);
+                return { isOk: false };
             }
 
             try {
@@ -233,8 +233,8 @@
         // FUNCIÓN DE ESCRITURA: Actualiza TODOS los datos en el BIN
         write: async (newData) => {
             if (!BIN_ID || !SECRET_KEY || BIN_ID.includes('AQUI')) {
-                 showToast('❌ Error de Config: BIN ID o Key faltantes.');
-                 return { isOk: false };
+                showToast('❌ Error de Config: BIN ID o Key faltantes.');
+                return { isOk: false };
             }
             
             try {
@@ -517,8 +517,8 @@
         localStorage.setItem(SESSION_KEY, JSON.stringify(currentUser));
         
         // Si es vendedor nuevo sin configurar
-        if (user.role === 'reseller' && (!user.shop_name || !user.discord_tag)) {
-          selectedOrder = user;
+        if (user.role === 'reseller' && (!user.shop_name || !user.discord_tag || user.status === 'pending')) {
+          selectedOrder = user; // Usar selectedOrder para pasar el objeto de usuario al modal
           showModal = 'setupShop';
           showToast('Por favor configura tu tienda para continuar');
           render();
@@ -594,14 +594,14 @@
         shop_name: shopName,
         profile_picture: '',
         role: 'reseller',
-        approved: false,
-        status: 'pending',
+        approved: false, // Debe ser aprobado por el admin
+        status: 'pending', // Estado pendiente
         created_at: new Date().toISOString()
       };
 
       const result = await window.dataSdk.create(userData);
       if (result.isOk) {
-        showToast('Solicitud enviada! Espera aprobación del admin');
+        showToast('Solicitud enviada! Espera aprobación del admin. Se ha notificado al Admin.');
         showModal = null;
         render();
       } else {
@@ -623,16 +623,16 @@
       // Esto es solo un placeholder, las operaciones de red aquí son costosas y lentas
       // Debería usarse un endpoint específico para actividad, pero por simplicidad de JSONBin:
       if (existingActivity) {
-         const updatedActivity = {...existingActivity, last_activity: new Date().toISOString()};
-         await window.dataSdk.update(updatedActivity);
+          const updatedActivity = {...existingActivity, last_activity: new Date().toISOString()};
+          await window.dataSdk.update(updatedActivity);
       } else {
-         const activityData = {
-           id: 'activity_' + currentUser.username,
-           type: 'activity',
-           username: currentUser.username,
-           last_activity: new Date().toISOString()
-         };
-         await window.dataSdk.create(activityData);
+          const activityData = {
+            id: 'activity_' + currentUser.username,
+            type: 'activity',
+            username: currentUser.username,
+            last_activity: new Date().toISOString()
+          };
+          await window.dataSdk.create(activityData);
       }
       
       if (userActivityTimeout) clearTimeout(userActivityTimeout);
@@ -652,6 +652,57 @@
       showToast(auto ? '💤 Sesión cerrada por inactividad' : 'Sesión cerrada');
       render();
     }
+    
+    // Función para completar la configuración de tienda después del login/aprobación
+    async function handleSetupShop(e) {
+      e.preventDefault();
+      const user = selectedOrder; // Usuario pendiente o recién logeado
+      if(!user) return;
+      
+      const setupShopNameInput = document.getElementById('setupShopName');
+      const setupDiscordInput = document.getElementById('setupDiscord');
+      
+      if (!setupShopNameInput || !setupDiscordInput) {
+          showToast('Error: Campos de formulario no encontrados.');
+          return;
+      }
+      
+      const shopName = setupShopNameInput.value.trim();
+      const discord = setupDiscordInput.value.trim();
+      
+      // Validar discord unico (excluyendo el usuario actual)
+      if(allUsers.find(u => u.discord_tag === discord && u.__backendId !== user.__backendId)) {
+          showToast('Este Discord ya está en uso por otro usuario.');
+          return;
+      }
+      
+      const updatedUser = {
+          ...user,
+          shop_name: shopName,
+          discord_tag: discord || 'No Informado',
+          // Si estaba pendiente, se aprueba con la configuración
+          approved: true, 
+          status: 'active' 
+      };
+      
+      const result = await window.dataSdk.update(updatedUser);
+      
+      if (result.isOk) {
+          // Actualizar sesión local si es el usuario actual
+          if(currentUser && user.__backendId === currentUser.__backendId) {
+              currentUser = updatedUser;
+              localStorage.setItem(SESSION_KEY, JSON.stringify(currentUser));
+              currentView = 'admin'; // Llevar al panel
+          }
+          showModal = null;
+          selectedOrder = null;
+          showToast('✅ Configuración de tienda guardada.');
+          render(); 
+      } else {
+          showToast('Error al actualizar la configuración de la tienda.');
+      }
+    }
+
 
     // ---------------------------------------------------------
     // 6. GESTIÓN DE PRODUCTOS (CRUD COMPLETO)
@@ -776,10 +827,27 @@
     // ---------------------------------------------------------
     async function approveUser(backendId) {
         const user = allUsers.find(u => u.__backendId === backendId);
-        if (!user) return;
+        if (!user) {
+            showToast('❌ Usuario no encontrado o ID no válido.');
+            return;
+        }
+        
+        if (user.role === 'reseller' && (!user.shop_name || !user.discord_tag)) {
+            // Si le falta info de tienda, forzamos la configuración en el modal
+            selectedOrder = user;
+            showModal = 'setupShop';
+            showToast('El vendedor necesita completar la configuración de su tienda.');
+            render();
+            return;
+        }
+        
         const updatedUser = { ...user, status: 'active', approved: true };
-        await window.dataSdk.update(updatedUser);
-        showToast('✅ Usuario ACEPTADO y activado');
+        const result = await window.dataSdk.update(updatedUser);
+        if (result.isOk) {
+            showToast('✅ Usuario ACEPTADO y activado');
+        } else {
+            showToast('❌ Error al actualizar usuario.');
+        }
     }
 
     async function rejectUser(backendId) {
@@ -827,6 +895,22 @@
     function exitShopManagement() {
         adminViewTarget = null;
         showToast('🔙 Volviendo a vista global');
+        render();
+    }
+    
+    /**
+     * @brief Carga la vista de administración forzando una lectura del BIN para
+     * asegurar que se muestren los nuevos registros pendientes de aprobación.
+     */
+    async function loadAdminView() {
+        showToast('🔄 Sincronizando datos remotos...');
+        const result = await window.dataSdk.read();
+        
+        if (!result.isOk) {
+            // showToast ya maneja el error si falla la lectura
+        }
+        
+        currentView = 'admin';
         render();
     }
 
@@ -1127,7 +1211,7 @@
                             showToast('✅ Datos restaurados en JSONBin exitosamente. Recargando...');
                             setTimeout(() => window.location.reload(), 1500);
                         } else {
-                             showToast('❌ Error al subir y restaurar los datos en JSONBin.');
+                            showToast('❌ Error al subir y restaurar los datos en JSONBin.');
                         }
                     }
                 } else {
@@ -1150,7 +1234,7 @@
         return { ...seller, rating: parseFloat(avg), reviewCount: reviews.length, salesCount: sales };
       });
       return shopsStats.filter(s => s.salesCount > 0 || s.reviewCount > 0)
-             .sort((a, b) => b.salesCount - a.salesCount || b.reviewCount - a.reviewCount || b.rating - a.rating).slice(0, 3); 
+            .sort((a, b) => b.salesCount - a.salesCount || b.reviewCount - a.reviewCount || b.rating - a.rating).slice(0, 3); 
     }
 
     function getCategoryIcon(id) {
@@ -1220,37 +1304,37 @@
           // 1. Calcular estadísticas de la tienda seleccionada
           const shopOwner = allUsers.find(u => u.shop_name === selectedShopFilter);
           if (shopOwner) {
-                const reviews = allReviews.filter(r => r.reviewed_seller === shopOwner.username);
-                const avg = reviews.length ? (reviews.reduce((a,b)=>a+b.rating,0)/reviews.length).toFixed(1) : 0;
-                const sales = allOrders.filter(o => o.seller_username === shopOwner.username && o.order_status === 'completed').length;
-                shopStats = { owner: shopOwner, rating: parseFloat(avg), reviewCount: reviews.length, salesCount: sales };
-                
-                // 2. Generar HTML de reseñas
-                if (reviews.length > 0) {
-                    shopReviewsHTML = `
-                        <div class="max-w-7xl mx-auto px-4 py-8 border-t border-slate-700 mt-8">
-                            <h3 class="text-2xl font-bold text-yellow-400 mb-6">⭐ Opiniones de los Clientes (${reviews.length})</h3>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                ${reviews.map(r => `
-                                    <div class="bg-slate-800 p-4 rounded-lg border border-slate-700 shadow-md">
-                                        <div class="flex justify-between items-center mb-2">
-                                            <span class="font-bold text-white">${r.buyer_username}</span>
-                                            <div class="text-yellow-400">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</div>
-                                        </div>
-                                        <p class="text-slate-300 text-sm italic">"${r.review_text || 'Sin comentario escrito'}"</p>
-                                        <p class="text-xs text-slate-500 mt-2 text-right">${new Date(r.created_at).toLocaleDateString()}</p>
-                                    </div>
-                                `).join('')}
-                            </div>
-                        </div>
-                    `;
-                } else {
-                    shopReviewsHTML = `
-                        <div class="max-w-7xl mx-auto px-4 py-8 border-t border-slate-700 mt-8 text-center opacity-50">
-                            <p>Esta tienda aún no tiene reseñas.</p>
-                        </div>
-                    `;
-                }
+              const reviews = allReviews.filter(r => r.reviewed_seller === shopOwner.username);
+              const avg = reviews.length ? (reviews.reduce((a,b)=>a+b.rating,0)/reviews.length).toFixed(1) : 0;
+              const sales = allOrders.filter(o => o.seller_username === shopOwner.username && o.order_status === 'completed').length;
+              shopStats = { owner: shopOwner, rating: parseFloat(avg), reviewCount: reviews.length, salesCount: sales };
+              
+              // 2. Generar HTML de reseñas
+              if (reviews.length > 0) {
+                  shopReviewsHTML = `
+                      <div class="max-w-7xl mx-auto px-4 py-8 border-t border-slate-700 mt-8">
+                          <h3 class="text-2xl font-bold text-yellow-400 mb-6">⭐ Opiniones de los Clientes (${reviews.length})</h3>
+                          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              ${reviews.map(r => `
+                                  <div class="bg-slate-800 p-4 rounded-lg border border-slate-700 shadow-md">
+                                      <div class="flex justify-between items-center mb-2">
+                                          <span class="font-bold text-white">${r.buyer_username}</span>
+                                          <div class="text-yellow-400">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</div>
+                                      </div>
+                                      <p class="text-slate-300 text-sm italic">"${r.review_text || 'Sin comentario escrito'}"</p>
+                                      <p class="text-xs text-slate-500 mt-2 text-right">${new Date(r.created_at).toLocaleDateString()}</p>
+                                  </div>
+                              `).join('')}
+                          </div>
+                      </div>
+                  `;
+              } else {
+                  shopReviewsHTML = `
+                      <div class="max-w-7xl mx-auto px-4 py-8 border-t border-slate-700 mt-8 text-center opacity-50">
+                          <p>Esta tienda aún no tiene reseñas.</p>
+                      </div>
+                  `;
+              }
           }
       } else {
           filteredProducts = selectedCategory === 'all' 
@@ -1280,7 +1364,7 @@
                       📦 Mis Pedidos
                     </button>
                     ${currentUser.role !== 'buyer' ? `
-                      <button onclick="currentView='admin'; render();" class="px-4 py-2 rounded-lg font-bold transition border border-blue-500 bg-slate-800 text-blue-400 text-sm hover:bg-blue-900/30">
+                      <button onclick="loadAdminView();" class="px-4 py-2 rounded-lg font-bold transition border border-blue-500 bg-slate-800 text-blue-400 text-sm hover:bg-blue-900/30">
                         ⚙️ Panel Tienda
                       </button>
                     ` : ''}
@@ -1364,13 +1448,13 @@
                 </div>
             ` : `
                 <div class="flex flex-wrap gap-3 justify-center">
-                  ${CATEGORIES.map(cat => `
-                    <button 
-                      onclick="selectedCategory='${cat.id}'; render();" 
-                      class="category-btn px-6 py-3 rounded-lg font-bold shadow-md border border-transparent ${selectedCategory === cat.id ? 'bg-blue-600 ring-2 ring-blue-400 border-blue-300' : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'}">
-                      ${cat.icon} ${cat.name}
-                    </button>
-                  `).join('')}
+                    ${CATEGORIES.map(cat => `
+                      <button 
+                        onclick="selectedCategory='${cat.id}'; render();" 
+                        class="category-btn px-6 py-3 rounded-lg font-bold shadow-md border border-transparent ${selectedCategory === cat.id ? 'bg-blue-600 ring-2 ring-blue-400 border-blue-300' : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'}">
+                        ${cat.icon} ${cat.name}
+                      </button>
+                    `).join('')}
                 </div>
             `}
           </div>
@@ -1385,55 +1469,55 @@
               <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 ${filteredProducts.map(product => {
                   return `
-                  <div class="product-card rounded-xl shadow-lg overflow-hidden ${product.on_sale ? 'ring-2 ring-red-500' : 'border border-slate-700'} bg-slate-800 relative group">
-                    ${product.on_sale ? `
-                      <div class="absolute top-2 right-2 z-10">
-                        <span class="px-2 py-1 rounded text-xs font-bold bg-red-600 text-white animate-pulse shadow-lg">
-                          OFERTA
-                        </span>
-                      </div>
-                    ` : ''}
-                    
-                    <div class="h-48 bg-slate-900 flex items-center justify-center text-6xl relative overflow-hidden">
-                      ${product.image_url ? `
-                        <img src="${product.image_url}" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" onerror="this.style.display='none';">
-                      ` : getCategoryIcon(product.category)}
-                    </div>
-
-                    <div class="p-4 relative">
-                      <div class="flex justify-center -mt-8 mb-3 relative z-20">
-                          <button onclick="filterByShop('${product.seller_shop_name}')" class="shop-badge bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg border border-blue-400 tracking-wide">
-                            🏪 ${product.seller_shop_name}
-                          </button>
-                      </div>
-
-                      <h3 class="font-bold mb-1 truncate text-center text-lg">${product.name}</h3>
-                      
-                      <div class="text-center mb-3">
-                        <span class="text-xs font-bold px-2 py-1 rounded ${product.stock < 5 ? 'bg-red-900/50 text-red-400 animate-pulse border border-red-500/50' : 'bg-slate-700 text-slate-400'}">
-                            📦 Stock: ${product.stock}
-                        </span>
-                      </div>
-
-                      <div class="flex items-center justify-between mt-2 border-t border-slate-700 pt-3">
-                        <div>
-                          ${product.discount > 0 ? `
-                            <p class="text-xs line-through opacity-50">$${product.price}</p>
-                            <p class="font-bold text-green-400 text-lg">$${product.final_price.toFixed(2)}</p>
-                          ` : `
-                            <p class="font-bold text-green-400 text-lg">$${product.price.toFixed(2)}</p>
-                          `}
+                    <div class="product-card rounded-xl shadow-lg overflow-hidden ${product.on_sale ? 'ring-2 ring-red-500' : 'border border-slate-700'} bg-slate-800 relative group">
+                      ${product.on_sale ? `
+                        <div class="absolute top-2 right-2 z-10">
+                          <span class="px-2 py-1 rounded text-xs font-bold bg-red-600 text-white animate-pulse shadow-lg">
+                            OFERTA
+                          </span>
                         </div>
-                        <button 
-                          onclick="addToCart('${product.__backendId}')" 
-                          ${product.stock <= 0 ? 'disabled' : ''}
-                          class="px-4 py-2 rounded text-sm font-bold bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white shadow transition transform active:scale-95">
-                          ${product.stock > 0 ? 'COMPRAR' : 'AGOTADO'}
-                        </button>
+                      ` : ''}
+                      
+                      <div class="h-48 bg-slate-900 flex items-center justify-center text-6xl relative overflow-hidden">
+                        ${product.image_url ? `
+                          <img src="${product.image_url}" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" onerror="this.style.display='none';">
+                        ` : getCategoryIcon(product.category)}
+                      </div>
+
+                      <div class="p-4 relative">
+                        <div class="flex justify-center -mt-8 mb-3 relative z-20">
+                            <button onclick="filterByShop('${product.seller_shop_name}')" class="shop-badge bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg border border-blue-400 tracking-wide">
+                              🏪 ${product.seller_shop_name}
+                            </button>
+                        </div>
+
+                        <h3 class="font-bold mb-1 truncate text-center text-lg">${product.name}</h3>
+                        
+                        <div class="text-center mb-3">
+                          <span class="text-xs font-bold px-2 py-1 rounded ${product.stock < 5 ? 'bg-red-900/50 text-red-400 animate-pulse border border-red-500/50' : 'bg-slate-700 text-slate-400'}">
+                              📦 Stock: ${product.stock}
+                          </span>
+                        </div>
+
+                        <div class="flex items-center justify-between mt-2 border-t border-slate-700 pt-3">
+                          <div>
+                            ${product.discount > 0 ? `
+                              <p class="text-xs line-through opacity-50">$${product.price}</p>
+                              <p class="font-bold text-green-400 text-lg">$${product.final_price.toFixed(2)}</p>
+                            ` : `
+                              <p class="font-bold text-green-400 text-lg">$${product.price.toFixed(2)}</p>
+                            `}
+                          </div>
+                          <button 
+                            onclick="addToCart('${product.__backendId}')" 
+                            ${product.stock <= 0 ? 'disabled' : ''}
+                            class="px-4 py-2 rounded text-sm font-bold bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white shadow transition transform active:scale-95">
+                            ${product.stock > 0 ? 'COMPRAR' : 'AGOTADO'}
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                `}).join('')}
+                  `}).join('')}
               </div>
             `}
           </main>
@@ -1582,7 +1666,7 @@
                                 </button>
                             ` : `
                                 <div class="flex items-center gap-2 text-green-400 font-bold bg-green-900/20 px-4 py-2 rounded-lg border border-green-900/50">
-                                    <span>⭐ Pedido Finalizado & Calificado</span>
+                                    <span>${o.needs_review ? '⭐ PENDIENTE DE CALIFICAR' : '⭐ Pedido Finalizado'}</span>
                                 </div>
                             `}
                         </div>
@@ -2030,21 +2114,22 @@
             </div>`;
         }
 
-        // MODAL: SETUP TIENDA (Post-Login)
-        if(showModal === 'setupShop') {
+        // MODAL: SETUP TIENDA (Post-Login o Post-Aprobación)
+        if(showModal === 'setupShop' && selectedOrder) {
             return `
-            <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
-                <div class="${box}">
-                    <h2 class="text-2xl font-bold text-center mb-4">Configura tu Tienda</h2>
-                    <p class="text-center text-slate-400 text-sm mb-6">Necesitamos estos datos para activar tu panel.</p>
+            <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" onclick="logout(false); showToast('Cierre de sesión forzado por configuración incompleta.');">
+                <div class="${box}" onclick="event.stopPropagation()">
+                    <h2 class="text-2xl font-bold text-center mb-4 text-blue-400">Configura tu Tienda</h2>
+                    <p class="text-center text-slate-400 text-sm mb-6">Necesitas completar estos datos para activar tu panel de vendedor.</p>
                     <form onsubmit="handleSetupShop(event)">
                         <label class="text-xs text-slate-400 font-bold uppercase mb-1 block">Nombre de la Tienda</label>
-                        <input id="setupShopName" placeholder="Ej: Kaleb Store" class="w-full mb-4 p-3 rounded bg-slate-700 text-white border border-slate-600" required>
+                        <input id="setupShopName" placeholder="Ej: Kaleb Store" value="${selectedOrder.shop_name||''}" class="w-full mb-4 p-3 rounded bg-slate-700 text-white border border-slate-600" required>
                         
                         <label class="text-xs text-slate-400 font-bold uppercase mb-1 block">Tu Discord</label>
-                        <input id="setupDiscord" placeholder="User#0000" value="${currentUser.discord_tag||''}" class="w-full mb-6 p-3 rounded bg-slate-700 text-white border border-slate-600" required>
+                        <input id="setupDiscord" placeholder="User#0000" value="${selectedOrder.discord_tag||''}" class="w-full mb-6 p-3 rounded bg-slate-700 text-white border border-slate-600" required>
                         
                         <button class="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded font-bold text-white shadow-lg transition">GUARDAR Y ENTRAR</button>
+                        <p class="text-center mt-4 text-xs text-red-500">Nota: Al cerrar esta ventana, se cerrará tu sesión.</p>
                     </form>
                 </div>
             </div>`;
@@ -2076,48 +2161,6 @@
         return '';
     }
 
-    // Helpers de Modales
-    async function handleSetupShop(e) {
-      e.preventDefault();
-      const user = selectedOrder; // Variable temporal usada para guardar el usuario en proceso
-      if(!user) return;
-      const shopName = document.getElementById('setupShopName').value.trim();
-      const discord = document.getElementById('setupDiscord').value.trim();
-      
-      // Validar discord unico
-      if(allUsers.find(u => u.discord_tag === discord && u.__backendId !== user.__backendId)) {
-          showToast('Este Discord ya está en uso por otro usuario.');
-          return;
-      }
-      
-      const updatedUser = {
-          ...user,
-          role: 'reseller',
-          shop_name: shopName,
-          discord_tag: discord || 'No Informado',
-          approved: true,
-          status: 'approved'
-      };
-      
-      const result = await window.dataSdk.update(updatedUser);
-      
-      if (result.isOk) {
-          // Actualizar sesión local si es el usuario actual
-          if(currentUser && user.__backendId === currentUser.__backendId) {
-              currentUser = updatedUser;
-              localStorage.setItem(SESSION_KEY, JSON.stringify(currentUser));
-              currentView = 'admin';
-          }
-      } else {
-          showToast('Error al actualizar la configuración de la tienda.');
-          return;
-      }
-      
-      showModal = null;
-      selectedOrder = null;
-      // La llamada a render() ocurre internamente en el flujo de dataSdk.update
-    }
-
     // ---------------------------------------------------------
     // 11. INICIO DE LA APLICACIÓN
     // ---------------------------------------------------------
@@ -2126,4 +2169,3 @@
   </script>
  </body>
 </html>
-
