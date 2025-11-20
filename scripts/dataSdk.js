@@ -3,22 +3,23 @@
 // =========================================================
 
 // --- Supabase Config ---
-// ⚠️ TUS CLAVES REALES (CONFIRMADAS EN EL PASO ANTERIOR)
+// ⚠️ TUS CLAVES REALES (CONFIRMADAS)
 const SUPABASE_URL = 'https://ciysaobejtxfkpmbmswb.supabase.co'; 
 const SUPABASE_ANON_KEY = 'sb_publishable_ZVQXNGvJjurUNtqZNQrnPg_aw_wW9gY'; 
 
 // --- NOMBRES DE TABLAS (DEBEN COINCIDIR CON EL SQL) ---
+// CLAVE: Tipo de dato en el JSON. VALOR: Nombre de la tabla en Supabase.
 const TABLE_NAMES = {
-    users: 'users',
-    products: 'products',
-    orders: 'orders',
-    reviews: 'reviews',
-    activities: 'activities',
-    config: 'config'
+    'user': 'users',
+    'product': 'products',
+    'order': 'orders',
+    'review': 'reviews',
+    'activity': 'activities',
+    'config': 'config'
 };
 
-const DB_KEY = 'mu_marketplace_db_v22_final'; // Mantenemos la llave para compatibilidad local
-const SESSION_KEY = 'mu_session_user_v22_final'; // También para compatibilidad
+const DB_KEY = 'mu_marketplace_db_v22_final'; 
+const SESSION_KEY = 'mu_session_user_v22_final'; 
 
 // --- Inicialización de Cliente ---
 let supabase = null;
@@ -42,10 +43,10 @@ if (SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase) {
 
 
 // =========================================================
-// == 2. ESTADO BASE y SDKs GLOBALES (MOCKDb ELIMINADO)   ==
+// == 2. ESTADO BASE y SDKs GLOBALES                      ==
 // =========================================================
 
-// Usaremos esta estructura de mockDb para mantener compatibilidad con app.js
+// Usamos esta estructura de mockDb para mantener compatibilidad con app.js
 window.mockDb = {
     data: [], 
     handler: null,
@@ -70,34 +71,44 @@ window.elementSdk = {
 // =========================================================
 window.dataSdk = {
     
-    // Función de inicialización y lectura principal
     init: async (handler) => {
         window.mockDb.handler = handler;
         return window.dataSdk.readAllTables();
     },
 
-    // LEE TODAS LAS TABLAS Y COMBINA LOS DATOS EN UN SOLO ARRAY (Reemplaza dataSdk.read de JSONBin)
+    // Función auxiliar para obtener el nombre de la tabla
+    getTableFromItem: (item) => {
+        const typeKey = item.type;
+        const tableName = TABLE_NAMES[typeKey];
+        if (!tableName) {
+             throw new Error(`Tabla desconocida para el tipo: ${typeKey}`);
+        }
+        return tableName;
+    },
+
+    // LEE TODAS LAS TABLAS Y COMBINA LOS DATOS EN UN SOLO ARRAY
     readAllTables: async () => {
         if (!supabase) return { isOk: false };
         
         try {
+            // Lee todas las tablas en paralelo
             const [users, products, orders, reviews, activities, config] = await Promise.all([
-                supabase.from(TABLE_NAMES.users).select('*'),
-                supabase.from(TABLE_NAMES.products).select('*, __backendId:id'), // Mapeamos ID a __backendId
-                supabase.from(TABLE_NAMES.orders).select('*, __backendId:id'),
-                supabase.from(TABLE_NAMES.reviews).select('*, __backendId:id'),
-                supabase.from(TABLE_NAMES.activities).select('*, __backendId:id'),
-                supabase.from(TABLE_NAMES.config).select('*').limit(1).single() // Solo leemos 1 config
+                supabase.from(TABLE_NAMES.user).select('*, __backendId:id'),
+                supabase.from(TABLE_NAMES.product).select('*, __backendId:id'), 
+                supabase.from(TABLE_NAMES.order).select('*, __backendId:id'),
+                supabase.from(TABLE_NAMES.review).select('*, __backendId:id'),
+                supabase.from(TABLE_NAMES.activity).select('*, __backendId:id'),
+                supabase.from(TABLE_NAMES.config).select('config, id').limit(1).single() // Solo necesitamos la configuración
             ]);
 
-            // Manejo de errores
-            if (users.error || products.error || orders.error || reviews.error || activities.error) {
-                console.error("Error leyendo tablas:", users.error || products.error || orders.error);
-                showToast('❌ Error al cargar datos iniciales de Supabase.');
+            // Manejo de errores de lectura
+            if (users.error && users.error.code !== '406') { // El 406 lo manejamos con el toast RLS
+                console.error("Error leyendo tablas:", users.error || products.error);
+                showToast('❌ Error al cargar datos iniciales. Revise políticas RLS.');
                 return { isOk: false };
             }
 
-            // Normalizar y combinar los datos para que app.js no necesite cambios
+            // Normalizar y combinar los datos
             const combinedData = [
                 ...(users.data || []).map(u => ({ ...u, type: 'user', __backendId: u.id })),
                 ...(products.data || []).map(p => ({ ...p, type: 'product', __backendId: p.id })),
@@ -106,13 +117,19 @@ window.dataSdk = {
                 ...(activities.data || []).map(a => ({ ...a, type: 'activity', __backendId: a.id })),
             ];
 
-            // Añadir configuración
-            if (config.data) {
-                 combinedData.push({ type: 'config', ...config.data });
+            // Añadir configuración (si existe)
+            if (config.data && config.data.config) {
+                 combinedData.push({ type: 'config', ...config.data, __backendId: config.data.id });
             }
             
             window.mockDb.data = combinedData;
             window.mockDb.handler.onDataChanged(combinedData); 
+            
+            // Si hubo error 406 en config, mostramos el toast después de cargar
+            if (config.error && config.error.code === '406') {
+                showToast('❌ RLS en tabla CONFIG. Asegure SELECT para anon.');
+            }
+            
             return { isOk: true };
             
         } catch (error) {
@@ -122,22 +139,13 @@ window.dataSdk = {
         }
     },
     
-    // --- Lógica de CRUD: Mapeo de __backendId a ID de Supabase ---
-
-    getTableFromItem: (item) => {
-        if (!item.type) throw new Error("Item sin propiedad 'type' para identificar la tabla.");
-        const tableName = TABLE_NAMES[item.type];
-        if (!tableName) throw new Error(`Tabla desconocida para el tipo: ${item.type}`);
-        return tableName;
-    },
-
     // CREATE (Se mapea a INSERT)
     create: async (item) => {
         if (!supabase) return { isOk: false };
         const tableName = window.dataSdk.getTableFromItem(item);
         
-        // El ID lo genera Supabase, pero quitamos __backendId y type para la inserción
-        const { __backendId, type, ...insertData } = item;
+        // El ID lo genera Supabase, eliminamos __backendId y type para la inserción
+        const { __backendId, type, id, ...insertData } = item;
         
         const { data, error } = await supabase
             .from(tableName)
@@ -146,11 +154,11 @@ window.dataSdk = {
 
         if (error) {
             console.error(`Error CREATE en tabla ${tableName}:`, error);
-            showToast('❌ Error al crear registro en Supabase.');
+            showToast(`❌ Error al crear registro en ${tableName}. (RLS de INSERT?)`);
             return { isOk: false };
         }
         
-        // Forzamos un re-lectura total para refrescar el estado global de app.js
+        // Forzamos un re-lectura total para refrescar el estado global
         await window.dataSdk.readAllTables();
         return { isOk: true, item: { ...data[0], type: item.type, __backendId: data[0].id } };
     },
@@ -163,15 +171,16 @@ window.dataSdk = {
         // Quitamos __backendId, type y id para el objeto de actualización
         const { __backendId, type, id, ...updateData } = item;
         
+        // Usamos la ID original de Supabase (item.id) o la backendId para el filtro
         const { data, error } = await supabase
             .from(tableName)
             .update(updateData)
-            .eq('id', item.id || item.__backendId) // Usa ID nativo
+            .eq('id', item.id || item.__backendId) 
             .select(); 
 
         if (error) {
             console.error(`Error UPDATE en tabla ${tableName}:`, error);
-            showToast('❌ Error al actualizar registro en Supabase.');
+            showToast(`❌ Error al actualizar registro en ${tableName}. (RLS de UPDATE?)`);
             return { isOk: false };
         }
 
@@ -191,7 +200,7 @@ window.dataSdk = {
 
         if (error) {
             console.error(`Error DELETE en tabla ${tableName}:`, error);
-            showToast('❌ Error al eliminar registro en Supabase.');
+            showToast(`❌ Error al eliminar registro en ${tableName}. (RLS de DELETE?)`);
             return { isOk: false };
         }
         
@@ -199,7 +208,6 @@ window.dataSdk = {
         return { isOk: true };
     },
     
-    // La función 'write' ya no es necesaria, el CRUD usa CREATE/UPDATE/DELETE.
     write: () => {
         console.warn("dataSdk.write está obsoleto. Use dataSdk.create o dataSdk.update.");
         return { isOk: false };
@@ -208,20 +216,17 @@ window.dataSdk = {
 
 
 // =========================================================
-// == 4. SDK DE CHAT (SUPABASE REALTIME) - MODIFICADO      ==
+// == 4. SDK DE CHAT (SUPABASE REALTIME) - SIN CAMBIOS     ==
 // =========================================================
 window.chatSdk = {
-    // ... (El código de chatSdk se mantiene casi igual, usando 'messages' y el cliente Supabase)
     
-    // La tabla de mensajes ahora es 'messages'
     CHAT_TABLE_NAME: 'messages',
 
-    // Función central para obtener mensajes del historial
     getMessages: async (orderId) => {
         if (!supabase) return [];
         
         const { data, error } = await supabase
-            .from('messages') // Usa la tabla 'messages'
+            .from('messages') 
             .select('id, sender, content, created_at, order_id')
             .eq('order_id', orderId)
             .order('created_at', { ascending: true });
@@ -237,12 +242,11 @@ window.chatSdk = {
         }));
     },
 
-    // Función central para enviar un mensaje
     sendMessage: async (orderId, sender, content) => {
         if (!supabase || !content.trim()) return;
         
         const { error } = await supabase
-            .from('messages') // Usa la tabla 'messages'
+            .from('messages') 
             .insert([{ order_id: orderId, sender: sender, content: content }]);
             
         if (error) {
@@ -251,17 +255,14 @@ window.chatSdk = {
         }
     },
 
-    // Manejador de cambios de Realtime (Definido en app.js)
     handleRealtimeChange: null,
 
-    // Función para iniciar la suscripción
     subscribeToOrder: async (orderId, handler) => {
         if (!supabase) {
             showToast('⚠️ Supabase no configurado. Chat en modo simulado/local.');
             return;
         }
         
-        // Limpiar suscripción anterior
         window.chatSdk.unsubscribe();
         
         let initialMessages = await window.chatSdk.getMessages(orderId);
@@ -293,10 +294,9 @@ window.chatSdk = {
             .subscribe();
         
         showToast('💬 Chat Realtime iniciado con Supabase.');
-        return initialMessages; // Devolver los mensajes iniciales
+        return initialMessages;
     },
 
-    // Función para cerrar la suscripción
     unsubscribe: () => {
         if (chatSubscription) {
             supabase.removeChannel(chatSubscription);
