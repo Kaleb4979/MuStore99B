@@ -118,7 +118,7 @@
     window.dataSdk = {
       init: async (handler) => {
         window.mockDb.handler = handler;
-        // Notificar datos iniciales
+        // Notificar datos iniciales. (setTimeout simula la latencia de una API real)
         setTimeout(() => window.mockDb.notify(), 50); 
         return { isOk: true };
       },
@@ -221,7 +221,7 @@
         );
         
         checkPendingReviews();
-        render();
+        render(); // <--- Esta llamada a render es la importante después de la carga asíncrona.
       }
     };
 
@@ -241,8 +241,13 @@
           }
         });
       }
-
-      render();
+      
+      // === CORRECCIÓN APLICADA AQUÍ: ===
+      // La llamada a render() ha sido ELIMINADA de aquí.
+      // Ahora, render() solo se llama DENTRO de dataHandler.onDataChanged,
+      // asegurando que el DOM se dibuje solo después de que mockDb.notify() haya
+      // poblado las variables globales (allProducts, allUsers, etc.).
+      // Esto evita el fallo asíncrono que causaba la pantalla en blanco.
     }
 
     // Verificar pedidos pendientes de calificar
@@ -344,7 +349,7 @@
       // Import logic (Iterate via DataSDK to trigger Updates)
       // ATENCIÓN: Esta implementación es para LocalStorage mock, NO para JSONBin.
       // Para evitar duplicados en LocalStorage, limpiamos y re-insertamos.
-      
+      
       const newFullData = [];
       const collections = ['users', 'products', 'orders', 'reviews', 'activity'];
       
@@ -357,7 +362,7 @@
               }
           }
       }
-      
+      
       // Reemplazar la data en memoria y notificar
       window.mockDb.data = newFullData;
       window.mockDb.notify();
@@ -552,7 +557,7 @@
       const onSale = document.getElementById('productOnSale').checked;
       const originalPrice = parseFloat(document.getElementById('productPrice').value);
       const finalPrice = discount > 0 ? originalPrice * (1 - discount / 100) : originalPrice;
-      
+      
       const userData = getCurrentUserData();
 
       const productData = {
@@ -1608,6 +1613,7 @@
               <div class="rounded-xl p-6 text-center shadow-lg" style="background-color: ${config.card_background};">
                 <p class="text-4xl font-bold" style="color: ${config.primary_button};">${stats.total}</p>
                 <p class="mt-2 opacity-70">Total Productos</p>
+                <p class="mt-2 opacity-70">Total Productos</p>
               </div>
               ${currentUser.role === 'admin' ? `
                 <div class="rounded-xl p-6 text-center shadow-lg" style="background-color: ${config.card_background};">
@@ -1995,7 +2001,7 @@
                   Cancelar
                 </button>
               </form>
-            </div>
+              </div>
           </div>
         `;
       }
@@ -2231,3 +2237,6 @@
                     <h2 class="text-3xl font-bold mb-2">
                       ${user.username}
                       <span class="text-xl ml-2">${isOnline ? '🟢 En Línea' : '⚫ Desconectado'}</span>
+                    </h2>
+                    <p class="text-lg font-semibold mb-2">
+                      Rol: ${user.role === 'admin'
