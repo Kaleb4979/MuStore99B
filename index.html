@@ -149,7 +149,6 @@
     // ---------------------------------------------------------
     // 1. CONFIGURACIÓN CRÍTICA (REEMPLAZAR ESTAS LÍNEAS)
     // ---------------------------------------------------------
-    // *** 🚨 VERIFICA TUS CREDENCIALES AQUÍ 🚨 ***
     const BIN_ID = '691ddaa6ae596e708f6321c9'; 
     const SECRET_KEY = '$2a$10$6.Y19X/sB3np.3CIJmbJZesuwRVxU77ns.FyAdL2dUc46k1vWFG9S'; 
     const JSONBIN_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
@@ -820,7 +819,6 @@
     // 7. GESTIÓN DE USUARIOS (ADMIN)
     // ---------------------------------------------------------
     async function approveUser(backendId) {
-        // 🚨 CRÍTICO: Usar el objeto fresco de allUsers (sincronizado por loadAdminView)
         const user = allUsers.find(u => u.__backendId === backendId);
         if (!user) {
             showToast('❌ Usuario no encontrado o ID no válido. Intenta recargar la página.');
@@ -892,7 +890,7 @@
         render();
     }
     
-    // 🚨 Función crítica para solucionar la sincronización 🚨
+    // Función crítica para solucionar la sincronización 
     async function loadAdminView() {
         showToast('🔄 Sincronizando datos remotos para ver usuarios recientes...');
         const btn = document.querySelector('button[onclick="loadAdminView()"]');
@@ -1162,11 +1160,17 @@
         created_at: new Date().toISOString()
       };
 
-      await window.dataSdk.create(reviewData);
+      // 🚨 CRÍTICO: Esperamos que la creación de la reseña actualice el estado global (allReviews)
+      await window.dataSdk.create(reviewData); 
 
       // 2. Actualizar la orden para marcarla como revisada
       const updatedOrder = {...selectedOrder, needs_review: false};
       await window.dataSdk.update(updatedOrder); 
+      
+      // 3. Forzar una lectura para recalcular el Top Tiendas y actualizar la vista de reseñas
+      // La función dataSdk.update ya llama a dataHandler.onDataChanged, lo cual llama a render().
+      // Si la función dataSdk.create también llama a dataHandler.onDataChanged, no necesitamos
+      // una llamada explícita a window.dataSdk.read() o render() aquí, ya que el flujo lo maneja.
       
       showToast('¡Gracias por tu reseña! (La tienda se ha actualizado)');
       showModal = null;
@@ -1220,17 +1224,37 @@
         reader.readAsText(file);
     }
 
-    // UTILIDADES DE RENDERIZADO
+    // 🚨 FUNCIÓN CRÍTICA DE CÁLCULO DE TOP TIENDAS 🚨
     function getTopShops() {
+      // 1. Filtrar solo los resellers aprobados
       const resellers = allUsers.filter(u => u.role === 'reseller' && u.approved);
+      
       const shopsStats = resellers.map(seller => {
+        // 2. Filtrar reseñas y órdenes por el nombre de usuario del vendedor
         const reviews = allReviews.filter(r => r.reviewed_seller === seller.username);
-        const avg = reviews.length ? (reviews.reduce((a,b)=>a+b.rating,0)/reviews.length).toFixed(1) : 0;
         const sales = allOrders.filter(o => o.seller_username === seller.username && o.order_status === 'completed').length;
-        return { ...seller, rating: parseFloat(avg), reviewCount: reviews.length, salesCount: sales };
+        
+        // Calcular rating promedio
+        const avg = reviews.length ? (reviews.reduce((a,b)=>a+b.rating,0)/reviews.length).toFixed(1) : 0;
+        
+        return { 
+          ...seller, 
+          rating: parseFloat(avg), 
+          reviewCount: reviews.length, 
+          salesCount: sales 
+        };
       });
-      return shopsStats.filter(s => s.salesCount > 0 || s.reviewCount > 0)
-            .sort((a, b) => b.salesCount - a.salesCount || b.reviewCount - a.reviewCount || b.rating - a.rating).slice(0, 3); 
+      
+      // 3. Ordenar: Primero por ventas, luego por reseñas, luego por rating
+      return shopsStats
+            // Mostrar solo tiendas con actividad (ventas o reseñas)
+            .filter(s => s.salesCount > 0 || s.reviewCount > 0)
+            .sort((a, b) => {
+              if (b.salesCount !== a.salesCount) return b.salesCount - a.salesCount; // Primero Ventas
+              if (b.reviewCount !== a.reviewCount) return b.reviewCount - a.reviewCount; // Segundo Reseñas
+              return b.rating - a.rating; // Tercero Rating
+            })
+            .slice(0, 3); 
     }
 
     function getCategoryIcon(id) {
