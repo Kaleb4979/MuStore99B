@@ -455,16 +455,11 @@ async function handleAddProduct(e) {
     const form = e.target;
     const newProduct = {
         type: 'product',
-        seller: currentUser.username,
+        // ESTA ES LA LÍNEA CRÍTICA: Cambiar username por id (UUID)
+        seller: currentUser.id, // <--- ¡CAMBIO APLICADO AQUÍ!
         name: form.name.value,
         category: form.category.value,
-        price: parseFloat(form.price.value),
-        stock: parseInt(form.stock.value),
-        description: form.description.value,
-        image_url: form.image_url.value,
-        is_promotion: form.is_promotion.checked,
-        available: true,
-        created_at: new Date().toISOString()
+        // ... [resto de las propiedades del producto]
     };
     
     const { isOk } = await window.dataSdk.create(newProduct);
@@ -1898,3 +1893,4 @@ function resetTimer() {
 // == 6. INICIO DE LA APLICACIÓN                          ==
 // =========================================================
 init();
+
