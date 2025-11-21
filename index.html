@@ -3,7 +3,7 @@
  <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mu Online 99B Marketplace - V29 (Chat con Supabase Realtime)</title>
+  <title>Mu Online 99B Marketplace - V30 (Admin Supremo y Roles)</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
  
@@ -410,7 +410,7 @@
       { id: 'sets', name: 'Sets', icon: '🛡️' }
     ];
 
-    // Credenciales del Admin Supremo
+    // Credenciales del Admin Supremo Hardcodeado (Punto de anclaje de control)
     const ADMIN_CREDENTIALS = {
       username: 'Kaleb',
       password: 'Kaleb.2021',
@@ -422,7 +422,7 @@
     let userActivityTimeout = null;
 
     // ---------------------------------------------------------
-    // 3. SDK DE CHAT (INTEGRACIÓN SUPABASE REALTIME)
+    // 3. SDK DE CHAT (INTEGRACIÓN SUPABASE REALTIME) - SIN CAMBIOS
     // ---------------------------------------------------------
     window.chatSdk = {
        
@@ -633,25 +633,27 @@
       const username = document.getElementById('loginUsername').value.trim();
       const password = document.getElementById('loginPassword').value;
 
-      // Caso Especial: Login Admin Hardcodeado (Super Admin)
+      // Login Normal: Buscar al usuario en la base de datos
+      const user = allUsers.find(u => u.username === username && u.password === password);
+
+      // Caso Especial 1: Login Admin Hardcodeado (Super Admin de Origen)
       if (username === ADMIN_CREDENTIALS.username && password === ADMIN_CREDENTIALS.password) {
         currentUser = { 
             username, 
-            role: 'admin', // Rol de Admin Supremo
+            role: 'admin', // Se mantiene 'admin' (Máximo poder)
             __backendId: 'admin',
             discord_tag: ADMIN_CREDENTIALS.discord_tag 
         };
         localStorage.setItem(SESSION_KEY, JSON.stringify(currentUser));
         showModal = null;
         currentView = 'admin';
-        showToast('Bienvenido Admin (Modo Dios Activo)');
+        showToast('Bienvenido Admin Supremo (Modo Dios Activo)');
         await updateUserActivity();
         render();
         return;
       }
-
-      // Login Normal
-      const user = allUsers.find(u => u.username === username && u.password === password);
+      
+      // Login Normal (Incluye Admins Promovidos)
       if (user) {
         if (user.status === 'banned') {
             showToast('🚫 Tu cuenta ha sido suspendida/baneada.');
@@ -663,10 +665,10 @@
           return;
         }
        
-        // Guardamos sesión con datos frescos
+        // Guardamos sesión con datos frescos del usuario encontrado en el BIN
         currentUser = { 
           username: user.username,
-          role: user.role,
+          role: user.role, // CRÍTICO: Aquí se guarda el rol del BIN (buyer, reseller, o admin)
           shop_name: user.shop_name,
           discord_tag: user.discord_tag || 'No Informado', 
           __backendId: user.__backendId
@@ -683,10 +685,18 @@
         }
        
         showModal = null;
+        
+        // Si el rol es 'reseller' o 'admin' (promovido o no), van al panel.
         if (user.role === 'reseller' || user.role === 'admin') {
           currentView = 'admin';
+          if (user.role === 'admin') {
+              showToast(`✅ Bienvenido Admin: ${username}`);
+          } else {
+              showToast(`Bienvenido Reseller: ${username}`);
+          }
+        } else {
+            showToast(`Bienvenido ${username}`);
         }
-        showToast(`Bienvenido ${username}`);
        
         await updateUserActivity();
         render();
@@ -813,7 +823,7 @@
       showToast(auto ? '💤 Sesión cerrada por inactividad' : 'Sesión cerrada');
       render();
     }
-   
+
     // Función para completar la configuración de tienda (Admin lo activa o Vendedor lo completa)
     async function handleSetupShop(e) {
       e.preventDefault();
@@ -866,7 +876,7 @@
     }
 
     /**
-     * NUEVA FUNCIÓN AÑADIDA PARA CAMBIAR EL ROL
+     * FUNCIÓN ACTUALIZADA para persistir el rol y otorgar permisos de administrador.
      */
     async function handleUpdateUserRole(e) {
         e.preventDefault();
@@ -877,32 +887,46 @@
 
         const newRole = document.getElementById('manageUserRole').value;
 
-        // Validación para evitar que el admin supremo se cambie a sí mismo (para evitar problemas)
-        if (managedUser.username === ADMIN_CREDENTIALS.username) {
-            showToast('🚫 No puedes cambiar el rol del Admin Supremo.');
+        // Validación para evitar que el admin supremo hardcodeado se cambie a sí mismo (protección)
+        if (managedUser.username === ADMIN_CREDENTIALS.username && managedUser.__backendId === 'admin') {
+            showToast('🚫 No puedes cambiar el rol del Admin Supremo Hardcodeado.');
             return;
         }
 
-        const updatedUser = {
+        let updatedUser = {
             ...managedUser,
             role: newRole,
-            // Si el rol es 'buyer', desaprobamos y quitamos shop_name por si acaso
-            approved: newRole === 'buyer' ? true : managedUser.approved,
-            status: newRole === 'buyer' ? 'active' : managedUser.status,
-            shop_name: newRole === 'buyer' ? '' : managedUser.shop_name 
+            // CRÍTICO: Si es admin o comprador, el estatus debe ser activo y aprobado.
+            approved: (newRole === 'admin' || newRole === 'buyer'),
+            status: (newRole === 'admin' || newRole === 'buyer') ? 'active' : 'pending',
         };
+        
+        // Si se degrada a comprador, eliminamos datos de tienda para evitar inconsistencias
+        if (newRole === 'buyer') {
+            updatedUser.shop_name = '';
+            updatedUser.approved = true; // El comprador está siempre aprobado
+        }
+        
+        // Si se sube a admin, forzamos activo
+        if (newRole === 'admin') {
+             updatedUser.status = 'active';
+             updatedUser.approved = true;
+        }
 
         const result = await window.dataSdk.update(updatedUser);
 
         if (result.isOk) {
-            showToast(`✅ Rol de ${managedUser.username} cambiado a ${newRole.toUpperCase()}.`);
+            showToast(`✅ Rol de ${managedUser.username} cambiado a ${newRole.toUpperCase()}. ¡Debe iniciar sesión de nuevo para aplicar los privilegios!`);
             managedUser = result.item; // Actualizar el usuario gestionado con los nuevos datos
+            // Si el usuario promovido estaba logueado, forzar un logout para que reinicie con el nuevo rol
+            if(currentUser && currentUser.__backendId === managedUser.__backendId) {
+                logout();
+            }
         } else {
             showToast('❌ Error al actualizar el rol.');
         }
         render(); // Forzar el re-render del modal con el nuevo rol/estado
     }
-    // ---------------------------------------------------------
 
 
     // ---------------------------------------------------------
@@ -1473,7 +1497,7 @@
     }
    
     // ---------------------------------------------------------
-    // 11. FUNCIONES DE CHAT (AJUSTADAS PARA SUPABASE)
+    // 11. FUNCIONES DE CHAT (AJUSTADAS PARA SUPABASE) - SIN CAMBIOS
     // ---------------------------------------------------------
     async function openChatModal(orderId) {
         const order = allOrders.find(o => o.__backendId === orderId);
@@ -1667,7 +1691,7 @@
           <header class="shadow-lg sticky top-0 z-40 bg-slate-800 border-b border-slate-700 p-4">
             <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
                 <div class="text-center md:text-left">
-                  <h1 class="text-2xl font-bold text-blue-400 tracking-tight">MU MARKET <span class="text-white text-xs bg-blue-600 px-1 rounded">V29</span></h1>
+                  <h1 class="text-2xl font-bold text-blue-400 tracking-tight">MU MARKET <span class="text-white text-xs bg-blue-600 px-1 rounded">V30</span></h1>
                   <p class="text-xs mt-1 opacity-60">${config.contact_info}</p>
                 </div>
                 <div class="flex flex-wrap gap-2 justify-center items-center">
@@ -2025,7 +2049,10 @@
       const myOrders = allOrders.filter(o => o.seller_username === viewingAs);
       const pending = myOrders.filter(o => o.order_status === 'pending').reverse();
      
-      const completedOrdersLog = allOrders.filter(o => o.order_status === 'completed').reverse();
+      // Solo el admin ve el log de todos los pedidos completados, de lo contrario solo ve su propio log.
+      const completedOrdersLog = user.role === 'admin' 
+        ? allOrders.filter(o => o.order_status === 'completed').reverse() 
+        : allOrders.filter(o => o.seller_username === viewingAs && o.order_status === 'completed').reverse();
      
       // 1. Calcular las ventas de todos los revendedores (para la tabla global)
       const sellerSalesMap = getSellerSalesMap();
@@ -2033,8 +2060,13 @@
       const displayUsers = allUsers.sort((a, b) => {
           if (a.status === 'pending' && b.status !== 'pending') return -1;
           if (a.status !== 'pending' && b.status === 'pending') return 1;
-          if (a.role === 'admin') return 1;
-          if (b.role === 'admin') return -1;
+          // Mostrar al admin de origen (Kaleb) al inicio para referencia, si no está logueado como él mismo
+          if (a.username === ADMIN_CREDENTIALS.username && user.username !== ADMIN_CREDENTIALS.username) return -1;
+          if (b.username === ADMIN_CREDENTIALS.username && user.username !== ADMIN_CREDENTIALS.username) return 1;
+          // Poner al usuario actual (si no es Kaleb) en segundo lugar
+          if (a.username === user.username) return -1;
+          if (b.username === user.username) return 1;
+          // El resto por nombre
           return a.username.localeCompare(b.username);
       });
 
@@ -2093,7 +2125,7 @@
                     </div>
                 </div>
                
-                ${(user.role === 'admin' && !adminViewTarget) ? `
+                ${user.role === 'admin' ? `
                     <div class="bg-slate-800 p-6 rounded-xl mb-8 border border-slate-700 shadow-lg">
                         <h2 class="text-xl font-bold mb-6 text-green-400 border-b border-slate-700 pb-2 flex items-center gap-2">
                             📜 LOG HISTÓRICO DE PEDIDOS (${completedOrdersLog.length})
@@ -2442,17 +2474,17 @@
                           <form onsubmit="handleUpdateUserRole(event)" class="flex flex-col sm:flex-row gap-3 items-center">
                               <div class="flex-1 w-full">
                                   <label class="text-xs text-slate-400 font-bold uppercase mb-1 block">Rol Actual: <span class="text-white">${u.role.toUpperCase()}</span></label>
-                                  <select id="manageUserRole" class="w-full p-3 rounded bg-slate-700 text-white border border-slate-600">
+                                  <select id="manageUserRole" class="w-full p-3 rounded bg-slate-700 text-white border border-slate-600" ${u.username === ADMIN_CREDENTIALS.username ? 'disabled' : ''}>
                                       <option value="buyer" ${u.role === 'buyer' ? 'selected' : ''}>Comprador</option>
                                       <option value="reseller" ${u.role === 'reseller' ? 'selected' : ''}>Reseller</option>
                                       <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin (Supremo)</option>
                                   </select>
                               </div>
-                              <button type="submit" class="w-full sm:w-auto mt-4 sm:mt-0 bg-green-600 hover:bg-green-500 text-white px-6 py-3 rounded text-sm font-bold shadow transition transform active:scale-95">
+                              <button type="submit" class="w-full sm:w-auto mt-4 sm:mt-0 bg-green-600 hover:bg-green-500 text-white px-6 py-3 rounded text-sm font-bold shadow transition transform active:scale-95" ${u.username === ADMIN_CREDENTIALS.username ? 'disabled' : ''}>
                                   ACTUALIZAR ROL
                               </button>
                           </form>
-                           <p class="text-xs text-red-400 mt-2 italic">Advertencia: Cambiar a 'Comprador' quitará los permisos de tienda. Usar 'Admin' le dará control total.</p>
+                           <p class="text-xs text-red-400 mt-2 italic">Advertencia: Cambiar a 'Comprador' quitará los permisos de tienda. Usar 'Admin' le dará control total. El Admin Supremo de origen no puede ser modificado.</p>
                       </div>
                       
                       <div class="border-t border-slate-700 pt-4">
