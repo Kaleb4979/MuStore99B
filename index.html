@@ -3,7 +3,7 @@
  <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mu Online 99B Marketplace - V34 (Realtime Sin Refresco de Formularios)</title>
+  <title>Mu Online 99B Marketplace - V35 (Stock Funcional y Polling Corregido)</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
  
@@ -171,15 +171,15 @@
     // ---------------------------------------------------------
     // *** 🚨 VERIFICA TUS CREDENCIALES AQUÍ 🚨 ***
     const BIN_ID = '691ddaa6ae596e708f6321c9'; 
-    const SECRET_KEY = '$2a$10$eM.MLJKvj.vnFMVAoSsBEOUaXbJB3TjuYjYxB5N9I5bJOqr4z4doK'; 
+    const SECRET_KEY = '$2a$10$6.Y19X/sB3np.3CIJmbJZesuwRVU77ns.FyAdL2dUc46k1vWFG9S'; 
     const JSONBIN_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
 
-    const DB_KEY = 'mu_marketplace_db_v34_final'; 
-    const SESSION_KEY = 'mu_session_user_v34_final';
+    const DB_KEY = 'mu_marketplace_db_v35_final'; 
+    const SESSION_KEY = 'mu_session_user_v35_final';
    
     // 📢 CONFIGURACIÓN SUPABASE (CHAT REALTIME)
     const SUPABASE_URL = 'https://ciysaobejtxfkpmbmswb.supabase.co'; 
-    const SUPABASE_ANON_KEY = 'sb_publishable_ZVQXNGvJjurUNtqZNQrnPg_aw_wW9gY';
+    const SUPABASE_ANON_KEY = '$2a$10$eM.MLJKvj.vnFMVAoSsBEOUaXbJB3TjuYjYxB5N9I5bJOqr4z4doK';
     const CHAT_TABLE_NAME = 'messages'; 
     
     // 🔊 CONFIGURACIÓN DE SONIDOS (ASEGÚRATE DE TENER ESTOS ARCHIVOS EN LA CARPETA 'sounds/')
@@ -234,7 +234,8 @@
             }
 
             try {
-                const response = await fetch(JSONBIN_URL + '/latest', {
+                // 🚨 CORRECCIÓN 404: Usar /latest directamente en el fetch (ya que se usa la Master Key)
+                const response = await fetch(`${JSONBIN_URL}/latest`, { 
                     method: 'GET',
                     headers: {
                         'X-Master-Key': SECRET_KEY 
@@ -527,11 +528,14 @@
        
         validateCart();
         
-        // 🚨 CRÍTICO: Modificación de la llamada a render()
+        // CRÍTICO: Modificación de la llamada a render()
         if (currentView === 'admin') {
             // Si estamos en la vista admin, solo actualiza las secciones dinámicas (pedidos y usuarios)
-            // Esto evita que los formularios pierdan el foco o se reseteen
-            renderAdminSections(); 
+            if (!isEditingAdminForm) {
+                renderAdminSections(); 
+            } else {
+                 console.log("Polling: Administración no repintada para evitar pérdida de foco.");
+            }
         } else {
             // Si estamos en el catálogo o carrito, renderiza normalmente.
             render();
@@ -1421,6 +1425,7 @@
               
               const completedOrder = {...result.item, order_status: 'completed', needs_review: true};
               
+              // 🚨 CORRECCIÓN CRÍTICA: Descontar stock aquí
               try {
                 const itemsData = JSON.parse(completedOrder.items_data);
                 
@@ -1428,10 +1433,15 @@
                   const product = allProducts.find(p => p.__backendId === item.backendId);
                   if (product) {
                     const updatedProduct = {...product, stock: Math.max(0, product.stock - item.quantity)};
-                    window.dataSdk.update(updatedProduct); 
+                    // Se usa await para asegurar la actualización de cada producto
+                    const updateProductResult = await window.dataSdk.update(updatedProduct); 
+                    if (!updateProductResult.isOk) {
+                        console.error(`Fallo al actualizar stock de: ${product.name}`);
+                    }
                   }
                 }
                 
+                // Actualizar la orden como finalizada
                 await window.dataSdk.update(completedOrder); 
                 
                 showToast('✅ ¡Pedido completado y Stock actualizado! Tienda entra en el Ranking.');
@@ -1624,21 +1634,20 @@
     function renderAdminSections() {
         if (currentView !== 'admin' || isEditingAdminForm) return;
 
+        const viewingAs = adminViewTarget || currentUser.username;
+
+        const containerStats = document.getElementById('admin-stats-container');
         const containerOrders = document.getElementById('admin-orders-log');
-        const containerPending = document.getElementById('admin-pending-orders');
-        const containerInventory = document.getElementById('admin-inventory-list');
+        const containerPending = document.getElementById('admin-pending-orders-content');
+        const containerInventory = document.getElementById('admin-inventory-list-content');
         const containerUsers = document.getElementById('admin-user-panel');
         
         // Re-renderizar solo las secciones que no contienen formularios de edición/creación
+        if (containerStats) containerStats.innerHTML = renderAdminStats(viewingAs);
         if (containerOrders) containerOrders.innerHTML = renderAdminLog();
         if (containerPending) containerPending.innerHTML = renderAdminPendingOrders();
         if (containerInventory) containerInventory.innerHTML = renderAdminInventoryList();
         if (containerUsers) containerUsers.innerHTML = renderAdminGlobalUserPanel();
-        
-        // Actualizar estadísticas también (si existen)
-        const statsHtml = renderAdminStats(adminViewTarget || currentUser.username);
-        const statsContainer = document.getElementById('admin-stats-container');
-        if (statsContainer) statsContainer.innerHTML = statsHtml;
     }
 
     function render() {
@@ -1653,8 +1662,7 @@
       else if (currentView === 'orders') content = renderOrders();
       else if (currentView === 'admin') content = renderAdmin();
 
-      // NOTA: Si currentView es 'admin', render() solo carga la estructura inicial, 
-      // y renderAdminSections() se encarga de los contenidos dinámicos después.
+      // NOTA: Si currentView es 'admin', render() solo carga la estructura inicial.
       app.innerHTML = content;
 
       const modalContainer = document.getElementById('modalContainer');
@@ -1669,7 +1677,7 @@
            d.innerHTML = modalHTML;
       }
       
-      // Si la vista es admin, llama a la función de secciones dinámicas
+      // Si la vista es admin, llama a la función de secciones dinámicas para cargar el contenido
       if (currentView === 'admin') {
           renderAdminSections();
       }
@@ -1707,7 +1715,7 @@
           <header class="shadow-lg sticky top-0 z-40 bg-slate-800 border-b border-slate-700 p-4">
             <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
                 <div class="text-center md:text-left">
-                  <h1 class="text-2xl font-bold text-blue-400 tracking-tight">MU MARKET <span class="text-white text-xs bg-blue-600 px-1 rounded">V34</span></h1>
+                  <h1 class="text-2xl font-bold text-blue-400 tracking-tight">MU MARKET <span class="text-white text-xs bg-blue-600 px-1 rounded">V35</span></h1>
                   <p class="text-xs mt-1 opacity-60">${config.contact_info}</p>
                 </div>
                 <div class="flex flex-wrap gap-2 justify-center items-center">
@@ -2435,27 +2443,22 @@
                 </div>
 
                 <div id="admin-stats-container" class="mb-8">
-                    ${renderAdminStats(viewingAs)}
                 </div>
                
                 <div id="admin-orders-log" class="mb-8">
-                    ${renderAdminLog()}
                 </div>
                 
                 <div class="bg-slate-800 p-6 rounded-xl mb-8 border border-slate-700 shadow-lg">
-                    <div id="admin-pending-orders">
-                        ${renderAdminPendingOrders()}
+                    <div id="admin-pending-orders-content">
                     </div>
                 </div>
                 
                 <div class="bg-slate-800 p-6 rounded-xl mb-8 border border-slate-700 shadow-lg">
-                    <div id="admin-inventory-list">
-                        ${renderAdminInventoryList()}
+                    <div id="admin-inventory-list-content">
                     </div>
                 </div>
 
                 <div id="admin-user-panel">
-                    ${renderAdminGlobalUserPanel()}
                 </div>
 
             </div>
@@ -2464,6 +2467,7 @@
     }
 
     function renderModal() {
+        // La función close ahora debe resetear selectedOrderToReject si está activo
         const close = `onclick="closeChatModal(); showModal=null;selectedProductToEdit=null;managedUser=null;selectedOrder=null;selectedOrderToReject=null;setEditingState(false);render()"`;
         const box = "bg-slate-800 p-8 rounded-xl shadow-2xl max-w-md w-full border border-slate-600 relative transform transition-all scale-100";
        
@@ -2814,4 +2818,3 @@
   </script>
  </body>
 </html>
-
