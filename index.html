@@ -3,7 +3,7 @@
  <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mu Online 99B Marketplace - V30 (Admin Supremo y Roles)</title>
+  <title>Mu Online 99B Marketplace - V31 (Polling Realtime)</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
  
@@ -180,29 +180,26 @@
     // ---------------------------------------------------------
     // *** 🚨 VERIFICA TUS CREDENCIALES AQUÍ 🚨 ***
     const BIN_ID = '691ddaa6ae596e708f6321c9'; 
-    const SECRET_KEY = '$2a$10$6.Y19X/sB3np.3CIJmbJZesuwRVxU77ns.FyAdL2dUc46k1vWFG9S'; 
+    const SECRET_KEY = '$2a$10$6.Y19X/sB3np.3CIJmbJZesuwRVU77ns.FyAdL2dUc46k1vWFG9S'; 
     const JSONBIN_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
 
-    const DB_KEY = 'mu_marketplace_db_v22_final'; 
-    const SESSION_KEY = 'mu_session_user_v22_final';
+    const DB_KEY = 'mu_marketplace_db_v31_final'; 
+    const SESSION_KEY = 'mu_session_user_v31_final';
    
     // 📢 CONFIGURACIÓN SUPABASE (CHAT REALTIME)
-    // *** 🚨 REEMPLAZAR CON SUS CLAVES REALES DE SUPABASE 🚨 ***
     const SUPABASE_URL = 'https://ciysaobejtxfkpmbmswb.supabase.co'; 
     const SUPABASE_ANON_KEY = 'sb_publishable_ZVQXNGvJjurUNtqZNQrnPg_aw_wW9gY';
-    const CHAT_TABLE_NAME = 'messages'; // Nombre de tu tabla de mensajes en Supabase
+    const CHAT_TABLE_NAME = 'messages'; 
     // ---------------------------------------------------------
    
     // 2. INICIALIZAR CLIENTE SUPABASE
     let supabase = null;
-    if (SUPABASE_URL !== 'https://su_instancia.supabase.co' && SUPABASE_ANON_KEY !== 'su_clave_publica_anonima' && window.supabase) {
+    if (window.supabase) {
         supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        // showToast('✅ Cliente Supabase inicializado.'); // Se comenta para evitar spam
     } else {
         console.warn("Supabase no inicializado. Usando la simulación local de chat.");
     }
     // ---------------------------------------------------------
-
 
     // Base de datos simulada (solo para mantener la estructura, los datos reales vienen del BIN)
     window.mockDb = {
@@ -224,7 +221,7 @@
     };
 
     // ---------------------------------------------------------
-    // SDK Base de Datos (Conexión JSONBin) - SIN CAMBIOS
+    // SDK Base de Datos (Conexión JSONBin) 
     // ---------------------------------------------------------
     window.dataSdk = {
         init: async (handler) => {
@@ -236,7 +233,6 @@
         read: async () => {
             if (!BIN_ID || !SECRET_KEY || BIN_ID.includes('AQUI')) {
                    console.error("JSONBin Config Error: BIN_ID o SECRET_KEY no configurados.");
-                   showToast('❌ Error de Config: BIN ID o Key faltantes.');
                    const localData = localStorage.getItem(DB_KEY);
                    window.mockDb.data = localData ? JSON.parse(localData) : [];
                    window.mockDb.handler.onDataChanged(window.mockDb.data);
@@ -269,7 +265,6 @@
 
             } catch (error) {
                 console.error("JSONBin READ Error:", error);
-                showToast('❌ Error al cargar datos remotos. Usando datos locales (LocalStorage).');
                 // Si falla la red, usar el último backup local
                 const localData = localStorage.getItem(DB_KEY);
                 window.mockDb.data = localData ? JSON.parse(localData) : [];
@@ -281,7 +276,6 @@
         // FUNCIÓN DE ESCRITURA: Actualiza TODOS los datos en el BIN
         write: async (newData) => {
             if (!BIN_ID || !SECRET_KEY || BIN_ID.includes('AQUI')) {
-                   showToast('❌ Error de Config: BIN ID o Key faltantes.');
                    return { isOk: false };
             }
            
@@ -303,8 +297,9 @@
                 // Si la escritura es exitosa, actualizamos localStorage y notificamos
                 localStorage.setItem(DB_KEY, JSON.stringify(newData));
                 window.mockDb.data = newData;
-                window.mockDb.handler.onDataChanged(newData);
-                return { isOk: true, item: null }; // Añadir item: null para consistencia si es necesario
+                // NOTA: No llamamos a onDataChanged aquí. El Polling lo hará en el siguiente ciclo.
+                // Esto previene un doble renderizado inmediato después de cada write.
+                return { isOk: true, item: null };
 
             } catch (error) {
                 console.error("JSONBin WRITE Error:", error);
@@ -326,7 +321,6 @@
             const index = window.mockDb.data.findIndex(i => i.__backendId === item.__backendId);
             if (index === -1) {
                    console.error("No se encontró el item para actualizar:", item);
-                   showToast('❌ Error: No se encontró el registro para actualizar.');
                    return { isOk: false };
             }
 
@@ -365,9 +359,13 @@
       font_size: 16
     };
 
-    // Variables de Timeout para Auto-Logout
+    // Variables de Timeout para Auto-Logout y Polling
     let inactivityTimeout;
-    const TIMEOUT_LIMIT = 5 * 60 * 1000; // 5 minutos
+    const TIMEOUT_LIMIT = 5 * 60 * 1000; // 5 minutos para auto-logout
+    
+    // 🔥 INTERVALO DE POLLING REALTIME (CADA 10 SEGUNDOS)
+    let realtimePollingInterval;
+    const POLLING_RATE = 10 * 1000; 
 
     // ---------------------------------------------------------
     // 2. ESTADO GLOBAL (VARIABLES EN MEMORIA)
@@ -422,7 +420,7 @@
     let userActivityTimeout = null;
 
     // ---------------------------------------------------------
-    // 3. SDK DE CHAT (INTEGRACIÓN SUPABASE REALTIME) - SIN CAMBIOS
+    // 3. SDK DE CHAT (INTEGRACIÓN SUPABASE REALTIME) 
     // ---------------------------------------------------------
     window.chatSdk = {
        
@@ -471,8 +469,6 @@
 
         // MANEJADOR DE CAMBIOS DE REALTIME
         handleRealtimeChange: (payload) => {
-            console.log('Realtime Change:', payload);
-           
             if (payload.eventType === 'INSERT' && payload.new) {
                 const newMessage = {
                     id: payload.new.id,
@@ -526,7 +522,6 @@
             if (chatSubscription) {
                 supabase.removeChannel(chatSubscription);
                 chatSubscription = null;
-                // console.log('Chat Subscription Unsubscribed');
             }
         }
     };
@@ -534,24 +529,24 @@
 
 
     // ---------------------------------------------------------
-    // 4. MANEJADOR DE DATOS (JSONBin) - SIN CAMBIOS
+    // 4. MANEJADOR DE DATOS (JSONBin) 
     // ---------------------------------------------------------
     const dataHandler = {
       onDataChanged(data) {
         // Separar los datos por tipo
-        allProducts = data.filter(item => item.type === 'product') || [];
-        allUsers = data.filter(item => item.type === 'user') || [];
-        allOrders = data.filter(item => item.type === 'order') || [];
-        allReviews = data.filter(item => item.type === 'review') || []; 
+        const newProducts = data.filter(item => item.type === 'product') || [];
+        const newUsers = data.filter(item => item.type === 'user') || [];
+        const newOrders = data.filter(item => item.type === 'order') || [];
+        const newReviews = data.filter(item => item.type === 'review') || []; 
         const activityRecords = data.filter(item => item.type === 'activity') || [];
        
-        // Notificaciones en tiempo real
-        if (currentUser) {
-            const newOrderAlert = activityRecords.find(a => 
+        // Notificaciones de Pedidos/Actividad (Solo si los datos cambiaron)
+        if (allOrders.length !== newOrders.length || allUsers.length !== newUsers.length) {
+             const newOrderAlert = activityRecords.find(a => 
                 a.type === 'activity' &&
                 a.message && 
                 !a.dismissed && 
-                (a.username === currentUser.username || currentUser.role === 'admin') 
+                (a.username === currentUser?.username || currentUser?.role === 'admin') 
             );
 
             if (newOrderAlert) {
@@ -562,6 +557,12 @@
                 window.dataSdk.update(updatedAlert); 
             }
         }
+       
+        // 🚨 CRÍTICO: Actualizar las variables globales con los nuevos datos
+        allProducts = newProducts;
+        allUsers = newUsers;
+        allOrders = newOrders;
+        allReviews = newReviews;
        
         // Calcular quién está online (actividad < 5 min)
         const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
@@ -578,8 +579,23 @@
     };
 
     // ---------------------------------------------------------
-    // 5. INICIALIZACIÓN (ARRANQUE) - SIN CAMBIOS
+    // 5. INICIALIZACIÓN (ARRANQUE) Y POLLING REALTIME
     // ---------------------------------------------------------
+    
+    // 🔥 Nueva función para iniciar el Polling
+    function startRealtimePolling() {
+        if (realtimePollingInterval) {
+            clearInterval(realtimePollingInterval);
+        }
+        
+        realtimePollingInterval = setInterval(() => {
+            console.log("Polling: Buscando actualizaciones del BIN...");
+            window.dataSdk.read();
+        }, POLLING_RATE);
+        
+        console.log(`Realtime Polling iniciado a cada ${POLLING_RATE / 1000} segundos.`);
+    }
+
     async function init() {
       // Intentar recuperar sesión guardada
       const storedUser = localStorage.getItem(SESSION_KEY);
@@ -593,6 +609,9 @@
 
       // Conectar a la "Base de Datos" (JSONBin)
       await window.dataSdk.init(dataHandler);
+     
+      // 🔥 Iniciar el polling para actualizaciones REALTIME
+      startRealtimePolling();
      
       // Configurar SDK visual
       if (window.elementSdk) {
@@ -633,14 +652,14 @@
       const username = document.getElementById('loginUsername').value.trim();
       const password = document.getElementById('loginPassword').value;
 
-      // Login Normal: Buscar al usuario en la base de datos
+      // Buscar al usuario en la base de datos (usando allUsers que fue cargado por el Polling)
       const user = allUsers.find(u => u.username === username && u.password === password);
 
       // Caso Especial 1: Login Admin Hardcodeado (Super Admin de Origen)
       if (username === ADMIN_CREDENTIALS.username && password === ADMIN_CREDENTIALS.password) {
         currentUser = { 
             username, 
-            role: 'admin', // Se mantiene 'admin' (Máximo poder)
+            role: 'admin', 
             __backendId: 'admin',
             discord_tag: ADMIN_CREDENTIALS.discord_tag 
         };
@@ -668,7 +687,7 @@
         // Guardamos sesión con datos frescos del usuario encontrado en el BIN
         currentUser = { 
           username: user.username,
-          role: user.role, // CRÍTICO: Aquí se guarda el rol del BIN (buyer, reseller, o admin)
+          role: user.role, 
           shop_name: user.shop_name,
           discord_tag: user.discord_tag || 'No Informado', 
           __backendId: user.__backendId
@@ -686,7 +705,6 @@
        
         showModal = null;
         
-        // Si el rol es 'reseller' o 'admin' (promovido o no), van al panel.
         if (user.role === 'reseller' || user.role === 'admin') {
           currentView = 'admin';
           if (user.role === 'admin') {
@@ -737,6 +755,8 @@
       if (result.isOk) {
         showToast('Registro exitoso! Ahora puedes iniciar sesión');
         showModal = 'login';
+        // El polling se encargará de actualizar la lista allUsers, pero forzamos una lectura inmediata por si acaso
+        await window.dataSdk.read();
         render();
       } else {
         showToast('Error al registrar usuario');
@@ -777,6 +797,7 @@
       if (result.isOk) {
         showToast('Solicitud enviada! Espera aprobación del admin.');
         showModal = null;
+        await window.dataSdk.read();
         render();
       } else {
         showToast('Error al enviar solicitud');
@@ -804,13 +825,19 @@
            await window.dataSdk.create(activityData);
       }
      
+      // 🔥 Forzar una lectura después de actualizar la actividad
+      await window.dataSdk.read();
+     
       if (userActivityTimeout) clearTimeout(userActivityTimeout);
-      userActivityTimeout = setTimeout(updateUserActivity, 3 * 60 * 1000);
+      userActivityTimeout = setTimeout(updateUserActivity, 3 * 60 * 1000); // Siguiente actualización en 3 minutos
     }
 
     function logout(auto = false) {
       if (userActivityTimeout) clearTimeout(userActivityTimeout);
       clearTimeout(inactivityTimeout);
+      // 🔥 Detener Polling al cerrar sesión para ahorrar recursos del BIN
+      if (realtimePollingInterval) clearInterval(realtimePollingInterval);
+      
       currentUser = null;
       localStorage.removeItem(SESSION_KEY);
       currentView = 'catalog';
@@ -820,6 +847,10 @@
       adminViewTarget = null; // Resetear modo gestión
       managedUser = null; // Resetear usuario gestionado
       window.chatSdk.unsubscribe(); // Detener el listener del chat
+      
+      // Reiniciar el polling si no hay usuario logueado, por si acaso el usuario quiere ver productos actualizados
+      startRealtimePolling(); 
+      
       showToast(auto ? '💤 Sesión cerrada por inactividad' : 'Sesión cerrada');
       render();
     }
@@ -869,6 +900,7 @@
           showModal = null;
           selectedOrder = null;
           showToast('✅ Configuración de tienda guardada. Tienda Activada.');
+          await window.dataSdk.read(); // Forzar lectura para que el admin vea el cambio
           render(); 
       } else {
           showToast('Error al actualizar la configuración de la tienda.');
@@ -925,12 +957,13 @@
         } else {
             showToast('❌ Error al actualizar el rol.');
         }
+        await window.dataSdk.read(); // Forzar lectura para ver el cambio
         render(); // Forzar el re-render del modal con el nuevo rol/estado
     }
 
 
     // ---------------------------------------------------------
-    // 7. GESTIÓN DE PRODUCTOS (CRUD COMPLETO) - SIN CAMBIOS
+    // 7. GESTIÓN DE PRODUCTOS (CRUD COMPLETO) 
     // ---------------------------------------------------------
    
     // Función centralizada para abrir la gestión de productos de cualquier usuario
@@ -953,7 +986,6 @@
         return;
       }
 
-      // Determinar quién es el dueño (Soporte para Admin Gestionando Tienda ajena)
       const ownerUsername = adminViewTarget ? adminViewTarget : currentUser.username;
       const ownerData = allUsers.find(u => u.username === ownerUsername) || currentUser;
 
@@ -962,7 +994,6 @@
       btn.innerHTML = '<div class="loading-spinner mx-auto"></div>';
 
       let imageUrl = document.getElementById('productImage').value.trim();
-      // Asegurar formato de Imgur para display (si es link directo)
       if (imageUrl && imageUrl.includes('imgur.com/') && !imageUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
         imageUrl = imageUrl + '.jpg';
       }
@@ -997,6 +1028,9 @@
       } else {
         showToast('Error al agregar producto');
       }
+
+      // El Polling actualizará la lista de productos y la vista
+      await window.dataSdk.read();
 
       btn.disabled = false;
       btn.innerHTML = 'Publicar Ahora';
@@ -1047,6 +1081,9 @@
         } else {
             showToast('Error al actualizar producto');
         }
+        
+        // Forzar lectura para que se actualice la vista
+        await window.dataSdk.read();
     }
 
     async function deleteProduct(backendId) {
@@ -1061,10 +1098,13 @@
       } else {
         showToast('Error al eliminar producto');
       }
+      
+      // Forzar lectura para que se actualice la vista
+      await window.dataSdk.read();
     }
 
     // ---------------------------------------------------------
-    // 8. GESTIÓN DE USUARIOS (ADMIN) - SIN CAMBIOS
+    // 8. GESTIÓN DE USUARIOS (ADMIN)
     // ---------------------------------------------------------
    
     // Nueva función para abrir el modal de gestión
@@ -1102,6 +1142,8 @@
        
         if (result.isOk) {
             showToast(`✅ Log Histórico de ${ordersToDelete.length} pedidos eliminado exitosamente.`);
+            // Forzar lectura para que la tabla se vacíe inmediatamente
+            await window.dataSdk.read();
         } else {
             showToast('❌ Error al eliminar el log histórico. Verifica el BIN.');
         }
@@ -1114,7 +1156,7 @@
             return;
         }
        
-        // Si el vendedor no tiene nombre de tienda o discord, forzar setup (Admin lo puede hacer por él o forzar que lo haga)
+        // Si el vendedor no tiene nombre de tienda o discord, forzar setup 
         if (user.role === 'reseller' && (!user.shop_name || !user.discord_tag || user.status === 'pending')) {
             selectedOrder = user;
             showModal = 'setupShop';
@@ -1131,6 +1173,7 @@
             showToast('❌ Error al actualizar usuario. Verifica el estado del BIN.');
         }
         showModal = null; // Cerrar cualquier modal que esté abierto
+        await window.dataSdk.read();
     }
 
     async function rejectUser(backendId) {
@@ -1151,6 +1194,7 @@
             showToast('🚫 Usuario BANEADO exitosamente');
         }
         showModal = null;
+        await window.dataSdk.read();
     }
 
     async function deleteUserAccount(backendId) {
@@ -1169,6 +1213,7 @@
         const result = await window.dataSdk.delete(user);
         if (result.isOk) showToast('🗑️ Cuenta eliminada correctamente');
         showModal = null;
+        await window.dataSdk.read();
     }
    
     // --- FUNCIONES DE MODO DIOS (ADMIN ENTRA EN TIENDA) ---
@@ -1186,24 +1231,16 @@
         render();
     }
    
-    // Función para refrescar datos en la vista Admin
+    // Función para refrescar datos en la vista Admin (Ahora se basa en el Polling, pero la dejamos por si acaso)
     async function loadAdminView() {
-        showToast('🔄 Sincronizando datos remotos...');
-        // Forzamos la lectura para asegurar los últimos cambios de usuarios/pedidos
-        const result = await window.dataSdk.read(); 
-       
-        if (result.isOk) {
-             showToast('✅ Sincronización completa.');
-        } else {
-             showToast('⚠️ No se pudo sincronizar la lista de usuarios del BIN.');
-        }
-       
+        showToast('🔄 Sincronizando datos remotos (Polling forzado)...');
+        await window.dataSdk.read(); 
         currentView = 'admin';
         render();
     }
 
     // ---------------------------------------------------------
-    // 9. CARRITO Y PEDIDOS - SIN CAMBIOS RELEVANTES
+    // 9. CARRITO Y PEDIDOS 
     // ---------------------------------------------------------
     function updateCartStorage() {
         localStorage.setItem('mu_cart_v22', JSON.stringify(cart));
@@ -1376,6 +1413,10 @@
       cart = [];
       updateCartStorage();
       currentView = 'orders';
+      
+      // Forzar lectura para que el vendedor vea el nuevo pedido
+      await window.dataSdk.read();
+      
       render();
     }
 
@@ -1437,11 +1478,14 @@
              // El vendedor ya confirmó, el toast ya se mostró arriba.
           }
       }
+      
+      // Forzar lectura para que ambas partes vean el cambio
+      await window.dataSdk.read();
       render();
     }
 
     // ---------------------------------------------------------
-    // 10. FUNCIONES DE RESEÑA - SIN CAMBIOS
+    // 10. FUNCIONES DE RESEÑA
     // ---------------------------------------------------------
     function getShopRating(username) {
         const reviews = allReviews.filter(r => r.reviewed_seller === username);
@@ -1494,10 +1538,13 @@
         } else {
             showToast('❌ Error al enviar la reseña.');
         }
+        
+        // Forzar lectura para que se actualice la vista de pedidos y el rating
+        await window.dataSdk.read();
     }
    
     // ---------------------------------------------------------
-    // 11. FUNCIONES DE CHAT (AJUSTADAS PARA SUPABASE) - SIN CAMBIOS
+    // 11. FUNCIONES DE CHAT (AJUSTADAS PARA SUPABASE) 
     // ---------------------------------------------------------
     async function openChatModal(orderId) {
         const order = allOrders.find(o => o.__backendId === orderId);
@@ -1573,7 +1620,7 @@
 
 
     // ---------------------------------------------------------
-    // 12. UTILIDADES DE RENDERIZADO - SIN CAMBIOS
+    // 12. UTILIDADES DE RENDERIZADO 
     // ---------------------------------------------------------
     function getTopShops() {
       const resellers = allUsers.filter(u => u.role === 'reseller' && u.approved);
@@ -1627,7 +1674,7 @@
     }
 
     // ---------------------------------------------------------
-    // 13. RENDERIZADO PRINCIPAL (EL CÓDIGO VISUAL) - SIN CAMBIOS
+    // 13. RENDERIZADO PRINCIPAL (EL CÓDIGO VISUAL) 
     // ---------------------------------------------------------
     function render() {
       const app = document.getElementById('app');
@@ -1691,7 +1738,7 @@
           <header class="shadow-lg sticky top-0 z-40 bg-slate-800 border-b border-slate-700 p-4">
             <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
                 <div class="text-center md:text-left">
-                  <h1 class="text-2xl font-bold text-blue-400 tracking-tight">MU MARKET <span class="text-white text-xs bg-blue-600 px-1 rounded">V30</span></h1>
+                  <h1 class="text-2xl font-bold text-blue-400 tracking-tight">MU MARKET <span class="text-white text-xs bg-blue-600 px-1 rounded">V31</span></h1>
                   <p class="text-xs mt-1 opacity-60">${config.contact_info}</p>
                 </div>
                 <div class="flex flex-wrap gap-2 justify-center items-center">
@@ -2098,7 +2145,7 @@
                             </button>
                         ` : ''}
                         <button onclick="loadAdminView()" class="bg-slate-700 px-6 py-2 rounded font-bold shadow hover:bg-slate-600 transition border border-slate-500 text-blue-400 border-blue-500/50">
-                            🔄 REFRESCAR DATOS
+                            🔄 REFRESCAR DATOS (Forzado)
                         </button>
                         <button onclick="currentView='catalog';render()" class="bg-blue-600 px-6 py-2 rounded font-bold shadow hover:bg-blue-500 transition">
                             🏠 Volver al Inicio
