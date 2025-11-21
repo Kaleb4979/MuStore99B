@@ -3,7 +3,7 @@
  <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mu Online 99B Marketplace - V32 (Polling Realtime con Sonidos)</title>
+  <title>Mu Online 99B Marketplace - V33 (Rechazo de Pedidos y Sonidos)</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
  
@@ -171,18 +171,18 @@
     // ---------------------------------------------------------
     // *** 🚨 VERIFICA TUS CREDENCIALES AQUÍ 🚨 ***
     const BIN_ID = '691ddaa6ae596e708f6321c9'; 
-    const SECRET_KEY = '$2a$10$6.Y19X/sB3np.3CIJmbJZesuwRVxU77ns.FyAdL2dUc46k1vWFG9S'; 
+    const SECRET_KEY = '$2a$10$6.Y19X/sB3np.3CIJmbJZesuwRVU77ns.FyAdL2dUc46k1vWFG9S'; 
     const JSONBIN_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
 
-    const DB_KEY = 'mu_marketplace_db_v32_final'; 
-    const SESSION_KEY = 'mu_session_user_v32_final';
+    const DB_KEY = 'mu_marketplace_db_v33_final'; 
+    const SESSION_KEY = 'mu_session_user_v33_final';
    
     // 📢 CONFIGURACIÓN SUPABASE (CHAT REALTIME)
     const SUPABASE_URL = 'https://ciysaobejtxfkpmbmswb.supabase.co'; 
     const SUPABASE_ANON_KEY = 'sb_publishable_ZVQXNGvJjurUNtqZNQrnPg_aw_wW9gY';
     const CHAT_TABLE_NAME = 'messages'; 
     
-    // 🔊 CONFIGURACIÓN DE SONIDOS
+    // 🔊 CONFIGURACIÓN DE SONIDOS (ASEGÚRATE DE TENER ESTOS ARCHIVOS EN LA CARPETA 'sounds/')
     const SOUND_NEW_ORDER = 'sounds/new_order.mp3';
     const SOUND_NEW_MESSAGE = 'sounds/new_message.mp3';
     // ---------------------------------------------------------
@@ -286,7 +286,7 @@
                
                 localStorage.setItem(DB_KEY, JSON.stringify(newData));
                 window.mockDb.data = newData;
-                // El Polling se encargará de notificar el cambio, no llamamos a onDataChanged aquí.
+                // El Polling se encargará de notificar el cambio.
                 return { isOk: true, item: null };
 
             } catch (error) {
@@ -346,7 +346,6 @@
     let inactivityTimeout;
     const TIMEOUT_LIMIT = 5 * 60 * 1000; 
     
-    // 🔥 INTERVALO DE POLLING REALTIME (CADA 10 SEGUNDOS)
     let realtimePollingInterval;
     const POLLING_RATE = 10 * 1000; 
 
@@ -361,6 +360,7 @@
     let adminViewTarget = null; 
     let selectedProductToEdit = null; 
     let managedUser = null; 
+    let selectedOrderToReject = null; // Nuevo estado para el pedido a rechazar
 
     let allProducts = [];
     let allUsers = [];
@@ -394,7 +394,6 @@
     let onlineUsers = new Set();
     let userActivityTimeout = null;
     
-    // Almacenamiento de IDs de órdenes pendientes conocidas para evitar spam de sonido.
     let knownPendingOrderIds = new Set();
 
     // ---------------------------------------------------------
@@ -442,7 +441,6 @@
                     chatMessages.push(newMessage);
                     
                     // 2. SONIDO DE MENSAJE
-                    // Solo si no es el mensaje que yo mismo acabo de enviar
                     if (currentUser && newMessage.sender !== currentUser.username) {
                         playSound(SOUND_NEW_MESSAGE);
                     }
@@ -467,7 +465,7 @@
                 .channel(`chat-order-${orderId}`)
                 .on(
                     'postgres_changes',
-                    { event: 'INSERT', schema: 'public', table: CHAT_TABLE_name, filter: `order_id=eq.${orderId}` },
+                    { event: 'INSERT', schema: 'public', table: CHAT_TABLE_NAME, filter: `order_id=eq.${orderId}` },
                     window.chatSdk.handleRealtimeChange
                 )
                 .subscribe();
@@ -540,14 +538,11 @@
     // 5. INICIALIZACIÓN Y FUNCIONES DE AUDIO
     // ---------------------------------------------------------
     
-    // 🔊 FUNCIÓN PRINCIPAL PARA REPRODUCIR SONIDO
     function playSound(path) {
         try {
             const audio = new Audio(path);
             audio.play().catch(error => {
-                // Capturar el error de "autoplay" (el navegador lo bloquea si no hay interacción previa)
                 console.warn("Error de reproducción de audio (Autoplay bloqueado):", error.message);
-                // Aquí podrías mostrar un botón para habilitar el sonido si es necesario.
             });
         } catch (e) {
             console.error("Error al crear objeto de Audio:", e);
@@ -611,20 +606,9 @@
     }
     
     // ---------------------------------------------------------
-    // 6. FUNCIONES DE USUARIO, ADMIN, CARRITO, ETC. (Sin cambios en la lógica de negocio)
+    // 6. FUNCIONES DE USUARIO, ADMIN, CARRITO, ETC.
     // ---------------------------------------------------------
     
-    // ... (El resto de las funciones: handleLogin, handleRegisterBuyer, handleRegisterReseller, 
-    // updateUserActivity, logout, handleSetupShop, handleUpdateUserRole, handleAddProduct, 
-    // handleUpdateProduct, deleteProduct, openManageUserModal, clearCompletedOrdersLog, 
-    // approveUser, banUser, deleteUserAccount, enterShopManagement, exitShopManagement, 
-    // loadAdminView, updateCartStorage, validateCart, addToCart, removeFromCart, 
-    // filterByShop, clearShopFilter, createOrder, confirmOrder, getShopRating, 
-    // getStarHtml, handleSubmitReview, openChatModal, closeChatModal, handleChatMessageSend, 
-    // renderChatMessages, getTopShops, getSellerSalesMap, getCategoryIcon, showToast, 
-    // getConfig, render, renderCatalog, renderCart, renderOrders, renderAdmin, renderModal, 
-    // y las funciones de Respaldo/Descarga si las tienes) ...
-
     async function handleLogin(e) {
       e.preventDefault();
       const username = document.getElementById('loginUsername').value.trim();
@@ -912,7 +896,6 @@
         render();
     }
     
-    // ... (El resto de las funciones de CRUD, Admin, etc., copiadas del código anterior) ...
     function openProductManagement(username) {
         if (currentUser.role === 'admin' && currentUser.username !== username) {
             enterShopManagement(username);
@@ -1305,6 +1288,7 @@
           seller_confirmed: false,
           buyer_confirmed: false,
           needs_review: false, 
+          rejection_reason: null, // Nuevo campo
           created_at: new Date().toISOString()
         };
 
@@ -1338,6 +1322,63 @@
       
       render();
     }
+
+    // 🆕 FUNCIÓN PARA RECHAZAR EL PEDIDO
+    function openRejectModal(orderId) {
+        selectedOrderToReject = allOrders.find(o => o.__backendId === orderId);
+        if (selectedOrderToReject) {
+            showModal = 'rejectOrder';
+            render();
+        } else {
+            showToast('Pedido no encontrado.');
+        }
+    }
+    
+    // 🆕 FUNCIÓN PARA GUARDAR EL RECHAZO
+    async function handleRejectOrder(e) {
+        e.preventDefault();
+        if (!selectedOrderToReject) return;
+        
+        const reason = document.getElementById('rejectReason').value.trim();
+        if (reason.length < 5) {
+            showToast('Debes ingresar un motivo de rechazo de al menos 5 caracteres.');
+            return;
+        }
+        
+        const updatedOrder = {
+            ...selectedOrderToReject,
+            order_status: 'rejected',
+            rejection_reason: reason,
+            seller_confirmed: false, // Asegurar que quede como false
+            buyer_confirmed: false,
+            needs_review: false,
+            updated_at: new Date().toISOString()
+        };
+
+        const result = await window.dataSdk.update(updatedOrder);
+
+        if (result.isOk) {
+            showToast(`❌ Pedido ${updatedOrder.id} rechazado. Comprador notificado.`);
+             // Notificación para el comprador sobre el rechazo
+            const notificationData = {
+                id: 'ntf_rej_' + Date.now(), 
+                type: 'activity',
+                username: updatedOrder.buyer_username, 
+                message: `❌ Tu pedido ${updatedOrder.id} ha sido rechazado: ${reason.substring(0, 30)}...`,
+                dismissed: false, 
+                created_at: new Date().toISOString()
+            };
+            await window.dataSdk.create(notificationData);
+            
+            showModal = null;
+            selectedOrderToReject = null;
+        } else {
+            showToast('Error al rechazar el pedido.');
+        }
+
+        await window.dataSdk.read();
+    }
+
 
     async function confirmOrder(backendId, isSeller) {
       const order = allOrders.find(o => o.__backendId === backendId);
@@ -1588,9 +1629,7 @@
            d.innerHTML = modalHTML;
       }
     }
-    
-    // ... (El resto de las funciones renderCatalog, renderCart, renderOrders, renderAdmin, renderModal) ...
-    
+
     function renderCatalog() {
       const config = getConfig();
      
@@ -1623,7 +1662,7 @@
           <header class="shadow-lg sticky top-0 z-40 bg-slate-800 border-b border-slate-700 p-4">
             <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
                 <div class="text-center md:text-left">
-                  <h1 class="text-2xl font-bold text-blue-400 tracking-tight">MU MARKET <span class="text-white text-xs bg-blue-600 px-1 rounded">V32</span></h1>
+                  <h1 class="text-2xl font-bold text-blue-400 tracking-tight">MU MARKET <span class="text-white text-xs bg-blue-600 px-1 rounded">V33</span></h1>
                   <p class="text-xs mt-1 opacity-60">${config.contact_info}</p>
                 </div>
                 <div class="flex flex-wrap gap-2 justify-center items-center">
@@ -1891,19 +1930,24 @@
                 ` : ''}
 
                 ${myOrders.map((o, index) => {
-                    const statusText = o.order_status === 'completed' 
-                        ? (o.needs_review ? 'Completado (Pendiente de Reseña)' : 'Completado') 
-                        : o.seller_confirmed 
-                            ? 'Pendiente de tu Confirmación' 
-                            : 'Esperando Entrega del Vendedor';
-                    const statusClass = o.order_status === 'completed'
-                        ? (o.needs_review ? 'bg-red-900 text-red-200 border border-red-700 animate-pulse' : 'bg-green-900 text-green-200 border border-green-700')
-                        : o.seller_confirmed 
-                            ? 'bg-orange-900 text-orange-200 border border-orange-700 animate-pulse'
-                            : 'bg-yellow-900 text-yellow-200 border border-yellow-700 animate-pulse';
+                    let statusText, statusClass;
+
+                    if (o.order_status === 'completed') {
+                        statusText = o.needs_review ? 'Completado (Pendiente de Reseña)' : 'Completado';
+                        statusClass = o.needs_review ? 'bg-red-900 text-red-200 border border-red-700 animate-pulse' : 'bg-green-900 text-green-200 border border-green-700';
+                    } else if (o.order_status === 'rejected') {
+                        statusText = 'RECHAZADO';
+                        statusClass = 'bg-red-700 text-white border border-red-500';
+                    } else if (o.seller_confirmed) {
+                        statusText = 'Pendiente de tu Confirmación';
+                        statusClass = 'bg-orange-900 text-orange-200 border border-orange-700 animate-pulse';
+                    } else {
+                        statusText = 'Esperando Entrega del Vendedor';
+                        statusClass = 'bg-yellow-900 text-yellow-200 border border-yellow-700 animate-pulse';
+                    }
 
                     return `
-                    <div class="bg-slate-800 p-6 rounded-xl mb-6 border-l-4 shadow-lg transition hover:bg-slate-800/80 ${o.order_status==='completed'?'border-green-500':o.seller_confirmed?'border-orange-500':'border-yellow-500'}">
+                    <div class="bg-slate-800 p-6 rounded-xl mb-6 border-l-4 shadow-lg transition hover:bg-slate-800/80 ${o.order_status==='completed'?'border-green-500':o.order_status==='rejected'?'border-red-500':o.seller_confirmed?'border-orange-500':'border-yellow-500'}">
                         <div class="flex justify-between items-start border-b border-slate-700 pb-4 mb-4">
                             <div>
                                 <span class="font-bold text-xl text-white">PEDIDO #${myOrders.length - index}</span>
@@ -1914,6 +1958,13 @@
                             </span>
                         </div>
                        
+                        ${o.order_status === 'rejected' ? `
+                            <div class="bg-red-900/30 p-4 rounded-lg border border-red-700 mb-4">
+                                <p class="text-sm font-bold text-red-400 mb-1">Motivo del Rechazo:</p>
+                                <p class="text-sm text-white">${o.rejection_reason || 'Motivo no especificado.'}</p>
+                            </div>
+                        ` : ''}
+
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
                             <div class="bg-slate-900/50 p-4 rounded-lg border border-slate-700">
                                 <p class="text-xs uppercase text-slate-500 font-bold mb-2">Datos del Vendedor</p>
@@ -1932,9 +1983,13 @@
 
                         <div class="flex flex-col sm:flex-row justify-between items-center pt-2 gap-4">
                            
-                            <button onclick="openChatModal('${o.__backendId}')" class="w-full sm:w-auto bg-purple-600 hover:bg-purple-500 px-6 py-3 rounded-lg font-bold text-white shadow transition transform active:scale-95 text-sm">
-                                💬 CHAT con Vendedor
-                            </button>
+                            ${o.order_status !== 'rejected' ? `
+                                <button onclick="openChatModal('${o.__backendId}')" class="w-full sm:w-auto bg-purple-600 hover:bg-purple-500 px-6 py-3 rounded-lg font-bold text-white shadow transition transform active:scale-95 text-sm">
+                                    💬 CHAT con Vendedor
+                                </button>
+                            ` : `
+                                <div class="text-xs text-slate-500">Puedes volver a realizar el pedido.</div>
+                            `}
                            
                             <div class="text-2xl font-bold text-white flex-1 text-right">
                                 Total: <span class="text-green-400">$${o.total.toFixed(2)}</span>
@@ -1950,6 +2005,10 @@
                                         <span>✅ Pedido Finalizado</span>
                                     </div>
                                 `}
+                            ` : o.order_status === 'rejected' ? `
+                                <button onclick="currentView='catalog'; clearShopFilter(); render();" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-500 px-6 py-3 rounded-lg font-bold text-white shadow transition transform active:scale-95">
+                                    🛒 Buscar Alternativa
+                                </button>
                             ` : `
                                 ${o.seller_confirmed ? `
                                     <button onclick="confirmOrder('${o.__backendId}', false)" ${o.buyer_confirmed ? 'disabled' : ''} 
@@ -1979,8 +2038,8 @@
       const pending = myOrders.filter(o => o.order_status === 'pending').reverse();
      
       const completedOrdersLog = user.role === 'admin' 
-        ? allOrders.filter(o => o.order_status === 'completed').reverse() 
-        : allOrders.filter(o => o.seller_username === viewingAs && o.order_status === 'completed').reverse();
+        ? allOrders.filter(o => o.order_status === 'completed' || o.order_status === 'rejected').reverse() 
+        : allOrders.filter(o => o.seller_username === viewingAs && (o.order_status === 'completed' || o.order_status === 'rejected')).reverse();
      
       const sellerSalesMap = getSellerSalesMap();
 
@@ -2049,43 +2108,49 @@
                     </div>
                 </div>
                
-                ${user.role === 'admin' ? `
-                    <div class="bg-slate-800 p-6 rounded-xl mb-8 border border-slate-700 shadow-lg">
-                        <h2 class="text-xl font-bold mb-6 text-green-400 border-b border-slate-700 pb-2 flex items-center gap-2">
-                            📜 LOG HISTÓRICO DE PEDIDOS (${completedOrdersLog.length})
+                <div class="bg-slate-800 p-6 rounded-xl mb-8 border border-slate-700 shadow-lg">
+                    <h2 class="text-xl font-bold mb-6 text-green-400 border-b border-slate-700 pb-2 flex items-center gap-2">
+                        📜 LOG DE PEDIDOS COMPLETADOS/RECHAZADOS (${completedOrdersLog.length})
+                        ${user.role === 'admin' ? `
                             <button onclick="clearCompletedOrdersLog()" class="bg-red-700 hover:bg-red-600 text-white px-3 py-1 rounded text-xs font-bold transition ml-auto">
-                                🗑️ LIMPIAR LOG
+                                🗑️ LIMPIAR LOG COMPLETO
                             </button>
-                        </h2>
-                        <div class="overflow-x-auto rounded-lg border border-slate-700 max-h-64 overflow-y-auto">
-                            <table class="w-full text-sm text-left text-slate-300">
-                                <thead class="bg-slate-900 text-white uppercase font-bold text-xs sticky top-0 z-10">
-                                    <tr>
-                                        <th class="p-3">Fecha</th>
-                                        <th class="p-3">Tienda/Vendedor</th>
-                                        <th class="p-3">Comprador</th>
-                                        <th class="p-3">Items</th>
-                                        <th class="p-3 text-right">Total</th>
+                        ` : ''}
+                    </h2>
+                    <div class="overflow-x-auto rounded-lg border border-slate-700 max-h-64 overflow-y-auto">
+                        <table class="w-full text-sm text-left text-slate-300">
+                            <thead class="bg-slate-900 text-white uppercase font-bold text-xs sticky top-0 z-10">
+                                <tr>
+                                    <th class="p-3">Estado</th>
+                                    <th class="p-3">Fecha</th>
+                                    <th class="p-3">Tienda/Vendedor</th>
+                                    <th class="p-3">Comprador</th>
+                                    <th class="p-3">Items</th>
+                                    <th class="p-3 text-right">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-700">
+                                ${completedOrdersLog.length === 0 ? `
+                                    <tr><td colspan="6" class="p-4 text-center opacity-50">No hay registro de pedidos.</td></tr>
+                                ` : completedOrdersLog.map(o => `
+                                    <tr class="hover:bg-slate-700/30 transition font-mono ${o.order_status === 'rejected' ? 'bg-red-900/10' : ''}">
+                                        <td class="p-3 text-xs font-bold whitespace-nowrap">
+                                            <span class="px-2 py-1 rounded text-xs ${o.order_status === 'rejected' ? 'bg-red-700 text-white' : 'bg-green-700 text-green-100'}">
+                                                ${o.order_status.toUpperCase()}
+                                            </span>
+                                        </td>
+                                        <td class="p-3 text-xs text-slate-500">${new Date(o.created_at).toLocaleDateString()}</td>
+                                        <td class="p-3 font-bold text-blue-300">${o.seller_username}</td>
+                                        <td class="p-3 text-white">${o.buyer_username}</td>
+                                        <td class="p-3 text-xs truncate max-w-xs">${o.items}</td>
+                                        <td class="p-3 text-right font-bold text-green-400">$${o.total.toFixed(2)}</td>
                                     </tr>
-                                </thead>
-                                <tbody class="divide-y divide-slate-700">
-                                    ${completedOrdersLog.length === 0 ? `
-                                        <tr><td colspan="5" class="p-4 text-center opacity-50">No hay registro de pedidos completados.</td></tr>
-                                    ` : completedOrdersLog.map(o => `
-                                        <tr class="hover:bg-slate-700/30 transition font-mono">
-                                            <td class="p-3 text-xs text-slate-500">${new Date(o.created_at).toLocaleDateString()}</td>
-                                            <td class="p-3 font-bold text-blue-300">${o.seller_username}</td>
-                                            <td class="p-3 text-white">${o.buyer_username}</td>
-                                            <td class="p-3 text-xs truncate max-w-xs">${o.items}</td>
-                                            <td class="p-3 text-right font-bold text-green-400">$${o.total.toFixed(2)}</td>
-                                        </tr>
-                                    `).join('')}
-                                </tbody>
-                            </table>
-                        </div>
+                                `).join('')}
+                            </tbody>
+                        </table>
                     </div>
-                ` : ''}
-
+                </div>
+                
                 <div class="bg-slate-800 p-6 rounded-xl mb-8 border border-slate-700 shadow-lg">
                     <h2 class="text-xl font-bold mb-4 text-yellow-400 border-b border-slate-700 pb-2 flex items-center gap-2">
                         📦 Pedidos por Despachar <span class="bg-slate-700 text-white px-2 rounded text-sm">${pending.length}</span>
@@ -2099,20 +2164,20 @@
                         const sellerConfirmed = o.seller_confirmed;
                         const buyerConfirmed = o.buyer_confirmed;
                        
-                        let buttonText, buttonClass, buttonAction;
+                        let confirmButtonText, confirmButtonClass, confirmButtonAction;
                        
                         if (buyerConfirmed) {
-                            buttonText = 'Cliente CONFIRMADO';
-                            buttonClass = 'bg-orange-700/50 disabled:opacity-100 disabled:cursor-wait';
-                            buttonAction = 'disabled';
+                            confirmButtonText = 'Cliente CONFIRMADO';
+                            confirmButtonClass = 'bg-orange-700/50 disabled:opacity-100 disabled:cursor-wait';
+                            confirmButtonAction = 'disabled';
                         } else if (sellerConfirmed) {
-                            buttonText = '⏳ Esperando Cliente';
-                            buttonClass = 'bg-yellow-600/50 disabled:opacity-100 disabled:cursor-wait';
-                            buttonAction = 'disabled';
+                            confirmButtonText = '⏳ Esperando Cliente';
+                            confirmButtonClass = 'bg-yellow-600/50 disabled:opacity-100 disabled:cursor-wait';
+                            confirmButtonAction = 'disabled';
                         } else {
-                            buttonText = '✅ MARCAR ENTREGADO';
-                            buttonClass = 'bg-green-600 hover:bg-green-500';
-                            buttonAction = `onclick="confirmOrder('${o.__backendId}', true)"`;
+                            confirmButtonText = '✅ MARCAR ENTREGADO';
+                            confirmButtonClass = 'bg-green-600 hover:bg-green-500';
+                            confirmButtonAction = `onclick="confirmOrder('${o.__backendId}', true)"`;
                         }
                        
                         const statusBadgeText = buyerConfirmed ? 'Cliente Confirmó' : (sellerConfirmed ? 'Tú Confirmaste (Esperando Cliente)' : 'Pendiente de tu Entrega');
@@ -2133,162 +2198,26 @@
                                     ${o.items}
                                 </div>
                             </div>
-                            <div class="text-right flex flex-col justify-between items-end min-w-[150px]">
+                            <div class="text-right flex flex-col justify-between items-end min-w-[200px]">
                                 <div>
                                     <p class="text-xs text-slate-500 uppercase">Total a Cobrar</p>
                                     <div class="text-3xl font-bold text-green-400">$${o.total.toFixed(2)}</div>
                                 </div>
-                                <div class="flex gap-2">
+                                <div class="flex gap-2 mt-3">
+                                    <button onclick="openRejectModal('${o.__backendId}')" class="bg-red-600 hover:bg-red-500 px-4 py-2 rounded font-bold text-sm shadow transition text-white">
+                                        ❌ RECHAZAR PEDIDO
+                                    </button>
                                     <button onclick="openChatModal('${o.__backendId}')" class="bg-purple-600 hover:bg-purple-500 px-4 py-2 rounded font-bold text-sm shadow transition text-white">
                                         💬 CHAT
                                     </button>
-                                    <button ${buttonAction} class="${buttonClass} px-4 py-2 rounded font-bold text-sm shadow transition text-white">
-                                        ${buttonText}
-                                    </button>
                                 </div>
+                                <button ${confirmButtonAction} class="${confirmButtonClass} px-4 py-2 rounded font-bold text-sm shadow transition text-white mt-2 w-full">
+                                    ${confirmButtonText}
+                                </button>
                             </div>
                         </div>
                         `}).join('')}
                 </div>
-
-                <div class="bg-slate-800 p-6 rounded-xl mb-8 border border-slate-700 shadow-lg">
-                    <h2 class="text-xl font-bold mb-6 text-blue-400 border-b border-slate-700 pb-2">🛍️ Gestión de Inventario</h2>
-                   
-                    <div class="mb-8 p-5 bg-slate-900 rounded-lg border border-slate-600">
-                        <h3 class="text-sm font-bold mb-3 uppercase text-slate-400 flex items-center gap-2">
-                            <span>➕</span> Publicar Nuevo Item
-                        </h3>
-                        <form onsubmit="handleAddProduct(event)" class="grid grid-cols-1 md:grid-cols-12 gap-3">
-                            <div class="md:col-span-4">
-                                <input id="productName" placeholder="Nombre del Item" required class="w-full bg-slate-800 p-3 rounded text-white border border-slate-600 focus:border-blue-500 outline-none">
-                            </div>
-                            <div class="md:col-span-2">
-                                <select id="productCategory" class="w-full bg-slate-800 p-3 rounded text-white border border-slate-600 focus:border-blue-500">
-                                    <option value="items">Arma/Escudo</option>
-                                    <option value="sets">Set Completo</option>
-                                    <option value="wings">Alas</option>
-                                    <option value="jewels">Joyas</option>
-                                </select>
-                            </div>
-                            <div class="md:col-span-2">
-                                <input id="productPrice" type="number" step="0.01" placeholder="Precio $" required class="w-full bg-slate-800 p-3 rounded text-white border border-slate-600 focus:border-blue-500">
-                            </div>
-                            <div class="md:col-span-2">
-                                <input id="productStock" type="number" placeholder="Stock" required class="w-full bg-slate-800 p-3 rounded text-white border border-slate-600 focus:border-blue-500">
-                            </div>
-                            <div class="md:col-span-2">
-                                <button type="submit" class="w-full h-full bg-blue-600 hover:bg-blue-500 font-bold rounded text-white shadow transition uppercase text-sm">
-                                    Publicar
-                                </button>
-                            </div>
-                           
-                            <input id="productDiscount" type="hidden" value="0">
-                            <input id="productImage" type="hidden" value="">
-                            <input id="productDescription" type="hidden" value="">
-                            <input id="productOnSale" type="checkbox" class="hidden">
-                        </form>
-                        <p class="text-xs text-slate-500 mt-3 ml-1 flex items-center gap-1">
-                            ℹ️ Para agregar imagen, descuento o descripción, usa el botón <span class="font-bold text-blue-400 bg-slate-800 px-1 rounded">EDITAR</span> una vez creado el item.
-                        </p>
-                    </div>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        ${myProducts.map(p => `
-                            <div class="bg-slate-900 rounded-lg border border-slate-600 p-4 relative group hover:border-blue-500 transition shadow-sm flex flex-col justify-between h-full">
-                                <div>
-                                    <div class="flex justify-between items-start mb-2">
-                                        <div class="font-bold truncate text-white text-lg pr-2" title="${p.name}">${p.name}</div>
-                                        <div class="font-mono text-xs bg-slate-800 px-2 py-1 rounded text-slate-400 border border-slate-700 whitespace-nowrap">
-                                            📦 Stock: ${p.stock}
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="mb-4">
-                                        <div class="text-green-400 font-bold text-2xl">$${p.final_price.toFixed(2)}</div>
-                                        ${p.discount > 0 ? `<div class="text-xs text-red-400 font-bold bg-red-900/20 inline-block px-1 rounded border border-red-900/50">-${p.discount}% OFF</div>` : '<div class="h-5"></div>'}
-                                    </div>
-                                </div>
-                                
-                                <div class="flex gap-2 mt-auto pt-3 border-t border-slate-800">
-                                    <button onclick="openEditModal('${p.__backendId}')" class="flex-1 bg-blue-600 hover:bg-blue-500 py-2 rounded text-xs font-bold text-white shadow transition flex items-center justify-center gap-1">
-                                        ✏️ EDITAR
-                                    </button>
-                                    <button onclick="deleteProduct('${p.__backendId}')" class="bg-red-600 hover:bg-red-500 px-3 py-2 rounded text-xs font-bold text-white shadow transition flex items-center justify-center">
-                                        🗑️
-                                    </button>
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-
-                ${(user.role === 'admin' && !adminViewTarget) ? `
-                    <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
-                        <h2 class="text-xl font-bold mb-6 text-purple-400 border-b border-slate-700 pb-2 flex items-center gap-2">
-                            🌍 Panel Global de Usuarios <span class="text-xs bg-slate-900 text-slate-400 px-2 py-1 rounded ml-auto">Total: ${displayUsers.length}</span>
-                        </h2>
-                       
-                        <div class="overflow-x-auto rounded-lg border border-slate-700">
-                            <table class="w-full text-sm text-left text-slate-300">
-                                <thead class="bg-slate-900 text-white uppercase font-bold text-xs">
-                                    <tr>
-                                        <th class="p-4">Usuario (Tienda)</th>
-                                        <th class="p-4">Rol</th>
-                                        <th class="p-4">Estado</th>
-                                        <th class="p-4 text-center">VENTAS</th> 
-                                        <th class="p-4">Discord</th>
-                                        <th class="p-4 text-right">Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="divide-y divide-slate-700">
-                                    ${displayUsers.map(u => `
-                                        <tr class="hover:bg-slate-700/30 transition ${u.status === 'pending' ? 'bg-yellow-900/20 border-l-4 border-yellow-500' : ''}">
-                                            <td class="p-4 font-bold flex flex-col justify-start">
-                                                <span class="text-white cursor-pointer hover:text-blue-400" onclick="openManageUserModal('${u.username}')">
-                                                    ${u.username}
-                                                </span>
-                                                ${u.role === 'reseller' && u.shop_name ? `<span class="text-xs opacity-60 text-blue-300 italic">${u.shop_name}</span>` : ''}
-                                            </td>
-                                            <td class="p-4">
-                                                <span class="bg-slate-900 px-2 py-1 rounded text-xs border border-slate-600 font-mono">
-                                                    ${u.role.toUpperCase()}
-                                                </span>
-                                            </td>
-                                            <td class="p-4">
-                                                <span class="px-2 py-1 rounded text-xs font-bold ${u.status==='banned'?'bg-red-900/30 text-red-400':u.status==='pending'?'bg-yellow-900/30 text-yellow-400':'bg-green-900/30 text-green-400'}">
-                                                    ${u.status.toUpperCase()}
-                                                </span>
-                                            </td>
-                                            <td class="p-4 text-center">
-                                                ${u.role === 'reseller' ? `<span class="font-bold text-green-400">${sellerSalesMap[u.username] || 0}</span>` : 'N/A'}
-                                            </td>
-                                            <td class="p-4 font-mono text-xs text-blue-300">
-                                                ${u.discord_tag}
-                                            </td>
-                                            <td class="p-4 text-right flex justify-end gap-2">
-                                                ${u.status === 'pending' ? `
-                                                    <button onclick="approveUser('${u.__backendId}')" class="bg-green-600 px-3 py-1 rounded text-xs font-bold hover:bg-green-500 text-white shadow transition">ACEPTAR</button>
-                                                    <button onclick="deleteUserAccount('${u.__backendId}')" class="bg-red-600 px-3 py-1 rounded text-xs font-bold hover:bg-red-500 text-white shadow transition">RECHAZAR</button>
-                                                ` : `
-                                                    ${u.role === 'reseller' ? `
-                                                        <button onclick="enterShopManagement('${u.username}')" class="bg-indigo-600 hover:bg-indigo-500 px-3 py-1 rounded text-xs font-bold text-white shadow transition flex items-center gap-1 border border-indigo-400">
-                                                            👁️ GESTIONAR
-                                                        </button>
-                                                    ` : ''}
-                                                    
-                                                    <button onclick="openManageUserModal('${u.username}')" class="border border-blue-500 text-blue-500 px-2 py-1 rounded text-xs font-bold hover:bg-blue-500 hover:text-black transition">
-                                                        ⚙️ DETALLE
-                                                    </button>
-                                                    
-                                                `}
-                                            </td>
-                                        </tr>
-                                    `).join('')}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                ` : ''}
 
                 <div class="bg-slate-800 p-6 rounded-xl mb-8 border border-slate-700 shadow-lg">
                     <h2 class="text-xl font-bold mb-6 text-blue-400 border-b border-slate-700 pb-2">🛍️ Gestión de Inventario</h2>
@@ -2435,9 +2364,34 @@
     }
 
     function renderModal() {
-        const close = `onclick="closeChatModal(); showModal=null;selectedProductToEdit=null;managedUser=null;selectedOrder=null;render()"`;
+        // La función close ahora debe resetear selectedOrderToReject si está activo
+        const close = `onclick="closeChatModal(); showModal=null;selectedProductToEdit=null;managedUser=null;selectedOrder=null;selectedOrderToReject=null;render()"`;
         const box = "bg-slate-800 p-8 rounded-xl shadow-2xl max-w-md w-full border border-slate-600 relative transform transition-all scale-100";
        
+        // --- MODAL: RECHAZAR PEDIDO ---
+        if (showModal === 'rejectOrder' && selectedOrderToReject) {
+            return `
+            <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4 animate-bounce-in" ${close}>
+                <div class="${box} max-w-lg" onclick="event.stopPropagation()">
+                    <div class="flex justify-between mb-6 border-b border-slate-700 pb-4">
+                        <h2 class="text-xl font-bold text-red-400 flex items-center gap-2">❌ Rechazar Pedido #${selectedOrderToReject.id.slice(-8)}</h2>
+                        <button ${close} class="text-slate-400 hover:text-white font-bold text-xl">✕</button>
+                    </div>
+                    <p class="text-slate-300 mb-4">Ingresa el motivo exacto por el cual se rechaza el pedido del comprador <span class="font-bold text-yellow-400">${selectedOrderToReject.buyer_username}</span>.</p>
+                    <form onsubmit="handleRejectOrder(event)">
+                        <div class="mb-6">
+                            <label class="text-xs text-slate-400 font-bold uppercase mb-1 block">Motivo del Rechazo</label>
+                            <textarea id="rejectReason" rows="4" placeholder="Ej: Producto agotado, no disponible en su servidor, error de precio." class="w-full p-3 rounded bg-slate-700 text-white border border-slate-600 resize-none" required minlength="5"></textarea>
+                        </div>
+                        <button type="submit" class="w-full bg-red-600 hover:bg-red-500 py-4 rounded-lg font-bold text-white shadow-lg uppercase tracking-wide transition transform active:scale-95">
+                            CONFIRMAR RECHAZO
+                        </button>
+                    </form>
+                </div>
+            </div>`;
+        }
+
+        // --- MODAL: CHAT (SUPABASE REALTIME) ---
         if (showModal === 'chat' && chatTargetOrder) {
             const partnerName = chatTargetOrder.buyer_username === currentUser.username ? chatTargetOrder.seller_username : chatTargetOrder.buyer_username;
             const partnerDiscord = chatTargetOrder.buyer_username === currentUser.username ? chatTargetOrder.seller_discord : chatTargetOrder.buyer_discord;
@@ -2477,6 +2431,7 @@
             </div>`;
         }
        
+        // --- MODAL: GESTIÓN DE USUARIO (ADMIN) ---
         if(showModal === 'manageUser' && managedUser) {
               const u = managedUser;
               const userOrders = allOrders.filter(o => o.buyer_username === u.username || o.seller_username === u.username);
@@ -2567,6 +2522,7 @@
               </div>`;
         }
 
+        // --- MODAL: DATA TOOLS (IMPORT/EXPORT) ---
         if(showModal === 'dataTools') {
             return `
             <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" ${close}>
@@ -2590,6 +2546,7 @@
             </div>`;
         }
 
+        // --- MODAL: EDITAR PRODUCTO ---
         if(showModal === 'editProduct' && selectedProductToEdit) {
             const p = selectedProductToEdit;
             return `
@@ -2758,4 +2715,3 @@
   </script>
  </body>
 </html>
-
