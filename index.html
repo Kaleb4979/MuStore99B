@@ -3,7 +3,7 @@
  <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mu Online 99B Marketplace - V31 (Polling Realtime)</title>
+  <title>Mu Online 99B Marketplace - V32 (Polling Realtime con Sonidos)</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
  
@@ -14,7 +14,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet">
  
   <style>
-    /* Configuración Base */
+    /* ... (Estilos CSS sin cambios) ... */
     body {
       box-sizing: border-box;
       margin: 0;
@@ -26,7 +26,6 @@
       height: 100%;
     }
 
-    /* Animaciones de Botones y Tarjetas */
     .category-btn {
       transition: all 0.3s ease;
     }
@@ -48,10 +47,9 @@
     }
     .shop-badge:hover {
       transform: scale(1.05);
-      background-color: #4f46e5; /* Indigo-600 */
+      background-color: #4f46e5;
     }
 
-    /* Spinner de Carga */
     .loading-spinner {
       border: 3px solid rgba(255,255,255,0.3);
       border-top: 3px solid white;
@@ -65,7 +63,6 @@
       100% { transform: rotate(360deg); }
     }
 
-    /* Notificación en el Carrito */
     .cart-badge {
       position: absolute;
       top: -8px;
@@ -83,13 +80,11 @@
       box-shadow: 0 2px 5px rgba(0,0,0,0.2);
     }
 
-    /* Fondo Oscuro para Modales */
     .modal-backdrop {
       background-color: rgba(0, 0, 0, 0.85);
       backdrop-filter: blur(5px);
     }
 
-    /* Estilos para el Ranking (Oro, Plata, Bronce) */
     .rank-1 {
       border: 2px solid #FFD700;
       box-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
@@ -106,11 +101,10 @@
       background: linear-gradient(145deg, rgba(205,127,50,0.1), rgba(0,0,0,0.4));
     }
 
-    /* Indicador de Usuario Online (Punto Verde) */
     .live-indicator {
       height: 12px;
       width: 12px;
-      background-color: #22c55e; /* Green-500 */
+      background-color: #22c55e;
       border-radius: 50%;
       display: inline-block;
       margin-left: 8px;
@@ -133,7 +127,6 @@
       }
     }
    
-    /* Animación Bounce In */
     @keyframes bounceIn {
         0% { transform: scale(0.8); opacity: 0; }
         60% { transform: scale(1.05); opacity: 1; }
@@ -143,12 +136,10 @@
         animation: bounceIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     }
    
-    /* Transiciones de Vista Suaves */
     @view-transition { navigation: auto; }
    
-    /* Estilos del Chat */
     .chat-messages {
-        height: 350px; /* Altura Fija */
+        height: 350px;
         overflow-y: auto;
         display: flex;
         flex-direction: column;
@@ -161,13 +152,13 @@
         word-wrap: break-word;
     }
     .message-self {
-        background-color: #3b82f6; /* Blue-500 */
+        background-color: #3b82f6;
         color: white;
         align-self: flex-end;
         border-bottom-right-radius: 2px;
     }
     .message-other {
-        background-color: #1e293b; /* Slate-800 */
+        background-color: #1e293b;
         color: #f1f5f9;
         align-self: flex-start;
         border-bottom-left-radius: 2px;
@@ -183,13 +174,17 @@
     const SECRET_KEY = '$2a$10$6.Y19X/sB3np.3CIJmbJZesuwRVU77ns.FyAdL2dUc46k1vWFG9S'; 
     const JSONBIN_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
 
-    const DB_KEY = 'mu_marketplace_db_v31_final'; 
-    const SESSION_KEY = 'mu_session_user_v31_final';
+    const DB_KEY = 'mu_marketplace_db_v32_final'; 
+    const SESSION_KEY = 'mu_session_user_v32_final';
    
     // 📢 CONFIGURACIÓN SUPABASE (CHAT REALTIME)
     const SUPABASE_URL = 'https://ciysaobejtxfkpmbmswb.supabase.co'; 
     const SUPABASE_ANON_KEY = 'sb_publishable_ZVQXNGvJjurUNtqZNQrnPg_aw_wW9gY';
     const CHAT_TABLE_NAME = 'messages'; 
+    
+    // 🔊 CONFIGURACIÓN DE SONIDOS
+    const SOUND_NEW_ORDER = 'sounds/new_order.mp3';
+    const SOUND_NEW_MESSAGE = 'sounds/new_message.mp3';
     // ---------------------------------------------------------
    
     // 2. INICIALIZAR CLIENTE SUPABASE
@@ -229,7 +224,6 @@
             return window.dataSdk.read(); // Leer los datos al inicio
         },
        
-        // FUNCIÓN DE LECTURA: Obtiene todos los datos del BIN
         read: async () => {
             if (!BIN_ID || !SECRET_KEY || BIN_ID.includes('AQUI')) {
                    console.error("JSONBin Config Error: BIN_ID o SECRET_KEY no configurados.");
@@ -255,17 +249,14 @@
                 const json = await response.json();
                 const data = json.record || []; 
                
-                // Almacenar en localStorage como fallback local y para velocidad
                 localStorage.setItem(DB_KEY, JSON.stringify(data));
                
-                // Actualizar la DB local y notificar
                 window.mockDb.data = data;
                 window.mockDb.handler.onDataChanged(data); 
                 return { isOk: true };
 
             } catch (error) {
                 console.error("JSONBin READ Error:", error);
-                // Si falla la red, usar el último backup local
                 const localData = localStorage.getItem(DB_KEY);
                 window.mockDb.data = localData ? JSON.parse(localData) : [];
                 window.mockDb.handler.onDataChanged(window.mockDb.data);
@@ -273,7 +264,6 @@
             }
         },
        
-        // FUNCIÓN DE ESCRITURA: Actualiza TODOS los datos en el BIN
         write: async (newData) => {
             if (!BIN_ID || !SECRET_KEY || BIN_ID.includes('AQUI')) {
                    return { isOk: false };
@@ -281,7 +271,7 @@
            
             try {
                 const response = await fetch(JSONBIN_URL, {
-                    method: 'PUT', // PUT se usa para reemplazar todo el contenido
+                    method: 'PUT', 
                     headers: {
                         'Content-Type': 'application/json',
                         'X-Master-Key': SECRET_KEY
@@ -294,11 +284,9 @@
                    throw new Error(`Error ${response.status}: ${errorText}`);
                 }
                
-                // Si la escritura es exitosa, actualizamos localStorage y notificamos
                 localStorage.setItem(DB_KEY, JSON.stringify(newData));
                 window.mockDb.data = newData;
-                // NOTA: No llamamos a onDataChanged aquí. El Polling lo hará en el siguiente ciclo.
-                // Esto previene un doble renderizado inmediato después de cada write.
+                // El Polling se encargará de notificar el cambio, no llamamos a onDataChanged aquí.
                 return { isOk: true, item: null };
 
             } catch (error) {
@@ -308,7 +296,6 @@
             }
         },
 
-        // CREAR: Agrega un item y reescribe todo el BIN
         create: async (item) => {
             item.__backendId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
             const newData = [...window.mockDb.data, item];
@@ -316,7 +303,6 @@
             return { isOk: result.isOk, item: item };
         },
        
-        // ACTUALIZAR: Modifica un item y reescribe todo el BIN
         update: async (item) => {
             const index = window.mockDb.data.findIndex(i => i.__backendId === item.__backendId);
             if (index === -1) {
@@ -325,13 +311,11 @@
             }
 
             const newData = [...window.mockDb.data];
-            // Clonar para evitar mutar el estado antes de la escritura
             newData[index] = {...item}; 
             const result = await window.dataSdk.write(newData);
             return { isOk: result.isOk, item: result.isOk ? newData[index] : null };
         },
        
-        // BORRAR: Elimina un item y reescribe todo el BIN
         delete: async (item) => {
             const newData = window.mockDb.data.filter(i => i.__backendId !== item.__backendId);
             const result = await window.dataSdk.write(newData);
@@ -350,18 +334,17 @@
     const defaultConfig = {
       site_title: "Mu Online 99B Marketplace",
       contact_info: "Contacto: Discord/WhatsApp",
-      background_color: "#0f172a", // Slate-900
-      card_background: "#1e293b", // Slate-800
-      text_color: "#f1f5f9", // Slate-100
-      primary_button: "#3b82f6", // Blue-500
-      secondary_button: "#10b981", // Emerald-500
+      background_color: "#0f172a", 
+      card_background: "#1e293b", 
+      text_color: "#f1f5f9", 
+      primary_button: "#3b82f6", 
+      secondary_button: "#10b981", 
       font_family: "Inter",
       font_size: 16
     };
 
-    // Variables de Timeout para Auto-Logout y Polling
     let inactivityTimeout;
-    const TIMEOUT_LIMIT = 5 * 60 * 1000; // 5 minutos para auto-logout
+    const TIMEOUT_LIMIT = 5 * 60 * 1000; 
     
     // 🔥 INTERVALO DE POLLING REALTIME (CADA 10 SEGUNDOS)
     let realtimePollingInterval;
@@ -371,34 +354,28 @@
     // 2. ESTADO GLOBAL (VARIABLES EN MEMORIA)
     // ---------------------------------------------------------
     let currentUser = null;
-    let currentView = 'catalog'; // 'catalog', 'cart', 'orders', 'admin'
+    let currentView = 'catalog'; 
     let selectedCategory = 'all';
     let selectedShopFilter = null;
    
-    // Variables para el "Modo Dios" del Admin
     let adminViewTarget = null; 
     let selectedProductToEdit = null; 
     let managedUser = null; 
 
-    // Arrays de datos (Poblados por dataSdk.read)
     let allProducts = [];
     let allUsers = [];
     let allOrders = [];
     let allReviews = []; 
    
-    // Carrito
     let cart = JSON.parse(localStorage.getItem('mu_cart_v22') || '[]');
    
-    // Control de Modales
     let showModal = null; 
     let selectedOrder = null; 
    
-    // ESTADO DEL CHAT
     let chatTargetOrder = null; 
-    let chatMessages = []; // Almacena mensajes
-    let chatSubscription = null; // Variable para la suscripción de Supabase
+    let chatMessages = []; 
+    let chatSubscription = null; 
    
-    // Categorías del Mu Online
     const CATEGORIES = [
       { id: 'all', name: 'Todos', icon: '🎮' },
       { id: 'promotions', name: 'Promociones', icon: '🔥' },
@@ -408,66 +385,49 @@
       { id: 'sets', name: 'Sets', icon: '🛡️' }
     ];
 
-    // Credenciales del Admin Supremo Hardcodeado (Punto de anclaje de control)
     const ADMIN_CREDENTIALS = {
       username: 'Kaleb',
       password: 'Kaleb.2021',
       discord_tag: 'KalebAdmin#9999'
     };
    
-    // Control de Usuarios Online
     let onlineUsers = new Set();
     let userActivityTimeout = null;
+    
+    // Almacenamiento de IDs de órdenes pendientes conocidas para evitar spam de sonido.
+    let knownPendingOrderIds = new Set();
 
     // ---------------------------------------------------------
     // 3. SDK DE CHAT (INTEGRACIÓN SUPABASE REALTIME) 
     // ---------------------------------------------------------
     window.chatSdk = {
        
-        // FUNCIÓN PARA OBTENER EL HISTORIAL DE MENSAJES
         getMessages: async (orderId) => {
             if (!supabase) return [];
-           
             const { data, error } = await supabase
                 .from(CHAT_TABLE_NAME)
                 .select('id, sender, content, created_at, order_id')
                 .eq('order_id', orderId)
                 .order('created_at', { ascending: true });
-               
             if (error) {
                 console.error('Error al obtener mensajes de Supabase:', error);
-                showToast('❌ Error al cargar mensajes del chat.');
                 return [];
             }
-            // Mapear created_at a timestamp para mantener consistencia con el código original
-            return data.map(msg => ({
-                ...msg,
-                timestamp: msg.created_at
-            }));
+            return data.map(msg => ({ ...msg, timestamp: msg.created_at }));
         },
 
-        // FUNCIÓN PARA ENVIAR UN MENSAJE
         sendMessage: async (orderId, sender, content) => {
             if (!supabase || !content.trim()) return;
-           
             const { error } = await supabase
                 .from(CHAT_TABLE_NAME)
-                .insert([
-                    {
-                        order_id: orderId,
-                        sender: sender,
-                        content: content,
-                        // created_at se genera automáticamente en Supabase si la columna está configurada
-                    }
-                ]);
-               
+                .insert([{ order_id: orderId, sender: sender, content: content }]);
             if (error) {
                 console.error('Error al enviar mensaje a Supabase:', error);
                 showToast('❌ Error al enviar mensaje.');
             }
         },
 
-        // MANEJADOR DE CAMBIOS DE REALTIME
+        // 🔥 CRÍTICO: MANEJADOR DE CAMBIOS DE REALTIME PARA CHAT Y SONIDO
         handleRealtimeChange: (payload) => {
             if (payload.eventType === 'INSERT' && payload.new) {
                 const newMessage = {
@@ -477,10 +437,17 @@
                     timestamp: payload.new.created_at || new Date().toISOString()
                 };
                
-                // Solo añadir si no existe (evita duplicados si se refresca la vista después de un INSERT)
                 if (!chatMessages.find(msg => msg.id === newMessage.id)) {
+                    // 1. Añadir mensaje al estado
                     chatMessages.push(newMessage);
-                    // Esto forza la actualización solo del modal de chat si está abierto
+                    
+                    // 2. SONIDO DE MENSAJE
+                    // Solo si no es el mensaje que yo mismo acabo de enviar
+                    if (currentUser && newMessage.sender !== currentUser.username) {
+                        playSound(SOUND_NEW_MESSAGE);
+                    }
+                    
+                    // 3. Actualizar vista si el chat está abierto
                     if (showModal === 'chat') {
                         const messagesContainer = document.querySelector('.chat-messages');
                         if (messagesContainer) {
@@ -491,33 +458,23 @@
             }
         },
 
-        // FUNCIÓN PARA INICIAR LA SUSCRIPCIÓN EN TIEMPO REAL
         subscribeToOrder: async (orderId) => {
-            if (!supabase) {
-                showToast('⚠️ Supabase no configurado. Chat en modo simulado/local.');
-                return;
-            }
-           
-            // 1. Limpiar suscripción anterior si existe
+            if (!supabase) { showToast('⚠️ Supabase no configurado.'); return; }
             window.chatSdk.unsubscribe();
-           
-            // 2. Cargar mensajes iniciales
             chatMessages = await window.chatSdk.getMessages(orderId);
            
-            // 3. Crear la suscripción al canal
             chatSubscription = supabase
-                .channel(`chat-order-${orderId}`) // Un canal único para cada orden
+                .channel(`chat-order-${orderId}`)
                 .on(
                     'postgres_changes',
-                    { event: 'INSERT', schema: 'public', table: CHAT_TABLE_NAME, filter: `order_id=eq.${orderId}` },
+                    { event: 'INSERT', schema: 'public', table: CHAT_TABLE_name, filter: `order_id=eq.${orderId}` },
                     window.chatSdk.handleRealtimeChange
                 )
                 .subscribe();
            
-            showToast('💬 Chat Realtime iniciado con Supabase.');
+            showToast('💬 Chat Realtime iniciado.');
         },
 
-        // FUNCIÓN PARA CERRAR LA SUSCRIPCIÓN
         unsubscribe: () => {
             if (chatSubscription) {
                 supabase.removeChannel(chatSubscription);
@@ -533,38 +490,26 @@
     // ---------------------------------------------------------
     const dataHandler = {
       onDataChanged(data) {
-        // Separar los datos por tipo
+        // Guardar el estado anterior de las órdenes pendientes del usuario actual
+        const userRole = currentUser?.role;
+        const currentUsername = currentUser?.username;
+        const previousPendingOrderIds = new Set(allOrders.filter(o => 
+            o.order_status === 'pending' && (userRole === 'admin' || o.seller_username === currentUsername)
+        ).map(o => o.__backendId));
+
+        // 🚨 Actualizar las variables globales con los nuevos datos
         const newProducts = data.filter(item => item.type === 'product') || [];
         const newUsers = data.filter(item => item.type === 'user') || [];
         const newOrders = data.filter(item => item.type === 'order') || [];
         const newReviews = data.filter(item => item.type === 'review') || []; 
         const activityRecords = data.filter(item => item.type === 'activity') || [];
-       
-        // Notificaciones de Pedidos/Actividad (Solo si los datos cambiaron)
-        if (allOrders.length !== newOrders.length || allUsers.length !== newUsers.length) {
-             const newOrderAlert = activityRecords.find(a => 
-                a.type === 'activity' &&
-                a.message && 
-                !a.dismissed && 
-                (a.username === currentUser?.username || currentUser?.role === 'admin') 
-            );
-
-            if (newOrderAlert) {
-                showToast(`🔔 ${newOrderAlert.message}`);
-                // Marcar como visto para que no salga de nuevo
-                const updatedAlert = {...newOrderAlert, dismissed: true};
-                // Usar update, pero sin esperar el resultado para no bloquear el flujo
-                window.dataSdk.update(updatedAlert); 
-            }
-        }
-       
-        // 🚨 CRÍTICO: Actualizar las variables globales con los nuevos datos
+        
         allProducts = newProducts;
         allUsers = newUsers;
         allOrders = newOrders;
         allReviews = newReviews;
        
-        // Calcular quién está online (actividad < 5 min)
+        // Calcular quién está online
         const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
         onlineUsers = new Set(
           activityRecords
@@ -572,17 +517,43 @@
             .map(a => a.username)
         );
        
-        // Funciones de refresco
-        validateCart(); // Chequear si algo en el carrito cambió de precio o stock
-        render(); // Volver a pintar la pantalla
+        // 🚨 CRÍTICO: Detección de NUEVOS PEDIDOS PENDIENTES
+        if (currentUser && (currentUser.role === 'reseller' || currentUser.role === 'admin')) {
+            const newPendingOrders = newOrders.filter(o => 
+                o.order_status === 'pending' && 
+                !previousPendingOrderIds.has(o.__backendId) &&
+                (currentUser.role === 'admin' || o.seller_username === currentUser.username)
+            );
+            
+            if (newPendingOrders.length > 0) {
+                showToast(`🔔 ¡${newPendingOrders.length} Nuevo(s) Pedido(s) Pendiente(s)!`);
+                playSound(SOUND_NEW_ORDER);
+            }
+        }
+       
+        validateCart();
+        render(); 
       }
     };
-
+    
     // ---------------------------------------------------------
-    // 5. INICIALIZACIÓN (ARRANQUE) Y POLLING REALTIME
+    // 5. INICIALIZACIÓN Y FUNCIONES DE AUDIO
     // ---------------------------------------------------------
     
-    // 🔥 Nueva función para iniciar el Polling
+    // 🔊 FUNCIÓN PRINCIPAL PARA REPRODUCIR SONIDO
+    function playSound(path) {
+        try {
+            const audio = new Audio(path);
+            audio.play().catch(error => {
+                // Capturar el error de "autoplay" (el navegador lo bloquea si no hay interacción previa)
+                console.warn("Error de reproducción de audio (Autoplay bloqueado):", error.message);
+                // Aquí podrías mostrar un botón para habilitar el sonido si es necesario.
+            });
+        } catch (e) {
+            console.error("Error al crear objeto de Audio:", e);
+        }
+    }
+
     function startRealtimePolling() {
         if (realtimePollingInterval) {
             clearInterval(realtimePollingInterval);
@@ -597,23 +568,18 @@
     }
 
     async function init() {
-      // Intentar recuperar sesión guardada
       const storedUser = localStorage.getItem(SESSION_KEY);
       if (storedUser) {
         currentUser = JSON.parse(storedUser);
         showToast(`👋 Sesión restaurada: ${currentUser.username}`);
       }
 
-      // Configurar listeners de inactividad
       setupAutoLogout();
 
-      // Conectar a la "Base de Datos" (JSONBin)
       await window.dataSdk.init(dataHandler);
      
-      // 🔥 Iniciar el polling para actualizaciones REALTIME
       startRealtimePolling();
      
-      // Configurar SDK visual
       if (window.elementSdk) {
         window.elementSdk.init({
           defaultConfig,
@@ -643,26 +609,31 @@
             inactivityTimeout = setTimeout(() => logout(true), TIMEOUT_LIMIT);
         }
     }
+    
+    // ---------------------------------------------------------
+    // 6. FUNCIONES DE USUARIO, ADMIN, CARRITO, ETC. (Sin cambios en la lógica de negocio)
+    // ---------------------------------------------------------
+    
+    // ... (El resto de las funciones: handleLogin, handleRegisterBuyer, handleRegisterReseller, 
+    // updateUserActivity, logout, handleSetupShop, handleUpdateUserRole, handleAddProduct, 
+    // handleUpdateProduct, deleteProduct, openManageUserModal, clearCompletedOrdersLog, 
+    // approveUser, banUser, deleteUserAccount, enterShopManagement, exitShopManagement, 
+    // loadAdminView, updateCartStorage, validateCart, addToCart, removeFromCart, 
+    // filterByShop, clearShopFilter, createOrder, confirmOrder, getShopRating, 
+    // getStarHtml, handleSubmitReview, openChatModal, closeChatModal, handleChatMessageSend, 
+    // renderChatMessages, getTopShops, getSellerSalesMap, getCategoryIcon, showToast, 
+    // getConfig, render, renderCatalog, renderCart, renderOrders, renderAdmin, renderModal, 
+    // y las funciones de Respaldo/Descarga si las tienes) ...
 
-    // ---------------------------------------------------------
-    // 6. FUNCIONES DE USUARIO (LOGIN/REGISTRO/LOGOUT/ROLES)
-    // ---------------------------------------------------------
     async function handleLogin(e) {
       e.preventDefault();
       const username = document.getElementById('loginUsername').value.trim();
       const password = document.getElementById('loginPassword').value;
 
-      // Buscar al usuario en la base de datos (usando allUsers que fue cargado por el Polling)
       const user = allUsers.find(u => u.username === username && u.password === password);
 
-      // Caso Especial 1: Login Admin Hardcodeado (Super Admin de Origen)
       if (username === ADMIN_CREDENTIALS.username && password === ADMIN_CREDENTIALS.password) {
-        currentUser = { 
-            username, 
-            role: 'admin', 
-            __backendId: 'admin',
-            discord_tag: ADMIN_CREDENTIALS.discord_tag 
-        };
+        currentUser = { username, role: 'admin', __backendId: 'admin', discord_tag: ADMIN_CREDENTIALS.discord_tag };
         localStorage.setItem(SESSION_KEY, JSON.stringify(currentUser));
         showModal = null;
         currentView = 'admin';
@@ -672,7 +643,6 @@
         return;
       }
       
-      // Login Normal (Incluye Admins Promovidos)
       if (user) {
         if (user.status === 'banned') {
             showToast('🚫 Tu cuenta ha sido suspendida/baneada.');
@@ -684,7 +654,6 @@
           return;
         }
        
-        // Guardamos sesión con datos frescos del usuario encontrado en el BIN
         currentUser = { 
           username: user.username,
           role: user.role, 
@@ -694,7 +663,6 @@
         };
         localStorage.setItem(SESSION_KEY, JSON.stringify(currentUser));
        
-        // Si es vendedor sin configurar o pendiente de aprobación (pero ya tiene usuario)
         if (user.role === 'reseller' && (!user.shop_name || !user.discord_tag || user.status === 'pending')) {
           selectedOrder = user;
           showModal = 'setupShop';
@@ -755,7 +723,6 @@
       if (result.isOk) {
         showToast('Registro exitoso! Ahora puedes iniciar sesión');
         showModal = 'login';
-        // El polling se encargará de actualizar la lista allUsers, pero forzamos una lectura inmediata por si acaso
         await window.dataSdk.read();
         render();
       } else {
@@ -788,8 +755,8 @@
         shop_name: shopName,
         profile_picture: '',
         role: 'reseller',
-        approved: false, // Inicia como no aprobado
-        status: 'pending', // Inicia en pendiente
+        approved: false,
+        status: 'pending',
         created_at: new Date().toISOString()
       };
 
@@ -817,7 +784,6 @@
         last_activity: new Date().toISOString()
       };
      
-      // Intenta actualizar si existe, si no, lo crea.
       if (existingActivity) {
            const updatedActivity = {...existingActivity, last_activity: new Date().toISOString()};
            await window.dataSdk.update(updatedActivity);
@@ -825,17 +791,15 @@
            await window.dataSdk.create(activityData);
       }
      
-      // 🔥 Forzar una lectura después de actualizar la actividad
       await window.dataSdk.read();
      
       if (userActivityTimeout) clearTimeout(userActivityTimeout);
-      userActivityTimeout = setTimeout(updateUserActivity, 3 * 60 * 1000); // Siguiente actualización en 3 minutos
+      userActivityTimeout = setTimeout(updateUserActivity, 3 * 60 * 1000);
     }
 
     function logout(auto = false) {
       if (userActivityTimeout) clearTimeout(userActivityTimeout);
       clearTimeout(inactivityTimeout);
-      // 🔥 Detener Polling al cerrar sesión para ahorrar recursos del BIN
       if (realtimePollingInterval) clearInterval(realtimePollingInterval);
       
       currentUser = null;
@@ -844,21 +808,19 @@
       cart = [];
       localStorage.setItem('mu_cart_v22', '[]');
       selectedShopFilter = null;
-      adminViewTarget = null; // Resetear modo gestión
-      managedUser = null; // Resetear usuario gestionado
-      window.chatSdk.unsubscribe(); // Detener el listener del chat
+      adminViewTarget = null;
+      managedUser = null;
+      window.chatSdk.unsubscribe();
       
-      // Reiniciar el polling si no hay usuario logueado, por si acaso el usuario quiere ver productos actualizados
       startRealtimePolling(); 
       
       showToast(auto ? '💤 Sesión cerrada por inactividad' : 'Sesión cerrada');
       render();
     }
 
-    // Función para completar la configuración de tienda (Admin lo activa o Vendedor lo completa)
     async function handleSetupShop(e) {
       e.preventDefault();
-      const user = selectedOrder; // Usuario que necesita configuración
+      const user = selectedOrder;
       if(!user) return;
      
       const setupShopNameInput = document.getElementById('setupShopName');
@@ -872,7 +834,6 @@
       const shopName = setupShopNameInput.value.trim();
       const discord = setupDiscordInput.value.trim();
      
-      // Validar discord unico (excluyendo al usuario actual)
       if(allUsers.find(u => u.discord_tag === discord && u.__backendId !== user.__backendId)) {
           showToast('Este Discord ya está en uso por otro usuario.');
           return;
@@ -889,27 +850,22 @@
       const result = await window.dataSdk.update(updatedUser);
      
       if (result.isOk) {
-          // Si el usuario que completa es el mismo que está logueado
           if(currentUser && user.__backendId === currentUser.__backendId) {
-              // Actualizar el estado de la sesión
               currentUser = updatedUser;
               localStorage.setItem(SESSION_KEY, JSON.stringify(currentUser));
-              currentView = 'admin'; // Mover al panel
+              currentView = 'admin';
           } 
          
           showModal = null;
           selectedOrder = null;
           showToast('✅ Configuración de tienda guardada. Tienda Activada.');
-          await window.dataSdk.read(); // Forzar lectura para que el admin vea el cambio
+          await window.dataSdk.read();
           render(); 
       } else {
           showToast('Error al actualizar la configuración de la tienda.');
       }
     }
 
-    /**
-     * FUNCIÓN ACTUALIZADA para persistir el rol y otorgar permisos de administrador.
-     */
     async function handleUpdateUserRole(e) {
         e.preventDefault();
         if (!managedUser || currentUser.role !== 'admin') {
@@ -919,7 +875,6 @@
 
         const newRole = document.getElementById('manageUserRole').value;
 
-        // Validación para evitar que el admin supremo hardcodeado se cambie a sí mismo (protección)
         if (managedUser.username === ADMIN_CREDENTIALS.username && managedUser.__backendId === 'admin') {
             showToast('🚫 No puedes cambiar el rol del Admin Supremo Hardcodeado.');
             return;
@@ -928,18 +883,15 @@
         let updatedUser = {
             ...managedUser,
             role: newRole,
-            // CRÍTICO: Si es admin o comprador, el estatus debe ser activo y aprobado.
             approved: (newRole === 'admin' || newRole === 'buyer'),
             status: (newRole === 'admin' || newRole === 'buyer') ? 'active' : 'pending',
         };
         
-        // Si se degrada a comprador, eliminamos datos de tienda para evitar inconsistencias
         if (newRole === 'buyer') {
             updatedUser.shop_name = '';
-            updatedUser.approved = true; // El comprador está siempre aprobado
+            updatedUser.approved = true;
         }
         
-        // Si se sube a admin, forzamos activo
         if (newRole === 'admin') {
              updatedUser.status = 'active';
              updatedUser.approved = true;
@@ -949,24 +901,18 @@
 
         if (result.isOk) {
             showToast(`✅ Rol de ${managedUser.username} cambiado a ${newRole.toUpperCase()}. ¡Debe iniciar sesión de nuevo para aplicar los privilegios!`);
-            managedUser = result.item; // Actualizar el usuario gestionado con los nuevos datos
-            // Si el usuario promovido estaba logueado, forzar un logout para que reinicie con el nuevo rol
+            managedUser = result.item;
             if(currentUser && currentUser.__backendId === managedUser.__backendId) {
                 logout();
             }
         } else {
             showToast('❌ Error al actualizar el rol.');
         }
-        await window.dataSdk.read(); // Forzar lectura para ver el cambio
-        render(); // Forzar el re-render del modal con el nuevo rol/estado
+        await window.dataSdk.read();
+        render();
     }
-
-
-    // ---------------------------------------------------------
-    // 7. GESTIÓN DE PRODUCTOS (CRUD COMPLETO) 
-    // ---------------------------------------------------------
-   
-    // Función centralizada para abrir la gestión de productos de cualquier usuario
+    
+    // ... (El resto de las funciones de CRUD, Admin, etc., copiadas del código anterior) ...
     function openProductManagement(username) {
         if (currentUser.role === 'admin' && currentUser.username !== username) {
             enterShopManagement(username);
@@ -1009,7 +955,7 @@
         name: document.getElementById('productName').value.trim(),
         category: document.getElementById('productCategory').value,
         price: originalPrice,
-        final_price: parseFloat(finalPrice.toFixed(2)), // Fix para evitar errores de coma flotante en precios
+        final_price: parseFloat(finalPrice.toFixed(2)),
         discount: discount,
         on_sale: onSale,
         stock: parseInt(document.getElementById('productStock').value),
@@ -1029,14 +975,12 @@
         showToast('Error al agregar producto');
       }
 
-      // El Polling actualizará la lista de productos y la vista
       await window.dataSdk.read();
 
       btn.disabled = false;
       btn.innerHTML = 'Publicar Ahora';
     }
 
-    // Función para Abrir Modal de Edición
     function openEditModal(backendId) {
         const product = allProducts.find(p => p.__backendId === backendId);
         if (!product) return;
@@ -1045,7 +989,6 @@
         render();
     }
 
-    // Función para Guardar Cambios del Producto
     async function handleUpdateProduct(e) {
         e.preventDefault();
         if (!selectedProductToEdit) return;
@@ -1066,7 +1009,7 @@
             stock: parseInt(document.getElementById('editStock').value),
             price: price,
             discount: discount,
-            final_price: parseFloat(finalPrice.toFixed(2)), // Fix para consistencia
+            final_price: parseFloat(finalPrice.toFixed(2)),
             description: document.getElementById('editDescription').value.trim(),
             image_url: imageUrl,
             on_sale: document.getElementById('editOnSale').checked
@@ -1082,7 +1025,6 @@
             showToast('Error al actualizar producto');
         }
         
-        // Forzar lectura para que se actualice la vista
         await window.dataSdk.read();
     }
 
@@ -1099,15 +1041,9 @@
         showToast('Error al eliminar producto');
       }
       
-      // Forzar lectura para que se actualice la vista
       await window.dataSdk.read();
     }
 
-    // ---------------------------------------------------------
-    // 8. GESTIÓN DE USUARIOS (ADMIN)
-    // ---------------------------------------------------------
-   
-    // Nueva función para abrir el modal de gestión
     function openManageUserModal(username) {
         managedUser = allUsers.find(u => u.username === username);
         if (!managedUser) {
@@ -1118,7 +1054,6 @@
         render();
     }
    
-    // Función para eliminar todos los pedidos completados (LOG HISTÓRICO)
     async function clearCompletedOrdersLog() {
         if (!currentUser || currentUser.role !== 'admin') {
             showToast('Acceso denegado.');
@@ -1133,7 +1068,6 @@
        
         const ordersToDelete = allOrders.filter(o => o.order_status === 'completed');
        
-        // Crear una nueva lista de datos sin los pedidos completados
         const newDbData = window.mockDb.data.filter(item => 
             item.type !== 'order' || item.order_status !== 'completed'
         );
@@ -1142,7 +1076,6 @@
        
         if (result.isOk) {
             showToast(`✅ Log Histórico de ${ordersToDelete.length} pedidos eliminado exitosamente.`);
-            // Forzar lectura para que la tabla se vacíe inmediatamente
             await window.dataSdk.read();
         } else {
             showToast('❌ Error al eliminar el log histórico. Verifica el BIN.');
@@ -1156,7 +1089,6 @@
             return;
         }
        
-        // Si el vendedor no tiene nombre de tienda o discord, forzar setup 
         if (user.role === 'reseller' && (!user.shop_name || !user.discord_tag || user.status === 'pending')) {
             selectedOrder = user;
             showModal = 'setupShop';
@@ -1172,7 +1104,7 @@
         } else {
             showToast('❌ Error al actualizar usuario. Verifica el estado del BIN.');
         }
-        showModal = null; // Cerrar cualquier modal que esté abierto
+        showModal = null;
         await window.dataSdk.read();
     }
 
@@ -1205,7 +1137,6 @@
 
         if(user.role === 'reseller') {
             const userProducts = allProducts.filter(p => p.seller_username === user.username);
-            // El dataSDK.delete elimina de la lista y reescribe, esto es costoso
             for(const p of userProducts) {
                 await window.dataSdk.delete(p);
             }
@@ -1216,7 +1147,6 @@
         await window.dataSdk.read();
     }
    
-    // --- FUNCIONES DE MODO DIOS (ADMIN ENTRA EN TIENDA) ---
     function enterShopManagement(targetUsername) {
         adminViewTarget = targetUsername;
         showToast(`👁️ Gestionando tienda de: ${targetUsername}`);
@@ -1231,7 +1161,6 @@
         render();
     }
    
-    // Función para refrescar datos en la vista Admin (Ahora se basa en el Polling, pero la dejamos por si acaso)
     async function loadAdminView() {
         showToast('🔄 Sincronizando datos remotos (Polling forzado)...');
         await window.dataSdk.read(); 
@@ -1239,9 +1168,6 @@
         render();
     }
 
-    // ---------------------------------------------------------
-    // 9. CARRITO Y PEDIDOS 
-    // ---------------------------------------------------------
     function updateCartStorage() {
         localStorage.setItem('mu_cart_v22', JSON.stringify(cart));
     }
@@ -1266,7 +1192,6 @@
                 showToast(`⚠️ Stock de "${cartItem.name}" limitado a ${cartItem.quantity}.`);
             }
            
-            // Sincronizar precios en vivo
             if (cartItem.price !== correspondingProduct.price || cartItem.final_price !== correspondingProduct.final_price) {
                 cartItem.price = correspondingProduct.price;
                 cartItem.final_price = correspondingProduct.final_price;
@@ -1318,7 +1243,6 @@
       render();
     }
 
-    // FILTROS
     function filterByShop(shopName) {
         selectedShopFilter = shopName;
         selectedCategory = 'all'; 
@@ -1331,13 +1255,11 @@
         render();
     }
 
-    // CREAR PEDIDO
     async function createOrder() {
       if (cart.length === 0) return;
       validateCart(); 
       if (cart.length === 0) return;
 
-      // Agrupar productos por vendedor
       const ordersBySeller = {};
       cart.forEach(item => {
         if (!ordersBySeller[item.seller_username]) {
@@ -1366,7 +1288,6 @@
           quantity: item.quantity
         })));
 
-        // Asegurar Discord del Comprador y Vendedor
         const buyerDiscord = currentUser.discord_tag || 'No Informado';
         const sellerDiscord = orderInfo.discord || 'No Informado';
 
@@ -1379,7 +1300,7 @@
           seller_discord: sellerDiscord,
           items: itemsDesc,
           items_data: itemsData,
-          total: parseFloat(orderInfo.total.toFixed(2)), // Fix para consistencia
+          total: parseFloat(orderInfo.total.toFixed(2)),
           order_status: 'pending',
           seller_confirmed: false,
           buyer_confirmed: false,
@@ -1391,7 +1312,6 @@
         if (!result.isOk) {
           allOk = false;
         } else {
-            // Notificación Interna para el vendedor
             const notificationData = {
                 id: 'ntf_' + Date.now(), 
                 type: 'activity',
@@ -1414,7 +1334,6 @@
       updateCartStorage();
       currentView = 'orders';
       
-      // Forzar lectura para que el vendedor vea el nuevo pedido
       await window.dataSdk.read();
       
       render();
@@ -1427,11 +1346,9 @@
       let updatedOrder = {...order};
 
       if (isSeller) {
-        // Vendedor confirma entrega (PRIMER PASO)
         updatedOrder.seller_confirmed = true;
         showToast('Vendedor confirma entrega. ¡Ahora el comprador debe confirmar recepción!');
       } else {
-        // Comprador confirma recepción (SEGUNDO PASO)
         if (!order.seller_confirmed) {
             showToast('⚠️ Error: El vendedor aún no ha marcado el pedido como entregado. Esto es obligatorio para confirmar la recepción.');
             return;
@@ -1442,30 +1359,25 @@
       const result = await window.dataSdk.update(updatedOrder); 
      
       if (result.isOk) {
-          // SI AMBOS CONFIRMARON, RESTAR STOCK Y FINALIZAR
           if (result.item.seller_confirmed && result.item.buyer_confirmed && result.item.order_status !== 'completed') {
               
-              const completedOrder = {...result.item, order_status: 'completed', needs_review: true}; // <-- needs_review activado
+              const completedOrder = {...result.item, order_status: 'completed', needs_review: true};
               
               try {
                 const itemsData = JSON.parse(completedOrder.items_data);
                 
-                // 1. Restar Stock de todos los productos
                 for (const item of itemsData) {
                   const product = allProducts.find(p => p.__backendId === item.backendId);
                   if (product) {
                     const updatedProduct = {...product, stock: Math.max(0, product.stock - item.quantity)};
-                    // Disparamos la actualización de producto, pero no esperamos.
                     window.dataSdk.update(updatedProduct); 
                   }
                 }
                 
-                // 2. Actualizar el estado de la orden a completada
                 await window.dataSdk.update(completedOrder); 
                 
                 showToast('✅ ¡Pedido completado y Stock actualizado! Tienda entra en el Ranking.');
                 
-                // 🚨 OPTIMIZACIÓN CRÍTICA: Forzar recarga completa de datos del BIN
                 await window.dataSdk.read(); 
 
               } catch (e) { 
@@ -1474,19 +1386,13 @@
               }
           } else if (result.item.buyer_confirmed) {
                showToast('✅ Recepción de items confirmada. Esperando finalización de la venta.');
-          } else if (result.item.seller_confirmed) {
-             // El vendedor ya confirmó, el toast ya se mostró arriba.
-          }
+          } 
       }
       
-      // Forzar lectura para que ambas partes vean el cambio
       await window.dataSdk.read();
       render();
     }
 
-    // ---------------------------------------------------------
-    // 10. FUNCIONES DE RESEÑA
-    // ---------------------------------------------------------
     function getShopRating(username) {
         const reviews = allReviews.filter(r => r.reviewed_seller === username);
         const avg = reviews.length ? (reviews.reduce((a,b)=>a+b.rating,0)/reviews.length).toFixed(1) : 0;
@@ -1528,7 +1434,6 @@
         const reviewResult = await window.dataSdk.create(reviewData);
        
         if (reviewResult.isOk) {
-            // Marcar la orden como revisada
             const updatedOrder = {...selectedOrder, needs_review: false};
             await window.dataSdk.update(updatedOrder);
            
@@ -1539,25 +1444,19 @@
             showToast('❌ Error al enviar la reseña.');
         }
         
-        // Forzar lectura para que se actualice la vista de pedidos y el rating
         await window.dataSdk.read();
     }
    
-    // ---------------------------------------------------------
-    // 11. FUNCIONES DE CHAT (AJUSTADAS PARA SUPABASE) 
-    // ---------------------------------------------------------
     async function openChatModal(orderId) {
         const order = allOrders.find(o => o.__backendId === orderId);
         if (!order) return;
        
         chatTargetOrder = order;
         showModal = 'chat';
-        render(); // Abrir el modal
+        render();
        
-        // Iniciar la suscripción de chat (AHORA REALTIME SUPABASE)
         await window.chatSdk.subscribeToOrder(orderId);
        
-        // El renderChatMessages se llama automáticamente cuando se cargan los mensajes iniciales y en cada cambio
         setTimeout(() => {
              const messagesContainer = document.querySelector('.chat-messages');
              if (messagesContainer) {
@@ -1571,7 +1470,7 @@
         window.chatSdk.unsubscribe();
         showModal = null;
         chatTargetOrder = null;
-        chatMessages = []; // Limpiar mensajes al cerrar
+        chatMessages = [];
         render();
     }
    
@@ -1583,11 +1482,9 @@
         const content = input.value;
         if (!content.trim()) return;
        
-        // Llama a la función de envío de Supabase
         window.chatSdk.sendMessage(chatTargetOrder.__backendId, currentUser.username, content);
-        input.value = ''; // Limpiar input
+        input.value = '';
        
-        // Asegurar scroll al fondo (el realtime se encargará de añadir el mensaje)
         setTimeout(() => {
              const messagesContainer = document.querySelector('.chat-messages');
              if (messagesContainer) {
@@ -1615,34 +1512,26 @@
         }).join('');
        
         container.innerHTML = messagesHtml;
-        container.scrollTop = container.scrollHeight; // Scroll al último mensaje
+        container.scrollTop = container.scrollHeight;
     }
 
-
-    // ---------------------------------------------------------
-    // 12. UTILIDADES DE RENDERIZADO 
-    // ---------------------------------------------------------
     function getTopShops() {
       const resellers = allUsers.filter(u => u.role === 'reseller' && u.approved);
       const shopsStats = resellers.map(seller => {
-        // 1. Obtener stats de reviews
         const { rating, reviewCount } = getShopRating(seller.username);
-        // 2. Contar ventas
         const sales = allOrders.filter(o => o.seller_username === seller.username && o.order_status === 'completed').length;
        
         return { 
             ...seller, 
-            salesCount: sales, // Métrica principal de ranking
-            rating: rating,     // Para visibilidad
-            reviewCount: reviewCount // Para visibilidad
+            salesCount: sales,
+            rating: rating,
+            reviewCount: reviewCount
         }; 
       });
-      // Ranking basado SOLO en Ventas (salesCount)
       return shopsStats.filter(s => s.salesCount > 0)
           .sort((a, b) => b.salesCount - a.salesCount).slice(0, 3); 
     }
    
-    // Función para obtener el conteo de ventas de todos los vendedores
     function getSellerSalesMap() {
         const salesMap = {};
         allOrders.forEach(order => {
@@ -1673,9 +1562,6 @@
       return window.elementSdk ? window.elementSdk.config : defaultConfig;
     }
 
-    // ---------------------------------------------------------
-    // 13. RENDERIZADO PRINCIPAL (EL CÓDIGO VISUAL) 
-    // ---------------------------------------------------------
     function render() {
       const app = document.getElementById('app');
       const config = getConfig();
@@ -1690,7 +1576,6 @@
 
       app.innerHTML = content;
 
-      // Renderizar Modal si existe
       const modalContainer = document.getElementById('modalContainer');
       const modalHTML = showModal ? renderModal() : '';
      
@@ -1703,8 +1588,9 @@
            d.innerHTML = modalHTML;
       }
     }
-
-    // --- VISTA CATÁLOGO (HOME) ---
+    
+    // ... (El resto de las funciones renderCatalog, renderCart, renderOrders, renderAdmin, renderModal) ...
+    
     function renderCatalog() {
       const config = getConfig();
      
@@ -1715,7 +1601,6 @@
       if (selectedShopFilter) {
           filteredProducts = allProducts.filter(p => p.seller_shop_name === selectedShopFilter);
          
-          // 1. Calcular estadísticas de la tienda seleccionada
           const shopOwner = allUsers.find(u => u.shop_name === selectedShopFilter);
           if (shopOwner) {
               const sales = allOrders.filter(o => o.seller_username === shopOwner.username && o.order_status === 'completed').length;
@@ -1738,7 +1623,7 @@
           <header class="shadow-lg sticky top-0 z-40 bg-slate-800 border-b border-slate-700 p-4">
             <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
                 <div class="text-center md:text-left">
-                  <h1 class="text-2xl font-bold text-blue-400 tracking-tight">MU MARKET <span class="text-white text-xs bg-blue-600 px-1 rounded">V31</span></h1>
+                  <h1 class="text-2xl font-bold text-blue-400 tracking-tight">MU MARKET <span class="text-white text-xs bg-blue-600 px-1 rounded">V32</span></h1>
                   <p class="text-xs mt-1 opacity-60">${config.contact_info}</p>
                 </div>
                 <div class="flex flex-wrap gap-2 justify-center items-center">
@@ -1907,7 +1792,6 @@
       `;
     }
 
-    // --- VISTA CARRITO (EXPANDIDA) ---
     function renderCart() {
       const config = getConfig();
       const total = cart.reduce((sum, item) => {
@@ -1986,7 +1870,6 @@
         </div>`;
     }
 
-    // --- VISTA PEDIDOS (EXPANDIDA) ---
     function renderOrders() {
         const myOrders = allOrders.filter(o => o.buyer_username === currentUser.username).reverse();
         const isSeller = currentUser.role !== 'buyer';
@@ -2086,7 +1969,6 @@
         </div>`;
     }
 
-    // --- VISTA ADMIN / RESELLER (PANEL COMPLETO) ---
     function renderAdmin() {
       const user = currentUser;
       const viewingAs = adminViewTarget || user.username;
@@ -2096,24 +1978,19 @@
       const myOrders = allOrders.filter(o => o.seller_username === viewingAs);
       const pending = myOrders.filter(o => o.order_status === 'pending').reverse();
      
-      // Solo el admin ve el log de todos los pedidos completados, de lo contrario solo ve su propio log.
       const completedOrdersLog = user.role === 'admin' 
         ? allOrders.filter(o => o.order_status === 'completed').reverse() 
         : allOrders.filter(o => o.seller_username === viewingAs && o.order_status === 'completed').reverse();
      
-      // 1. Calcular las ventas de todos los revendedores (para la tabla global)
       const sellerSalesMap = getSellerSalesMap();
 
       const displayUsers = allUsers.sort((a, b) => {
           if (a.status === 'pending' && b.status !== 'pending') return -1;
           if (a.status !== 'pending' && b.status === 'pending') return 1;
-          // Mostrar al admin de origen (Kaleb) al inicio para referencia, si no está logueado como él mismo
           if (a.username === ADMIN_CREDENTIALS.username && user.username !== ADMIN_CREDENTIALS.username) return -1;
           if (b.username === ADMIN_CREDENTIALS.username && user.username !== ADMIN_CREDENTIALS.username) return 1;
-          // Poner al usuario actual (si no es Kaleb) en segundo lugar
           if (a.username === user.username) return -1;
           if (b.username === user.username) return 1;
-          // El resto por nombre
           return a.username.localeCompare(b.username);
       });
 
@@ -2413,24 +2290,158 @@
                     </div>
                 ` : ''}
 
+                <div class="bg-slate-800 p-6 rounded-xl mb-8 border border-slate-700 shadow-lg">
+                    <h2 class="text-xl font-bold mb-6 text-blue-400 border-b border-slate-700 pb-2">🛍️ Gestión de Inventario</h2>
+                   
+                    <div class="mb-8 p-5 bg-slate-900 rounded-lg border border-slate-600">
+                        <h3 class="text-sm font-bold mb-3 uppercase text-slate-400 flex items-center gap-2">
+                            <span>➕</span> Publicar Nuevo Item
+                        </h3>
+                        <form onsubmit="handleAddProduct(event)" class="grid grid-cols-1 md:grid-cols-12 gap-3">
+                            <div class="md:col-span-4">
+                                <input id="productName" placeholder="Nombre del Item" required class="w-full bg-slate-800 p-3 rounded text-white border border-slate-600 focus:border-blue-500 outline-none">
+                            </div>
+                            <div class="md:col-span-2">
+                                <select id="productCategory" class="w-full bg-slate-800 p-3 rounded text-white border border-slate-600 focus:border-blue-500">
+                                    <option value="items">Arma/Escudo</option>
+                                    <option value="sets">Set Completo</option>
+                                    <option value="wings">Alas</option>
+                                    <option value="jewels">Joyas</option>
+                                </select>
+                            </div>
+                            <div class="md:col-span-2">
+                                <input id="productPrice" type="number" step="0.01" placeholder="Precio $" required class="w-full bg-slate-800 p-3 rounded text-white border border-slate-600 focus:border-blue-500">
+                            </div>
+                            <div class="md:col-span-2">
+                                <input id="productStock" type="number" placeholder="Stock" required class="w-full bg-slate-800 p-3 rounded text-white border border-slate-600 focus:border-blue-500">
+                            </div>
+                            <div class="md:col-span-2">
+                                <button type="submit" class="w-full h-full bg-blue-600 hover:bg-blue-500 font-bold rounded text-white shadow transition uppercase text-sm">
+                                    Publicar
+                                </button>
+                            </div>
+                           
+                            <input id="productDiscount" type="hidden" value="0">
+                            <input id="productImage" type="hidden" value="">
+                            <input id="productDescription" type="hidden" value="">
+                            <input id="productOnSale" type="checkbox" class="hidden">
+                        </form>
+                        <p class="text-xs text-slate-500 mt-3 ml-1 flex items-center gap-1">
+                            ℹ️ Para agregar imagen, descuento o descripción, usa el botón <span class="font-bold text-blue-400 bg-slate-800 px-1 rounded">EDITAR</span> una vez creado el item.
+                        </p>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        ${myProducts.map(p => `
+                            <div class="bg-slate-900 rounded-lg border border-slate-600 p-4 relative group hover:border-blue-500 transition shadow-sm flex flex-col justify-between h-full">
+                                <div>
+                                    <div class="flex justify-between items-start mb-2">
+                                        <div class="font-bold truncate text-white text-lg pr-2" title="${p.name}">${p.name}</div>
+                                        <div class="font-mono text-xs bg-slate-800 px-2 py-1 rounded text-slate-400 border border-slate-700 whitespace-nowrap">
+                                            📦 Stock: ${p.stock}
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mb-4">
+                                        <div class="text-green-400 font-bold text-2xl">$${p.final_price.toFixed(2)}</div>
+                                        ${p.discount > 0 ? `<div class="text-xs text-red-400 font-bold bg-red-900/20 inline-block px-1 rounded border border-red-900/50">-${p.discount}% OFF</div>` : '<div class="h-5"></div>'}
+                                    </div>
+                                </div>
+                                
+                                <div class="flex gap-2 mt-auto pt-3 border-t border-slate-800">
+                                    <button onclick="openEditModal('${p.__backendId}')" class="flex-1 bg-blue-600 hover:bg-blue-500 py-2 rounded text-xs font-bold text-white shadow transition flex items-center justify-center gap-1">
+                                        ✏️ EDITAR
+                                    </button>
+                                    <button onclick="deleteProduct('${p.__backendId}')" class="bg-red-600 hover:bg-red-500 px-3 py-2 rounded text-xs font-bold text-white shadow transition flex items-center justify-center">
+                                        🗑️
+                                    </button>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+
+                ${(user.role === 'admin' && !adminViewTarget) ? `
+                    <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
+                        <h2 class="text-xl font-bold mb-6 text-purple-400 border-b border-slate-700 pb-2 flex items-center gap-2">
+                            🌍 Panel Global de Usuarios <span class="text-xs bg-slate-900 text-slate-400 px-2 py-1 rounded ml-auto">Total: ${displayUsers.length}</span>
+                        </h2>
+                       
+                        <div class="overflow-x-auto rounded-lg border border-slate-700">
+                            <table class="w-full text-sm text-left text-slate-300">
+                                <thead class="bg-slate-900 text-white uppercase font-bold text-xs">
+                                    <tr>
+                                        <th class="p-4">Usuario (Tienda)</th>
+                                        <th class="p-4">Rol</th>
+                                        <th class="p-4">Estado</th>
+                                        <th class="p-4 text-center">VENTAS</th> 
+                                        <th class="p-4">Discord</th>
+                                        <th class="p-4 text-right">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-700">
+                                    ${displayUsers.map(u => `
+                                        <tr class="hover:bg-slate-700/30 transition ${u.status === 'pending' ? 'bg-yellow-900/20 border-l-4 border-yellow-500' : ''}">
+                                            <td class="p-4 font-bold flex flex-col justify-start">
+                                                <span class="text-white cursor-pointer hover:text-blue-400" onclick="openManageUserModal('${u.username}')">
+                                                    ${u.username}
+                                                </span>
+                                                ${u.role === 'reseller' && u.shop_name ? `<span class="text-xs opacity-60 text-blue-300 italic">${u.shop_name}</span>` : ''}
+                                            </td>
+                                            <td class="p-4">
+                                                <span class="bg-slate-900 px-2 py-1 rounded text-xs border border-slate-600 font-mono">
+                                                    ${u.role.toUpperCase()}
+                                                </span>
+                                            </td>
+                                            <td class="p-4">
+                                                <span class="px-2 py-1 rounded text-xs font-bold ${u.status==='banned'?'bg-red-900/30 text-red-400':u.status==='pending'?'bg-yellow-900/30 text-yellow-400':'bg-green-900/30 text-green-400'}">
+                                                    ${u.status.toUpperCase()}
+                                                </span>
+                                            </td>
+                                            <td class="p-4 text-center">
+                                                ${u.role === 'reseller' ? `<span class="font-bold text-green-400">${sellerSalesMap[u.username] || 0}</span>` : 'N/A'}
+                                            </td>
+                                            <td class="p-4 font-mono text-xs text-blue-300">
+                                                ${u.discord_tag}
+                                            </td>
+                                            <td class="p-4 text-right flex justify-end gap-2">
+                                                ${u.status === 'pending' ? `
+                                                    <button onclick="approveUser('${u.__backendId}')" class="bg-green-600 px-3 py-1 rounded text-xs font-bold hover:bg-green-500 text-white shadow transition">ACEPTAR</button>
+                                                    <button onclick="deleteUserAccount('${u.__backendId}')" class="bg-red-600 px-3 py-1 rounded text-xs font-bold hover:bg-red-500 text-white shadow transition">RECHAZAR</button>
+                                                ` : `
+                                                    ${u.role === 'reseller' ? `
+                                                        <button onclick="enterShopManagement('${u.username}')" class="bg-indigo-600 hover:bg-indigo-500 px-3 py-1 rounded text-xs font-bold text-white shadow transition flex items-center gap-1 border border-indigo-400">
+                                                            👁️ GESTIONAR
+                                                        </button>
+                                                    ` : ''}
+                                                    
+                                                    <button onclick="openManageUserModal('${u.username}')" class="border border-blue-500 text-blue-500 px-2 py-1 rounded text-xs font-bold hover:bg-blue-500 hover:text-black transition">
+                                                        ⚙️ DETALLE
+                                                    </button>
+                                                    
+                                                `}
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                ` : ''}
+
             </div>
         </div>
       `;
     }
 
-    // ---------------------------------------------------------
-    // 14. RENDERIZADO DE MODALES (HTML FORMS)
-    // ---------------------------------------------------------
     function renderModal() {
         const close = `onclick="closeChatModal(); showModal=null;selectedProductToEdit=null;managedUser=null;selectedOrder=null;render()"`;
         const box = "bg-slate-800 p-8 rounded-xl shadow-2xl max-w-md w-full border border-slate-600 relative transform transition-all scale-100";
        
-        // --- MODAL: CHAT (SUPABASE REALTIME) ---
         if (showModal === 'chat' && chatTargetOrder) {
             const partnerName = chatTargetOrder.buyer_username === currentUser.username ? chatTargetOrder.seller_username : chatTargetOrder.buyer_username;
             const partnerDiscord = chatTargetOrder.buyer_username === currentUser.username ? chatTargetOrder.seller_discord : chatTargetOrder.buyer_discord;
            
-            // Renderiza los mensajes cargados
             setTimeout(() => {
                 const messagesContainer = document.querySelector('.chat-messages');
                 if (messagesContainer) {
@@ -2466,13 +2477,11 @@
             </div>`;
         }
        
-        // --- MODAL: GESTIÓN DE USUARIO (ADMIN) ---
         if(showModal === 'manageUser' && managedUser) {
               const u = managedUser;
               const userOrders = allOrders.filter(o => o.buyer_username === u.username || o.seller_username === u.username);
               const userProducts = allProducts.filter(p => p.seller_username === u.username);
              
-              // Recalcular las ventas y rating para este modal
               const sellerSalesMap = getSellerSalesMap();
               const salesCount = sellerSalesMap[u.username] || 0;
               const { rating, reviewCount } = getShopRating(u.username);
@@ -2558,7 +2567,6 @@
               </div>`;
         }
 
-        // --- MODAL: DATA TOOLS (IMPORT/EXPORT) ---
         if(showModal === 'dataTools') {
             return `
             <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" ${close}>
@@ -2582,7 +2590,6 @@
             </div>`;
         }
 
-        // --- MODAL: EDITAR PRODUCTO ---
         if(showModal === 'editProduct' && selectedProductToEdit) {
             const p = selectedProductToEdit;
             return `
@@ -2631,7 +2638,6 @@
             </div>`;
         }
 
-        // --- MODAL: LOGIN ---
         if(showModal === 'login') {
             return `
             <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" ${close}>
@@ -2655,7 +2661,6 @@
             </div>`;
         }
 
-        // --- MODAL: REGISTRO COMPRADOR ---
         if(showModal === 'register') {
             return `
             <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" ${close}>
@@ -2674,7 +2679,6 @@
             </div>`;
         }
 
-        // --- MODAL: REGISTRO VENDEDOR ---
         if(showModal === 'registerReseller') {
             return `
             <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" ${close}>
@@ -2692,7 +2696,6 @@
             </div>`;
         }
 
-        // --- MODAL: SETUP TIENDA (Post-Login o Post-Aprobación) ---
         if(showModal === 'setupShop' && selectedOrder) {
             return `
             <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4" onclick="logout(false); showToast('Cierre de sesión forzado por configuración incompleta.');">
@@ -2713,7 +2716,6 @@
             </div>`;
         }
        
-        // --- MODAL: RESEÑA ---
         if(showModal === 'review' && selectedOrder) {
             return `
             <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4 animate-bounce-in" ${close}>
