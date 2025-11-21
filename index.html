@@ -6,9 +6,9 @@
   <title>Mu Online 99B Marketplace - V29 (Chat con Supabase Realtime)</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
-  
+ 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  
+ 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet">
@@ -132,7 +132,7 @@
         box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
       }
     }
-    
+   
     /* Animación Bounce In */
     @keyframes bounceIn {
         0% { transform: scale(0.8); opacity: 0; }
@@ -142,10 +142,10 @@
     .animate-bounce-in {
         animation: bounceIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     }
-    
+   
     /* Transiciones de Vista Suaves */
     @view-transition { navigation: auto; }
-    
+   
     /* Estilos del Chat */
     .chat-messages {
         height: 350px; /* Altura Fija */
@@ -185,14 +185,14 @@
 
     const DB_KEY = 'mu_marketplace_db_v22_final'; 
     const SESSION_KEY = 'mu_session_user_v22_final';
-    
+   
     // 📢 CONFIGURACIÓN SUPABASE (CHAT REALTIME)
     // *** 🚨 REEMPLAZAR CON SUS CLAVES REALES DE SUPABASE 🚨 ***
     const SUPABASE_URL = 'https://ciysaobejtxfkpmbmswb.supabase.co'; 
     const SUPABASE_ANON_KEY = 'sb_publishable_ZVQXNGvJjurUNtqZNQrnPg_aw_wW9gY';
     const CHAT_TABLE_NAME = 'messages'; // Nombre de tu tabla de mensajes en Supabase
     // ---------------------------------------------------------
-    
+   
     // 2. INICIALIZAR CLIENTE SUPABASE
     let supabase = null;
     if (SUPABASE_URL !== 'https://su_instancia.supabase.co' && SUPABASE_ANON_KEY !== 'su_clave_publica_anonima' && window.supabase) {
@@ -231,16 +231,16 @@
             window.mockDb.handler = handler;
             return window.dataSdk.read(); // Leer los datos al inicio
         },
-        
+       
         // FUNCIÓN DE LECTURA: Obtiene todos los datos del BIN
         read: async () => {
             if (!BIN_ID || !SECRET_KEY || BIN_ID.includes('AQUI')) {
-                 console.error("JSONBin Config Error: BIN_ID o SECRET_KEY no configurados.");
-                 showToast('❌ Error de Config: BIN ID o Key faltantes.');
-                 const localData = localStorage.getItem(DB_KEY);
-                 window.mockDb.data = localData ? JSON.parse(localData) : [];
-                 window.mockDb.handler.onDataChanged(window.mockDb.data);
-                 return { isOk: false };
+                   console.error("JSONBin Config Error: BIN_ID o SECRET_KEY no configurados.");
+                   showToast('❌ Error de Config: BIN ID o Key faltantes.');
+                   const localData = localStorage.getItem(DB_KEY);
+                   window.mockDb.data = localData ? JSON.parse(localData) : [];
+                   window.mockDb.handler.onDataChanged(window.mockDb.data);
+                   return { isOk: false };
             }
 
             try {
@@ -258,10 +258,10 @@
 
                 const json = await response.json();
                 const data = json.record || []; 
-                
+               
                 // Almacenar en localStorage como fallback local y para velocidad
                 localStorage.setItem(DB_KEY, JSON.stringify(data));
-                
+               
                 // Actualizar la DB local y notificar
                 window.mockDb.data = data;
                 window.mockDb.handler.onDataChanged(data); 
@@ -277,14 +277,14 @@
                 return { isOk: false };
             }
         },
-        
+       
         // FUNCIÓN DE ESCRITURA: Actualiza TODOS los datos en el BIN
         write: async (newData) => {
             if (!BIN_ID || !SECRET_KEY || BIN_ID.includes('AQUI')) {
-                 showToast('❌ Error de Config: BIN ID o Key faltantes.');
-                 return { isOk: false };
+                   showToast('❌ Error de Config: BIN ID o Key faltantes.');
+                   return { isOk: false };
             }
-            
+           
             try {
                 const response = await fetch(JSONBIN_URL, {
                     method: 'PUT', // PUT se usa para reemplazar todo el contenido
@@ -299,7 +299,7 @@
                    const errorText = await response.text();
                    throw new Error(`Error ${response.status}: ${errorText}`);
                 }
-                
+               
                 // Si la escritura es exitosa, actualizamos localStorage y notificamos
                 localStorage.setItem(DB_KEY, JSON.stringify(newData));
                 window.mockDb.data = newData;
@@ -320,14 +320,14 @@
             const result = await window.dataSdk.write(newData);
             return { isOk: result.isOk, item: item };
         },
-        
+       
         // ACTUALIZAR: Modifica un item y reescribe todo el BIN
         update: async (item) => {
             const index = window.mockDb.data.findIndex(i => i.__backendId === item.__backendId);
             if (index === -1) {
-                 console.error("No se encontró el item para actualizar:", item);
-                 showToast('❌ Error: No se encontró el registro para actualizar.');
-                 return { isOk: false };
+                   console.error("No se encontró el item para actualizar:", item);
+                   showToast('❌ Error: No se encontró el registro para actualizar.');
+                   return { isOk: false };
             }
 
             const newData = [...window.mockDb.data];
@@ -336,7 +336,7 @@
             const result = await window.dataSdk.write(newData);
             return { isOk: result.isOk, item: result.isOk ? newData[index] : null };
         },
-        
+       
         // BORRAR: Elimina un item y reescribe todo el BIN
         delete: async (item) => {
             const newData = window.mockDb.data.filter(i => i.__backendId !== item.__backendId);
@@ -348,7 +348,7 @@
  </head>
  <body>
   <div id="app" class="min-h-full"></div>
-  
+ 
   <script>
     // ---------------------------------------------------------
     // 1. CONFIGURACIÓN Y CONSTANTES
@@ -376,7 +376,7 @@
     let currentView = 'catalog'; // 'catalog', 'cart', 'orders', 'admin'
     let selectedCategory = 'all';
     let selectedShopFilter = null;
-    
+   
     // Variables para el "Modo Dios" del Admin
     let adminViewTarget = null; 
     let selectedProductToEdit = null; 
@@ -387,19 +387,19 @@
     let allUsers = [];
     let allOrders = [];
     let allReviews = []; 
-    
+   
     // Carrito
     let cart = JSON.parse(localStorage.getItem('mu_cart_v22') || '[]');
-    
+   
     // Control de Modales
     let showModal = null; 
     let selectedOrder = null; 
-    
+   
     // ESTADO DEL CHAT
     let chatTargetOrder = null; 
     let chatMessages = []; // Almacena mensajes
     let chatSubscription = null; // Variable para la suscripción de Supabase
-    
+   
     // Categorías del Mu Online
     const CATEGORIES = [
       { id: 'all', name: 'Todos', icon: '🎮' },
@@ -416,7 +416,7 @@
       password: 'Kaleb.2021',
       discord_tag: 'KalebAdmin#9999'
     };
-    
+   
     // Control de Usuarios Online
     let onlineUsers = new Set();
     let userActivityTimeout = null;
@@ -425,17 +425,17 @@
     // 3. SDK DE CHAT (INTEGRACIÓN SUPABASE REALTIME)
     // ---------------------------------------------------------
     window.chatSdk = {
-        
+       
         // FUNCIÓN PARA OBTENER EL HISTORIAL DE MENSAJES
         getMessages: async (orderId) => {
             if (!supabase) return [];
-            
+           
             const { data, error } = await supabase
                 .from(CHAT_TABLE_NAME)
                 .select('id, sender, content, created_at, order_id')
                 .eq('order_id', orderId)
                 .order('created_at', { ascending: true });
-                
+               
             if (error) {
                 console.error('Error al obtener mensajes de Supabase:', error);
                 showToast('❌ Error al cargar mensajes del chat.');
@@ -451,7 +451,7 @@
         // FUNCIÓN PARA ENVIAR UN MENSAJE
         sendMessage: async (orderId, sender, content) => {
             if (!supabase || !content.trim()) return;
-            
+           
             const { error } = await supabase
                 .from(CHAT_TABLE_NAME)
                 .insert([
@@ -462,7 +462,7 @@
                         // created_at se genera automáticamente en Supabase si la columna está configurada
                     }
                 ]);
-                
+               
             if (error) {
                 console.error('Error al enviar mensaje a Supabase:', error);
                 showToast('❌ Error al enviar mensaje.');
@@ -472,7 +472,7 @@
         // MANEJADOR DE CAMBIOS DE REALTIME
         handleRealtimeChange: (payload) => {
             console.log('Realtime Change:', payload);
-            
+           
             if (payload.eventType === 'INSERT' && payload.new) {
                 const newMessage = {
                     id: payload.new.id,
@@ -480,7 +480,7 @@
                     content: payload.new.content,
                     timestamp: payload.new.created_at || new Date().toISOString()
                 };
-                
+               
                 // Solo añadir si no existe (evita duplicados si se refresca la vista después de un INSERT)
                 if (!chatMessages.find(msg => msg.id === newMessage.id)) {
                     chatMessages.push(newMessage);
@@ -501,13 +501,13 @@
                 showToast('⚠️ Supabase no configurado. Chat en modo simulado/local.');
                 return;
             }
-            
+           
             // 1. Limpiar suscripción anterior si existe
             window.chatSdk.unsubscribe();
-            
+           
             // 2. Cargar mensajes iniciales
             chatMessages = await window.chatSdk.getMessages(orderId);
-            
+           
             // 3. Crear la suscripción al canal
             chatSubscription = supabase
                 .channel(`chat-order-${orderId}`) // Un canal único para cada orden
@@ -517,7 +517,7 @@
                     window.chatSdk.handleRealtimeChange
                 )
                 .subscribe();
-            
+           
             showToast('💬 Chat Realtime iniciado con Supabase.');
         },
 
@@ -544,7 +544,7 @@
         allOrders = data.filter(item => item.type === 'order') || [];
         allReviews = data.filter(item => item.type === 'review') || []; 
         const activityRecords = data.filter(item => item.type === 'activity') || [];
-        
+       
         // Notificaciones en tiempo real
         if (currentUser) {
             const newOrderAlert = activityRecords.find(a => 
@@ -562,7 +562,7 @@
                 window.dataSdk.update(updatedAlert); 
             }
         }
-        
+       
         // Calcular quién está online (actividad < 5 min)
         const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
         onlineUsers = new Set(
@@ -570,7 +570,7 @@
             .filter(a => a.type === 'activity' && new Date(a.last_activity).getTime() > fiveMinutesAgo)
             .map(a => a.username)
         );
-        
+       
         // Funciones de refresco
         validateCart(); // Chequear si algo en el carrito cambió de precio o stock
         render(); // Volver a pintar la pantalla
@@ -593,7 +593,7 @@
 
       // Conectar a la "Base de Datos" (JSONBin)
       await window.dataSdk.init(dataHandler);
-      
+     
       // Configurar SDK visual
       if (window.elementSdk) {
         window.elementSdk.init({
@@ -607,7 +607,7 @@
           }
         });
       }
-      
+     
       if (currentUser) updateUserActivity();
       render();
     }
@@ -626,18 +626,18 @@
     }
 
     // ---------------------------------------------------------
-    // 6. FUNCIONES DE USUARIO (LOGIN/REGISTRO/LOGOUT) - SIN CAMBIOS
+    // 6. FUNCIONES DE USUARIO (LOGIN/REGISTRO/LOGOUT/ROLES)
     // ---------------------------------------------------------
     async function handleLogin(e) {
       e.preventDefault();
       const username = document.getElementById('loginUsername').value.trim();
       const password = document.getElementById('loginPassword').value;
 
-      // Caso Especial: Login Admin Hardcodeado
+      // Caso Especial: Login Admin Hardcodeado (Super Admin)
       if (username === ADMIN_CREDENTIALS.username && password === ADMIN_CREDENTIALS.password) {
         currentUser = { 
             username, 
-            role: 'admin', 
+            role: 'admin', // Rol de Admin Supremo
             __backendId: 'admin',
             discord_tag: ADMIN_CREDENTIALS.discord_tag 
         };
@@ -662,7 +662,7 @@
           showToast('Tu cuenta aún no ha sido aprobada por el Admin.');
           return;
         }
-        
+       
         // Guardamos sesión con datos frescos
         currentUser = { 
           username: user.username,
@@ -672,7 +672,7 @@
           __backendId: user.__backendId
         };
         localStorage.setItem(SESSION_KEY, JSON.stringify(currentUser));
-        
+       
         // Si es vendedor sin configurar o pendiente de aprobación (pero ya tiene usuario)
         if (user.role === 'reseller' && (!user.shop_name || !user.discord_tag || user.status === 'pending')) {
           selectedOrder = user;
@@ -681,13 +681,13 @@
           render();
           return;
         }
-        
+       
         showModal = null;
         if (user.role === 'reseller' || user.role === 'admin') {
           currentView = 'admin';
         }
         showToast(`Bienvenido ${username}`);
-        
+       
         await updateUserActivity();
         render();
       } else {
@@ -775,17 +775,17 @@
 
     async function updateUserActivity() {
       if (!currentUser) return;
-      
+     
       const activityRecords = window.mockDb.data.filter(item => item.type === 'activity');
       const existingActivity = activityRecords.find(a => a.username === currentUser.username);
-      
+     
       const activityData = {
         id: 'activity_' + currentUser.username,
         type: 'activity',
         username: currentUser.username,
         last_activity: new Date().toISOString()
       };
-      
+     
       // Intenta actualizar si existe, si no, lo crea.
       if (existingActivity) {
            const updatedActivity = {...existingActivity, last_activity: new Date().toISOString()};
@@ -793,7 +793,7 @@
       } else {
            await window.dataSdk.create(activityData);
       }
-      
+     
       if (userActivityTimeout) clearTimeout(userActivityTimeout);
       userActivityTimeout = setTimeout(updateUserActivity, 3 * 60 * 1000);
     }
@@ -813,30 +813,30 @@
       showToast(auto ? '💤 Sesión cerrada por inactividad' : 'Sesión cerrada');
       render();
     }
-    
+   
     // Función para completar la configuración de tienda (Admin lo activa o Vendedor lo completa)
     async function handleSetupShop(e) {
       e.preventDefault();
       const user = selectedOrder; // Usuario que necesita configuración
       if(!user) return;
-      
+     
       const setupShopNameInput = document.getElementById('setupShopName');
       const setupDiscordInput = document.getElementById('setupDiscord');
-      
+     
       if (!setupShopNameInput || !setupDiscordInput) {
           showToast('Error: Campos de formulario no encontrados.');
           return;
       }
-      
+     
       const shopName = setupShopNameInput.value.trim();
       const discord = setupDiscordInput.value.trim();
-      
+     
       // Validar discord unico (excluyendo al usuario actual)
       if(allUsers.find(u => u.discord_tag === discord && u.__backendId !== user.__backendId)) {
           showToast('Este Discord ya está en uso por otro usuario.');
           return;
       }
-      
+     
       const updatedUser = {
           ...user,
           shop_name: shopName,
@@ -844,9 +844,9 @@
           approved: true, 
           status: 'active' 
       };
-      
+     
       const result = await window.dataSdk.update(updatedUser);
-      
+     
       if (result.isOk) {
           // Si el usuario que completa es el mismo que está logueado
           if(currentUser && user.__backendId === currentUser.__backendId) {
@@ -855,7 +855,7 @@
               localStorage.setItem(SESSION_KEY, JSON.stringify(currentUser));
               currentView = 'admin'; // Mover al panel
           } 
-          
+         
           showModal = null;
           selectedOrder = null;
           showToast('✅ Configuración de tienda guardada. Tienda Activada.');
@@ -865,11 +865,50 @@
       }
     }
 
+    /**
+     * NUEVA FUNCIÓN AÑADIDA PARA CAMBIAR EL ROL
+     */
+    async function handleUpdateUserRole(e) {
+        e.preventDefault();
+        if (!managedUser || currentUser.role !== 'admin') {
+            showToast('Acceso denegado. Solo el Admin Supremo puede cambiar roles.');
+            return;
+        }
+
+        const newRole = document.getElementById('manageUserRole').value;
+
+        // Validación para evitar que el admin supremo se cambie a sí mismo (para evitar problemas)
+        if (managedUser.username === ADMIN_CREDENTIALS.username) {
+            showToast('🚫 No puedes cambiar el rol del Admin Supremo.');
+            return;
+        }
+
+        const updatedUser = {
+            ...managedUser,
+            role: newRole,
+            // Si el rol es 'buyer', desaprobamos y quitamos shop_name por si acaso
+            approved: newRole === 'buyer' ? true : managedUser.approved,
+            status: newRole === 'buyer' ? 'active' : managedUser.status,
+            shop_name: newRole === 'buyer' ? '' : managedUser.shop_name 
+        };
+
+        const result = await window.dataSdk.update(updatedUser);
+
+        if (result.isOk) {
+            showToast(`✅ Rol de ${managedUser.username} cambiado a ${newRole.toUpperCase()}.`);
+            managedUser = result.item; // Actualizar el usuario gestionado con los nuevos datos
+        } else {
+            showToast('❌ Error al actualizar el rol.');
+        }
+        render(); // Forzar el re-render del modal con el nuevo rol/estado
+    }
+    // ---------------------------------------------------------
+
 
     // ---------------------------------------------------------
     // 7. GESTIÓN DE PRODUCTOS (CRUD COMPLETO) - SIN CAMBIOS
     // ---------------------------------------------------------
-    
+   
     // Función centralizada para abrir la gestión de productos de cualquier usuario
     function openProductManagement(username) {
         if (currentUser.role === 'admin' && currentUser.username !== username) {
@@ -882,7 +921,7 @@
         }
         showModal = null;
     }
-    
+   
     async function handleAddProduct(e) {
       e.preventDefault();
       if (allProducts.length >= 999) {
@@ -955,12 +994,12 @@
 
         const price = parseFloat(document.getElementById('editPrice').value);
         const discount = parseInt(document.getElementById('editDiscount').value) || 0;
-        
+       
         let imageUrl = document.getElementById('editImage').value.trim();
         if (imageUrl && imageUrl.includes('imgur.com/') && !imageUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
             imageUrl += '.jpg';
         }
-        
+       
         const finalPrice = discount > 0 ? price * (1 - discount / 100) : price;
 
         const updatedProduct = {
@@ -976,7 +1015,7 @@
         };
 
         const result = await window.dataSdk.update(updatedProduct);
-        
+       
         if (result.isOk) {
             showToast('✅ Producto actualizado correctamente');
             showModal = null;
@@ -988,10 +1027,10 @@
 
     async function deleteProduct(backendId) {
       if(!confirm("¿Estás seguro de borrar este producto?")) return;
-      
+     
       const product = allProducts.find(p => p.__backendId === backendId);
       if (!product) return;
-      
+     
       const result = await window.dataSdk.delete(product); 
       if (result.isOk) {
         showToast('Producto eliminado');
@@ -1003,7 +1042,7 @@
     // ---------------------------------------------------------
     // 8. GESTIÓN DE USUARIOS (ADMIN) - SIN CAMBIOS
     // ---------------------------------------------------------
-    
+   
     // Nueva función para abrir el modal de gestión
     function openManageUserModal(username) {
         managedUser = allUsers.find(u => u.username === username);
@@ -1014,43 +1053,43 @@
         showModal = 'manageUser';
         render();
     }
-    
+   
     // Función para eliminar todos los pedidos completados (LOG HISTÓRICO)
     async function clearCompletedOrdersLog() {
         if (!currentUser || currentUser.role !== 'admin') {
             showToast('Acceso denegado.');
             return;
         }
-        
+       
         if (!confirm("⚠️ ¡ADVERTENCIA CRÍTICA!\n\nEsta acción eliminará PERMANENTEMENTE TODOS los pedidos con estado 'COMPLETADO' (Log Histórico). ¿Estás seguro de continuar?")) {
             return;
         }
-        
+       
         showToast('Limpiando log de pedidos completados...');
-        
+       
         const ordersToDelete = allOrders.filter(o => o.order_status === 'completed');
-        
+       
         // Crear una nueva lista de datos sin los pedidos completados
         const newDbData = window.mockDb.data.filter(item => 
             item.type !== 'order' || item.order_status !== 'completed'
         );
-        
+       
         const result = await window.dataSdk.write(newDbData);
-        
+       
         if (result.isOk) {
             showToast(`✅ Log Histórico de ${ordersToDelete.length} pedidos eliminado exitosamente.`);
         } else {
             showToast('❌ Error al eliminar el log histórico. Verifica el BIN.');
         }
     }
-    
+   
     async function approveUser(backendId) {
         const user = allUsers.find(u => u.__backendId === backendId);
         if (!user) {
             showToast('❌ Usuario no encontrado o ID no válido.');
             return;
         }
-        
+       
         // Si el vendedor no tiene nombre de tienda o discord, forzar setup (Admin lo puede hacer por él o forzar que lo haga)
         if (user.role === 'reseller' && (!user.shop_name || !user.discord_tag || user.status === 'pending')) {
             selectedOrder = user;
@@ -1059,7 +1098,7 @@
             render();
             return;
         }
-        
+       
         const updatedUser = { ...user, status: 'active', approved: true };
         const result = await window.dataSdk.update(updatedUser);
         if (result.isOk) {
@@ -1092,7 +1131,7 @@
 
     async function deleteUserAccount(backendId) {
         if(!confirm("⚠️ ¡ADVERTENCIA DE SEGURIDAD!\n\n¿Estás COMPLETAMENTE SEGURO de eliminar este usuario?\nEsta acción borrará su cuenta y TODOS sus productos.")) return;
-        
+       
         const user = allUsers.find(u => u.__backendId === backendId);
         if (!user) return;
 
@@ -1107,7 +1146,7 @@
         if (result.isOk) showToast('🗑️ Cuenta eliminada correctamente');
         showModal = null;
     }
-    
+   
     // --- FUNCIONES DE MODO DIOS (ADMIN ENTRA EN TIENDA) ---
     function enterShopManagement(targetUsername) {
         adminViewTarget = targetUsername;
@@ -1116,25 +1155,25 @@
         currentView = 'admin';
         render();
     }
-    
+   
     function exitShopManagement() {
         adminViewTarget = null;
         showToast('🔙 Volviendo a vista global');
         render();
     }
-    
+   
     // Función para refrescar datos en la vista Admin
     async function loadAdminView() {
         showToast('🔄 Sincronizando datos remotos...');
         // Forzamos la lectura para asegurar los últimos cambios de usuarios/pedidos
         const result = await window.dataSdk.read(); 
-        
+       
         if (result.isOk) {
              showToast('✅ Sincronización completa.');
         } else {
              showToast('⚠️ No se pudo sincronizar la lista de usuarios del BIN.');
         }
-        
+       
         currentView = 'admin';
         render();
     }
@@ -1149,23 +1188,23 @@
     function validateCart() {
         if (cart.length === 0) return;
         let cartModified = false;
-        
+       
         const newCart = cart.filter(cartItem => {
             const correspondingProduct = allProducts.find(p => p.__backendId === cartItem.__backendId);
-            
+           
             if (!correspondingProduct) {
                 showToast(`❌ El item "${cartItem.name}" ha sido eliminado del catálogo.`);
                 cartModified = true;
                 return false; 
             }
-            
+           
             if (cartItem.quantity > correspondingProduct.stock) {
                 cartItem.quantity = correspondingProduct.stock;
                 cartModified = true;
                 if (cartItem.quantity === 0) return false;
                 showToast(`⚠️ Stock de "${cartItem.name}" limitado a ${cartItem.quantity}.`);
             }
-            
+           
             // Sincronizar precios en vivo
             if (cartItem.price !== correspondingProduct.price || cartItem.final_price !== correspondingProduct.final_price) {
                 cartItem.price = correspondingProduct.price;
@@ -1175,7 +1214,7 @@
             }
             return true;
         });
-        
+       
         if (cartModified) {
             cart = newCart;
             updateCartStorage();
@@ -1336,7 +1375,7 @@
       }
 
       const result = await window.dataSdk.update(updatedOrder); 
-      
+     
       if (result.isOk) {
           // SI AMBOS CONFIRMARON, RESTAR STOCK Y FINALIZAR
           if (result.item.seller_confirmed && result.item.buyer_confirmed && result.item.order_status !== 'completed') {
@@ -1369,7 +1408,7 @@
                 showToast("Error crítico al finalizar la orden. Stock no actualizado.");
               }
           } else if (result.item.buyer_confirmed) {
-              showToast('✅ Recepción de items confirmada. Esperando finalización de la venta.');
+               showToast('✅ Recepción de items confirmada. Esperando finalización de la venta.');
           } else if (result.item.seller_confirmed) {
              // El vendedor ya confirmó, el toast ya se mostró arriba.
           }
@@ -1398,15 +1437,15 @@
     async function handleSubmitReview(e) {
         e.preventDefault();
         if (!selectedOrder) return;
-        
+       
         const rating = parseInt(document.getElementById('reviewRating').value);
         const comment = document.getElementById('reviewComment').value.trim();
-        
+       
         if (rating < 1 || rating > 5) {
             showToast('La calificación debe ser entre 1 y 5.');
             return;
         }
-        
+       
         const reviewData = {
             id: Date.now().toString(),
             type: 'review',
@@ -1417,14 +1456,14 @@
             comment: comment,
             created_at: new Date().toISOString()
         };
-        
+       
         const reviewResult = await window.dataSdk.create(reviewData);
-        
+       
         if (reviewResult.isOk) {
             // Marcar la orden como revisada
             const updatedOrder = {...selectedOrder, needs_review: false};
             await window.dataSdk.update(updatedOrder);
-            
+           
             showToast('✅ ¡Reseña enviada! Gracias por tu feedback.');
             showModal = null;
             selectedOrder = null;
@@ -1432,21 +1471,21 @@
             showToast('❌ Error al enviar la reseña.');
         }
     }
-    
+   
     // ---------------------------------------------------------
     // 11. FUNCIONES DE CHAT (AJUSTADAS PARA SUPABASE)
     // ---------------------------------------------------------
     async function openChatModal(orderId) {
         const order = allOrders.find(o => o.__backendId === orderId);
         if (!order) return;
-        
+       
         chatTargetOrder = order;
         showModal = 'chat';
         render(); // Abrir el modal
-        
+       
         // Iniciar la suscripción de chat (AHORA REALTIME SUPABASE)
         await window.chatSdk.subscribeToOrder(orderId);
-        
+       
         // El renderChatMessages se llama automáticamente cuando se cargan los mensajes iniciales y en cada cambio
         setTimeout(() => {
              const messagesContainer = document.querySelector('.chat-messages');
@@ -1456,7 +1495,7 @@
              }
         }, 50);
     }
-    
+   
     function closeChatModal() {
         window.chatSdk.unsubscribe();
         showModal = null;
@@ -1464,31 +1503,31 @@
         chatMessages = []; // Limpiar mensajes al cerrar
         render();
     }
-    
+   
     function handleChatMessageSend(e) {
         e.preventDefault();
         if (!chatTargetOrder || !currentUser) return;
-        
+       
         const input = document.getElementById('chatInput');
         const content = input.value;
         if (!content.trim()) return;
-        
+       
         // Llama a la función de envío de Supabase
         window.chatSdk.sendMessage(chatTargetOrder.__backendId, currentUser.username, content);
         input.value = ''; // Limpiar input
-        
+       
         // Asegurar scroll al fondo (el realtime se encargará de añadir el mensaje)
         setTimeout(() => {
-              const messagesContainer = document.querySelector('.chat-messages');
-              if (messagesContainer) {
-                  messagesContainer.scrollTop = messagesContainer.scrollHeight;
-              }
+             const messagesContainer = document.querySelector('.chat-messages');
+             if (messagesContainer) {
+                 messagesContainer.scrollTop = messagesContainer.scrollHeight;
+             }
         }, 50);
     }
 
     function renderChatMessages(container) {
         if (!container) return;
-        
+       
         const messagesHtml = chatMessages.map(msg => {
             const isSelf = msg.sender === currentUser.username;
             const time = new Date(msg.timestamp).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
@@ -1503,7 +1542,7 @@
                 </div>
             `;
         }).join('');
-        
+       
         container.innerHTML = messagesHtml;
         container.scrollTop = container.scrollHeight; // Scroll al último mensaje
     }
@@ -1519,7 +1558,7 @@
         const { rating, reviewCount } = getShopRating(seller.username);
         // 2. Contar ventas
         const sales = allOrders.filter(o => o.seller_username === seller.username && o.order_status === 'completed').length;
-        
+       
         return { 
             ...seller, 
             salesCount: sales, // Métrica principal de ranking
@@ -1531,7 +1570,7 @@
       return shopsStats.filter(s => s.salesCount > 0)
           .sort((a, b) => b.salesCount - a.salesCount).slice(0, 3); 
     }
-    
+   
     // Función para obtener el conteo de ventas de todos los vendedores
     function getSellerSalesMap() {
         const salesMap = {};
@@ -1559,7 +1598,7 @@
     function getConfig() {
       const configItem = window.mockDb.data.find(item => item.type === 'config');
       if (configItem) return configItem.config;
-      
+     
       return window.elementSdk ? window.elementSdk.config : defaultConfig;
     }
 
@@ -1583,28 +1622,28 @@
       // Renderizar Modal si existe
       const modalContainer = document.getElementById('modalContainer');
       const modalHTML = showModal ? renderModal() : '';
-      
+     
       if (modalContainer) {
-          modalContainer.innerHTML = modalHTML;
+           modalContainer.innerHTML = modalHTML;
       } else {
-          const d = document.createElement('div'); 
-          d.id = 'modalContainer';
-          document.body.appendChild(d);
-          d.innerHTML = modalHTML;
+           const d = document.createElement('div'); 
+           d.id = 'modalContainer';
+           document.body.appendChild(d);
+           d.innerHTML = modalHTML;
       }
     }
 
     // --- VISTA CATÁLOGO (HOME) ---
     function renderCatalog() {
       const config = getConfig();
-      
+     
       let filteredProducts = allProducts;
-      
+     
       let shopStats = null;
-      
+     
       if (selectedShopFilter) {
           filteredProducts = allProducts.filter(p => p.seller_shop_name === selectedShopFilter);
-          
+         
           // 1. Calcular estadísticas de la tienda seleccionada
           const shopOwner = allUsers.find(u => u.shop_name === selectedShopFilter);
           if (shopOwner) {
@@ -1674,7 +1713,7 @@
                     <div class="text-4xl mb-2">${index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉'}</div>
                     <h3 class="font-bold text-xl mb-1 shop-badge px-2 py-1 rounded inline-block hover:bg-white/10" onclick="filterByShop('${shop.shop_name}')">${shop.shop_name}</h3>
                     <p class="text-sm opacity-70 mb-3">👤 ${shop.username}</p>
-                    
+                   
                     <div class="flex justify-center mb-3 bg-slate-900/50 p-2 rounded-lg">
                         <div class="text-center px-4">
                           <p class="text-xl font-bold text-green-400">${shop.salesCount}</p>
@@ -1701,7 +1740,7 @@
                             Ver Todas las Tiendas
                         </button>
                     </div>
-                    
+                   
                     ${shopStats ? `
                         <div class="flex justify-around text-center py-2 bg-slate-900/50 rounded-lg border border-slate-700">
                             <div class="px-3">
@@ -1715,7 +1754,7 @@
                             </div>
                         </div>
                     ` : `<p class="text-center text-sm opacity-60 py-2">Cargando estadísticas o tienda sin datos aún.</p>`}
-                    
+                   
                 </div>
             ` : `
                 <div class="flex flex-wrap gap-3 justify-center">
@@ -1763,7 +1802,7 @@
                         </div>
 
                         <h3 class="font-bold mb-1 truncate text-center text-lg">${product.name}</h3>
-                        
+                       
                         <div class="text-center mb-3">
                           <span class="text-xs font-bold px-2 py-1 rounded ${product.stock < 5 ? 'bg-red-900/50 text-red-400 animate-pulse border border-red-500/50' : 'bg-slate-700 text-slate-400'}">
                               📦 Stock: ${product.stock}
@@ -1792,7 +1831,7 @@
               </div>
             `}
           </main>
-          
+         
         </div>
       `;
     }
@@ -1811,7 +1850,7 @@
                 <h2 class="text-3xl font-bold mb-6 text-blue-400 flex items-center gap-3">
                     🛒 Tu Carrito de Compras
                 </h2>
-                
+               
                 ${cart.length === 0 ? `
                     <div class="bg-slate-800 p-10 rounded-xl border border-slate-700 text-center shadow-lg">
                         <p class="text-4xl mb-4">😢</p>
@@ -1829,7 +1868,7 @@
                             <div class="col-span-2 text-center">Cantidad</div>
                             <div class="col-span-2 text-right">Total</div>
                         </div>
-                        
+                       
                         ${cart.map((item, index) => `
                             <div class="p-4 border-b border-slate-700 grid grid-cols-12 gap-4 items-center hover:bg-slate-700/20 transition">
                                 <div class="col-span-6 flex items-center gap-4">
@@ -1880,7 +1919,7 @@
     function renderOrders() {
         const myOrders = allOrders.filter(o => o.buyer_username === currentUser.username).reverse();
         const isSeller = currentUser.role !== 'buyer';
-        
+       
         return `
         <div class="min-h-full bg-slate-900 text-slate-100 p-8">
             <div class="max-w-4xl mx-auto">
@@ -1920,7 +1959,7 @@
                                 ${statusText}
                             </span>
                         </div>
-                        
+                       
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
                             <div class="bg-slate-900/50 p-4 rounded-lg border border-slate-700">
                                 <p class="text-xs uppercase text-slate-500 font-bold mb-2">Datos del Vendedor</p>
@@ -1938,11 +1977,11 @@
                         </div>
 
                         <div class="flex flex-col sm:flex-row justify-between items-center pt-2 gap-4">
-                            
+                           
                             <button onclick="openChatModal('${o.__backendId}')" class="w-full sm:w-auto bg-purple-600 hover:bg-purple-500 px-6 py-3 rounded-lg font-bold text-white shadow transition transform active:scale-95 text-sm">
                                 💬 CHAT con Vendedor
                             </button>
-                            
+                           
                             <div class="text-2xl font-bold text-white flex-1 text-right">
                                 Total: <span class="text-green-400">$${o.total.toFixed(2)}</span>
                             </div>
@@ -1971,7 +2010,7 @@
                             `}
                         </div>
                     </div>
-                `}).join('')}
+                    `}).join('')}
             </div>
         </div>`;
     }
@@ -1981,13 +2020,13 @@
       const user = currentUser;
       const viewingAs = adminViewTarget || user.username;
       const viewingUser = allUsers.find(u => u.username === viewingAs) || user;
-      
+     
       const myProducts = allProducts.filter(p => p.seller_username === viewingAs);
       const myOrders = allOrders.filter(o => o.seller_username === viewingAs);
       const pending = myOrders.filter(o => o.order_status === 'pending').reverse();
-      
+     
       const completedOrdersLog = allOrders.filter(o => o.order_status === 'completed').reverse();
-      
+     
       // 1. Calcular las ventas de todos los revendedores (para la tabla global)
       const sellerSalesMap = getSellerSalesMap();
 
@@ -2053,7 +2092,7 @@
                         <div class="text-sm font-bold font-mono text-blue-300 truncate bg-slate-900/50 p-1 rounded">${viewingUser.discord_tag}</div>
                     </div>
                 </div>
-                
+               
                 ${(user.role === 'admin' && !adminViewTarget) ? `
                     <div class="bg-slate-800 p-6 rounded-xl mb-8 border border-slate-700 shadow-lg">
                         <h2 class="text-xl font-bold mb-6 text-green-400 border-b border-slate-700 pb-2 flex items-center gap-2">
@@ -2095,7 +2134,7 @@
                     <h2 class="text-xl font-bold mb-4 text-yellow-400 border-b border-slate-700 pb-2 flex items-center gap-2">
                         📦 Pedidos por Despachar <span class="bg-slate-700 text-white px-2 rounded text-sm">${pending.length}</span>
                     </h2>
-                    
+                   
                     ${pending.length === 0 ? `
                         <div class="text-center py-8 opacity-50">
                             <p class="italic">No tienes pedidos pendientes. ¡Buen trabajo!</p>
@@ -2103,9 +2142,9 @@
                     ` : pending.map((o, i) => {
                         const sellerConfirmed = o.seller_confirmed;
                         const buyerConfirmed = o.buyer_confirmed;
-                        
+                       
                         let buttonText, buttonClass, buttonAction;
-                        
+                       
                         if (buyerConfirmed) {
                             buttonText = 'Cliente CONFIRMADO';
                             buttonClass = 'bg-orange-700/50 disabled:opacity-100 disabled:cursor-wait';
@@ -2119,7 +2158,7 @@
                             buttonClass = 'bg-green-600 hover:bg-green-500';
                             buttonAction = `onclick="confirmOrder('${o.__backendId}', true)"`;
                         }
-                        
+                       
                         const statusBadgeText = buyerConfirmed ? 'Cliente Confirmó' : (sellerConfirmed ? 'Tú Confirmaste (Esperando Cliente)' : 'Pendiente de tu Entrega');
                         const statusBadgeClass = buyerConfirmed ? 'bg-orange-900 text-orange-200' : (sellerConfirmed ? 'bg-yellow-900 text-yellow-200' : 'bg-red-900 text-red-200');
 
@@ -2158,7 +2197,7 @@
 
                 <div class="bg-slate-800 p-6 rounded-xl mb-8 border border-slate-700 shadow-lg">
                     <h2 class="text-xl font-bold mb-6 text-blue-400 border-b border-slate-700 pb-2">🛍️ Gestión de Inventario</h2>
-                    
+                   
                     <div class="mb-8 p-5 bg-slate-900 rounded-lg border border-slate-600">
                         <h3 class="text-sm font-bold mb-3 uppercase text-slate-400 flex items-center gap-2">
                             <span>➕</span> Publicar Nuevo Item
@@ -2186,7 +2225,7 @@
                                     Publicar
                                 </button>
                             </div>
-                            
+                           
                             <input id="productDiscount" type="hidden" value="0">
                             <input id="productImage" type="hidden" value="">
                             <input id="productDescription" type="hidden" value="">
@@ -2232,7 +2271,7 @@
                         <h2 class="text-xl font-bold mb-6 text-purple-400 border-b border-slate-700 pb-2 flex items-center gap-2">
                             🌍 Panel Global de Usuarios <span class="text-xs bg-slate-900 text-slate-400 px-2 py-1 rounded ml-auto">Total: ${displayUsers.length}</span>
                         </h2>
-                        
+                       
                         <div class="overflow-x-auto rounded-lg border border-slate-700">
                             <table class="w-full text-sm text-left text-slate-300">
                                 <thead class="bg-slate-900 text-white uppercase font-bold text-xs">
@@ -2281,13 +2320,10 @@
                                                         </button>
                                                     ` : ''}
                                                     
-                                                    <button onclick="banUser('${u.__backendId}')" class="border border-yellow-500 text-yellow-500 px-2 py-1 rounded text-xs font-bold hover:bg-yellow-500 hover:text-black transition">
-                                                        ${u.status.includes('banned') ? 'UNBAN' : 'BAN'}
+                                                    <button onclick="openManageUserModal('${u.username}')" class="border border-blue-500 text-blue-500 px-2 py-1 rounded text-xs font-bold hover:bg-blue-500 hover:text-black transition">
+                                                        ⚙️ DETALLE
                                                     </button>
                                                     
-                                                    <button onclick="deleteUserAccount('${u.__backendId}')" class="bg-red-900/20 hover:bg-red-600 text-red-500 hover:text-white px-3 py-1 rounded text-xs font-bold transition border border-red-900/50">
-                                                        DEL
-                                                    </button>
                                                 `}
                                             </td>
                                         </tr>
@@ -2309,12 +2345,12 @@
     function renderModal() {
         const close = `onclick="closeChatModal(); showModal=null;selectedProductToEdit=null;managedUser=null;selectedOrder=null;render()"`;
         const box = "bg-slate-800 p-8 rounded-xl shadow-2xl max-w-md w-full border border-slate-600 relative transform transition-all scale-100";
-        
+       
         // --- MODAL: CHAT (SUPABASE REALTIME) ---
         if (showModal === 'chat' && chatTargetOrder) {
             const partnerName = chatTargetOrder.buyer_username === currentUser.username ? chatTargetOrder.seller_username : chatTargetOrder.buyer_username;
             const partnerDiscord = chatTargetOrder.buyer_username === currentUser.username ? chatTargetOrder.seller_discord : chatTargetOrder.buyer_discord;
-            
+           
             // Renderiza los mensajes cargados
             setTimeout(() => {
                 const messagesContainer = document.querySelector('.chat-messages');
@@ -2322,7 +2358,7 @@
                     renderChatMessages(messagesContainer);
                 }
             }, 0);
-            
+           
             return `
             <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4 animate-bounce-in">
                 <div class="${box} max-w-lg p-0" onclick="event.stopPropagation()">
@@ -2345,23 +2381,23 @@
                                 ENVIAR
                             </button>
                         </form>
-                         <p class="text-xs text-slate-500 mt-2">Nota: Este chat está conectado a Supabase Realtime.</p>
+                           <p class="text-xs text-slate-500 mt-2">Nota: Este chat está conectado a Supabase Realtime.</p>
                     </div>
                 </div>
             </div>`;
         }
-        
+       
         // --- MODAL: GESTIÓN DE USUARIO (ADMIN) ---
         if(showModal === 'manageUser' && managedUser) {
               const u = managedUser;
               const userOrders = allOrders.filter(o => o.buyer_username === u.username || o.seller_username === u.username);
               const userProducts = allProducts.filter(p => p.seller_username === u.username);
-              
+             
               // Recalcular las ventas y rating para este modal
               const sellerSalesMap = getSellerSalesMap();
               const salesCount = sellerSalesMap[u.username] || 0;
               const { rating, reviewCount } = getShopRating(u.username);
-              
+             
               return `
               <div class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
                   <div class="${box} max-w-2xl w-full" onclick="event.stopPropagation()">
@@ -2371,15 +2407,15 @@
                           </h2>
                           <button ${close} class="text-slate-400 hover:text-white font-bold text-xl">✕</button>
                       </div>
-                      
+                     
                       <div class="grid grid-cols-2 gap-4 mb-6">
-                          <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
-                              <p class="text-xs uppercase text-slate-500 font-bold">Rol / Estado</p>
-                              <p class="font-bold text-lg">${u.role.toUpperCase()} / <span class="${u.status==='banned'?'text-red-400':u.status==='pending'?'text-yellow-400':'text-green-400'}">${u.status.toUpperCase()}</span></p>
-                          </div>
                           <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
                               <p class="text-xs uppercase text-slate-500 font-bold">Discord</p>
                               <p class="font-mono text-blue-300 text-lg">${u.discord_tag}</p>
+                          </div>
+                          <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
+                              <p class="text-xs uppercase text-slate-500 font-bold">Pedidos Involucrados</p>
+                              <p class="font-bold text-white text-xl">${userOrders.length}</p>
                           </div>
                           ${u.role === 'reseller' ? `
                               <div class="col-span-2 bg-slate-900 p-3 rounded-lg border border-slate-700">
@@ -2387,26 +2423,40 @@
                                   <p class="font-bold text-yellow-400 text-xl">${u.shop_name || 'Sin configurar'}</p>
                               </div>
                               <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
-                                  <p class="text-xs uppercase text-slate-500 font-bold">Items Publicados</p>
-                                  <p class="font-bold text-white text-xl">${userProducts.length}</p>
-                              </div>
-                               <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
-                                  <p class="text-xs uppercase text-slate-500 font-bold">Ventas Completadas</p>
-                                  <p class="font-bold text-green-400 text-xl">${salesCount}</p>
-                              </div>
+                                   <p class="text-xs uppercase text-slate-500 font-bold">Items Publicados</p>
+                                   <p class="font-bold text-white text-xl">${userProducts.length}</p>
+                               </div>
                               <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
-                                  <p class="text-xs uppercase text-slate-500 font-bold">Rating / Reviews</p>
-                                  <p class="font-bold text-yellow-400 text-lg">${rating} ${getStarHtml(rating)} (${reviewCount})</p>
-                              </div>
+                                   <p class="text-xs uppercase text-slate-500 font-bold">Ventas Completadas</p>
+                                   <p class="font-bold text-green-400 text-xl">${salesCount}</p>
+                               </div>
+                               <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
+                                   <p class="text-xs uppercase text-slate-500 font-bold">Rating / Reviews</p>
+                                   <p class="font-bold text-yellow-400 text-lg">${rating} ${getStarHtml(rating)} (${reviewCount})</p>
+                               </div>
                           ` : ''}
-                          <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
-                              <p class="text-xs uppercase text-slate-500 font-bold">Pedidos Involucrados</p>
-                              <p class="font-bold text-white text-xl">${userOrders.length}</p>
-                          </div>
+                      </div>
+                     
+                      <div class="border-t border-slate-700 pt-4 mb-4">
+                          <h3 class="text-lg font-bold text-green-400 mb-3">Cambio de Rol y Estado</h3>
+                          <form onsubmit="handleUpdateUserRole(event)" class="flex flex-col sm:flex-row gap-3 items-center">
+                              <div class="flex-1 w-full">
+                                  <label class="text-xs text-slate-400 font-bold uppercase mb-1 block">Rol Actual: <span class="text-white">${u.role.toUpperCase()}</span></label>
+                                  <select id="manageUserRole" class="w-full p-3 rounded bg-slate-700 text-white border border-slate-600">
+                                      <option value="buyer" ${u.role === 'buyer' ? 'selected' : ''}>Comprador</option>
+                                      <option value="reseller" ${u.role === 'reseller' ? 'selected' : ''}>Reseller</option>
+                                      <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin (Supremo)</option>
+                                  </select>
+                              </div>
+                              <button type="submit" class="w-full sm:w-auto mt-4 sm:mt-0 bg-green-600 hover:bg-green-500 text-white px-6 py-3 rounded text-sm font-bold shadow transition transform active:scale-95">
+                                  ACTUALIZAR ROL
+                              </button>
+                          </form>
+                           <p class="text-xs text-red-400 mt-2 italic">Advertencia: Cambiar a 'Comprador' quitará los permisos de tienda. Usar 'Admin' le dará control total.</p>
                       </div>
                       
-                      <div class="border-t border-slate-700 pt-4 mb-4">
-                          <h3 class="text-lg font-bold text-purple-400 mb-2">Acciones Rápidas</h3>
+                      <div class="border-t border-slate-700 pt-4">
+                          <h3 class="text-lg font-bold text-purple-400 mb-2">Acciones Críticas</h3>
                           <div class="flex flex-wrap gap-2">
                               ${u.role === 'reseller' ? `
                                   <button onclick="enterShopManagement('${u.username}')" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded text-sm font-bold">
@@ -2436,14 +2486,14 @@
                 <div class="${box}" onclick="event.stopPropagation()">
                     <h2 class="text-2xl font-bold text-center mb-4 text-white">🛠️ Gestión de Datos (JSONBin)</h2>
                     <p class="text-center text-slate-400 text-sm mb-6">Guarda una copia de seguridad o restaura los datos REMOTOS.</p>
-                    
+                   
                     <div class="grid gap-4">
                         <button onclick="downloadBackup()" class="bg-blue-600 hover:bg-blue-500 py-4 rounded-lg font-bold text-white shadow-lg transition flex items-center justify-center gap-3">
                             ⬇️ EXPORTAR (Descargar Backup del BIN)
                         </button>
-                        
+                       
                         <div class="border-t border-slate-600 my-2"></div>
-                        
+                       
                         <button onclick="triggerUpload()" class="bg-red-600 hover:bg-red-500 py-4 rounded-lg font-bold text-white shadow-lg transition flex items-center justify-center gap-3">
                             ⬆️ IMPORTAR (Reemplazar BIN Remoto)
                         </button>
@@ -2573,17 +2623,17 @@
                     <form onsubmit="handleSetupShop(event)">
                         <label class="text-xs text-slate-400 font-bold uppercase mb-1 block">Nombre de la Tienda</label>
                         <input id="setupShopName" placeholder="Ej: Kaleb Store" value="${selectedOrder.shop_name||''}" class="w-full mb-4 p-3 rounded bg-slate-700 text-white border border-slate-600" required>
-                        
+                       
                         <label class="text-xs text-slate-400 font-bold uppercase mb-1 block">Tu Discord</label>
                         <input id="setupDiscord" placeholder="User#0000" value="${selectedOrder.discord_tag||''}" class="w-full mb-6 p-3 rounded bg-slate-700 text-white border border-slate-600" required>
-                        
+                       
                         <button class="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded font-bold text-white shadow-lg transition">GUARDAR Y ENTRAR</button>
                         <p class="text-center mt-4 text-xs text-red-500">Nota: Al cerrar esta ventana, se cerrará tu sesión.</p>
                     </form>
                 </div>
             </div>`;
         }
-        
+       
         // --- MODAL: RESEÑA ---
         if(showModal === 'review' && selectedOrder) {
             return `
@@ -2603,7 +2653,7 @@
                                 <option value="1">⭐ Pésimo</option>
                             </select>
                         </div>
-                        
+                       
                         <div class="mb-6">
                             <label class="text-xs text-slate-400 font-bold uppercase mb-1 block">Comentario (Opcional)</label>
                             <textarea id="reviewComment" rows="3" placeholder="Comparte tu opinión sobre la entrega y el servicio..." class="w-full p-3 rounded bg-slate-700 text-white border border-slate-600 resize-none"></textarea>
@@ -2627,5 +2677,3 @@
   </script>
  </body>
 </html>
-
-
