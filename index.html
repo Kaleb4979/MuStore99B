@@ -3,7 +3,7 @@
  <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mu Online 99B Marketplace - V33 (Rechazo de Pedidos y Sonidos)</title>
+  <title>Mu Online 99B Marketplace - V34 (Realtime Sin Refresco de Formularios)</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
  
@@ -171,15 +171,15 @@
     // ---------------------------------------------------------
     // *** 🚨 VERIFICA TUS CREDENCIALES AQUÍ 🚨 ***
     const BIN_ID = '691ddaa6ae596e708f6321c9'; 
-    const SECRET_KEY = '$2a$10$eM.MLJKvj.vnFMVAoSsBEOUaXbJB3TjuYjYxB5N9I5bJOqr4z4doK'; 
+    const SECRET_KEY = '$2a$10$6.Y19X/sB3np.3CIJmbJZesuwRVU77ns.FyAdL2dUc46k1vWFG9S'; 
     const JSONBIN_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
 
-    const DB_KEY = 'mu_marketplace_db_v33_final'; 
-    const SESSION_KEY = 'mu_session_user_v33_final';
+    const DB_KEY = 'mu_marketplace_db_v34_final'; 
+    const SESSION_KEY = 'mu_session_user_v34_final';
    
     // 📢 CONFIGURACIÓN SUPABASE (CHAT REALTIME)
     const SUPABASE_URL = 'https://ciysaobejtxfkpmbmswb.supabase.co'; 
-    const SUPABASE_ANON_KEY = '$2a$10$6.Y19X/sB3np.3CIJmbJZesuwRVxU77ns.FyAdL2dUc46k1vWFG9S';
+    const SUPABASE_ANON_KEY = 'sb_publishable_ZVQXNGvJjurUNtqZNQrnPg_aw_wW9gY';
     const CHAT_TABLE_NAME = 'messages'; 
     
     // 🔊 CONFIGURACIÓN DE SONIDOS (ASEGÚRATE DE TENER ESTOS ARCHIVOS EN LA CARPETA 'sounds/')
@@ -360,7 +360,7 @@
     let adminViewTarget = null; 
     let selectedProductToEdit = null; 
     let managedUser = null; 
-    let selectedOrderToReject = null; // Nuevo estado para el pedido a rechazar
+    let selectedOrderToReject = null; 
 
     let allProducts = [];
     let allUsers = [];
@@ -395,6 +395,9 @@
     let userActivityTimeout = null;
     
     let knownPendingOrderIds = new Set();
+    
+    // Bandera para saber si estamos editando un formulario de Admin
+    let isEditingAdminForm = false; 
 
     // ---------------------------------------------------------
     // 3. SDK DE CHAT (INTEGRACIÓN SUPABASE REALTIME) 
@@ -426,7 +429,6 @@
             }
         },
 
-        // 🔥 CRÍTICO: MANEJADOR DE CAMBIOS DE REALTIME PARA CHAT Y SONIDO
         handleRealtimeChange: (payload) => {
             if (payload.eventType === 'INSERT' && payload.new) {
                 const newMessage = {
@@ -437,15 +439,12 @@
                 };
                
                 if (!chatMessages.find(msg => msg.id === newMessage.id)) {
-                    // 1. Añadir mensaje al estado
                     chatMessages.push(newMessage);
                     
-                    // 2. SONIDO DE MENSAJE
                     if (currentUser && newMessage.sender !== currentUser.username) {
                         playSound(SOUND_NEW_MESSAGE);
                     }
                     
-                    // 3. Actualizar vista si el chat está abierto
                     if (showModal === 'chat') {
                         const messagesContainer = document.querySelector('.chat-messages');
                         if (messagesContainer) {
@@ -488,14 +487,12 @@
     // ---------------------------------------------------------
     const dataHandler = {
       onDataChanged(data) {
-        // Guardar el estado anterior de las órdenes pendientes del usuario actual
         const userRole = currentUser?.role;
         const currentUsername = currentUser?.username;
         const previousPendingOrderIds = new Set(allOrders.filter(o => 
             o.order_status === 'pending' && (userRole === 'admin' || o.seller_username === currentUsername)
         ).map(o => o.__backendId));
 
-        // 🚨 Actualizar las variables globales con los nuevos datos
         const newProducts = data.filter(item => item.type === 'product') || [];
         const newUsers = data.filter(item => item.type === 'user') || [];
         const newOrders = data.filter(item => item.type === 'order') || [];
@@ -507,7 +504,6 @@
         allOrders = newOrders;
         allReviews = newReviews;
        
-        // Calcular quién está online
         const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
         onlineUsers = new Set(
           activityRecords
@@ -515,7 +511,7 @@
             .map(a => a.username)
         );
        
-        // 🚨 CRÍTICO: Detección de NUEVOS PEDIDOS PENDIENTES
+        // Detección de NUEVOS PEDIDOS PENDIENTES
         if (currentUser && (currentUser.role === 'reseller' || currentUser.role === 'admin')) {
             const newPendingOrders = newOrders.filter(o => 
                 o.order_status === 'pending' && 
@@ -530,7 +526,16 @@
         }
        
         validateCart();
-        render(); 
+        
+        // 🚨 CRÍTICO: Modificación de la llamada a render()
+        if (currentView === 'admin') {
+            // Si estamos en la vista admin, solo actualiza las secciones dinámicas (pedidos y usuarios)
+            // Esto evita que los formularios pierdan el foco o se reseteen
+            renderAdminSections(); 
+        } else {
+            // Si estamos en el catálogo o carrito, renderiza normalmente.
+            render();
+        }
       }
     };
     
@@ -908,10 +913,18 @@
         showModal = null;
     }
    
+    // Función de ayuda para manejar el estado de edición (para evitar el refresco)
+    function setEditingState(isEditing) {
+        isEditingAdminForm = isEditing;
+    }
+   
     async function handleAddProduct(e) {
       e.preventDefault();
+      setEditingState(true); // Activar estado de edición
+
       if (allProducts.length >= 999) {
         showToast('Límite de productos alcanzado');
+        setEditingState(false);
         return;
       }
 
@@ -959,6 +972,7 @@
       }
 
       await window.dataSdk.read();
+      setEditingState(false); // Desactivar estado de edición
 
       btn.disabled = false;
       btn.innerHTML = 'Publicar Ahora';
@@ -969,11 +983,13 @@
         if (!product) return;
         selectedProductToEdit = product;
         showModal = 'editProduct';
+        setEditingState(true); // Activar estado de edición
         render();
     }
 
     async function handleUpdateProduct(e) {
         e.preventDefault();
+        setEditingState(true); // Activar estado de edición
         if (!selectedProductToEdit) return;
 
         const price = parseFloat(document.getElementById('editPrice').value);
@@ -1009,13 +1025,15 @@
         }
         
         await window.dataSdk.read();
+        setEditingState(false); // Desactivar estado de edición
     }
 
     async function deleteProduct(backendId) {
       if(!confirm("¿Estás seguro de borrar este producto?")) return;
+      setEditingState(true); // Activar estado de edición
      
       const product = allProducts.find(p => p.__backendId === backendId);
-      if (!product) return;
+      if (!product) { setEditingState(false); return; }
      
       const result = await window.dataSdk.delete(product); 
       if (result.isOk) {
@@ -1025,6 +1043,7 @@
       }
       
       await window.dataSdk.read();
+      setEditingState(false); // Desactivar estado de edición
     }
 
     function openManageUserModal(username) {
@@ -1052,7 +1071,7 @@
         const ordersToDelete = allOrders.filter(o => o.order_status === 'completed');
        
         const newDbData = window.mockDb.data.filter(item => 
-            item.type !== 'order' || item.order_status !== 'completed'
+            item.type !== 'order' || item.order_status === 'pending'
         );
        
         const result = await window.dataSdk.write(newDbData);
@@ -1288,7 +1307,7 @@
           seller_confirmed: false,
           buyer_confirmed: false,
           needs_review: false, 
-          rejection_reason: null, // Nuevo campo
+          rejection_reason: null, 
           created_at: new Date().toISOString()
         };
 
@@ -1323,7 +1342,6 @@
       render();
     }
 
-    // 🆕 FUNCIÓN PARA RECHAZAR EL PEDIDO
     function openRejectModal(orderId) {
         selectedOrderToReject = allOrders.find(o => o.__backendId === orderId);
         if (selectedOrderToReject) {
@@ -1334,7 +1352,6 @@
         }
     }
     
-    // 🆕 FUNCIÓN PARA GUARDAR EL RECHAZO
     async function handleRejectOrder(e) {
         e.preventDefault();
         if (!selectedOrderToReject) return;
@@ -1349,7 +1366,7 @@
             ...selectedOrderToReject,
             order_status: 'rejected',
             rejection_reason: reason,
-            seller_confirmed: false, // Asegurar que quede como false
+            seller_confirmed: false, 
             buyer_confirmed: false,
             needs_review: false,
             updated_at: new Date().toISOString()
@@ -1602,6 +1619,27 @@
      
       return window.elementSdk ? window.elementSdk.config : defaultConfig;
     }
+    
+    // 🚨 CRÍTICO: Función de renderizado para las secciones dinámicas del Admin
+    function renderAdminSections() {
+        if (currentView !== 'admin' || isEditingAdminForm) return;
+
+        const containerOrders = document.getElementById('admin-orders-log');
+        const containerPending = document.getElementById('admin-pending-orders');
+        const containerInventory = document.getElementById('admin-inventory-list');
+        const containerUsers = document.getElementById('admin-user-panel');
+        
+        // Re-renderizar solo las secciones que no contienen formularios de edición/creación
+        if (containerOrders) containerOrders.innerHTML = renderAdminLog();
+        if (containerPending) containerPending.innerHTML = renderAdminPendingOrders();
+        if (containerInventory) containerInventory.innerHTML = renderAdminInventoryList();
+        if (containerUsers) containerUsers.innerHTML = renderAdminGlobalUserPanel();
+        
+        // Actualizar estadísticas también (si existen)
+        const statsHtml = renderAdminStats(adminViewTarget || currentUser.username);
+        const statsContainer = document.getElementById('admin-stats-container');
+        if (statsContainer) statsContainer.innerHTML = statsHtml;
+    }
 
     function render() {
       const app = document.getElementById('app');
@@ -1615,6 +1653,8 @@
       else if (currentView === 'orders') content = renderOrders();
       else if (currentView === 'admin') content = renderAdmin();
 
+      // NOTA: Si currentView es 'admin', render() solo carga la estructura inicial, 
+      // y renderAdminSections() se encarga de los contenidos dinámicos después.
       app.innerHTML = content;
 
       const modalContainer = document.getElementById('modalContainer');
@@ -1627,6 +1667,11 @@
            d.id = 'modalContainer';
            document.body.appendChild(d);
            d.innerHTML = modalHTML;
+      }
+      
+      // Si la vista es admin, llama a la función de secciones dinámicas
+      if (currentView === 'admin') {
+          renderAdminSections();
       }
     }
 
@@ -1662,7 +1707,7 @@
           <header class="shadow-lg sticky top-0 z-40 bg-slate-800 border-b border-slate-700 p-4">
             <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
                 <div class="text-center md:text-left">
-                  <h1 class="text-2xl font-bold text-blue-400 tracking-tight">MU MARKET <span class="text-white text-xs bg-blue-600 px-1 rounded">V33</span></h1>
+                  <h1 class="text-2xl font-bold text-blue-400 tracking-tight">MU MARKET <span class="text-white text-xs bg-blue-600 px-1 rounded">V34</span></h1>
                   <p class="text-xs mt-1 opacity-60">${config.contact_info}</p>
                 </div>
                 <div class="flex flex-wrap gap-2 justify-center items-center">
@@ -2027,39 +2072,339 @@
             </div>
         </div>`;
     }
+    
+    // --- NUEVAS FUNCIONES PARA RENDERIZAR PARTES PEQUEÑAS DEL ADMIN ---
+    
+    function renderAdminStats(viewingAs) {
+      const viewingUser = allUsers.find(u => u.username === viewingAs) || currentUser;
+      const myProducts = allProducts.filter(p => p.seller_username === viewingAs);
+      const myOrders = allOrders.filter(o => o.seller_username === viewingAs);
+      const pending = myOrders.filter(o => o.order_status === 'pending').length;
 
+      const stats = {
+          total: myProducts.length,
+          sales: myOrders.filter(o => o.order_status === 'completed').length,
+          online: onlineUsers.size
+      };
+
+      return `
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="bg-slate-800 p-6 rounded-xl border-t-4 border-purple-500 shadow-lg">
+                <div class="text-3xl font-bold text-white">${stats.total}</div>
+                <div class="text-xs opacity-70 font-bold uppercase tracking-wide">Productos Activos</div>
+            </div>
+            <div class="bg-slate-800 p-6 rounded-xl border-t-4 border-green-500 shadow-lg">
+                <div class="text-3xl font-bold text-green-400">${stats.sales}</div>
+                <div class="text-xs opacity-70 font-bold uppercase tracking-wide">Ventas Completadas</div>
+            </div>
+            <div class="bg-slate-800 p-6 rounded-xl border-t-4 border-yellow-500 shadow-lg">
+                <div class="text-3xl font-bold text-yellow-400">${pending}</div>
+                <div class="text-xs opacity-70 font-bold uppercase tracking-wide">Pedidos Pendientes</div>
+            </div>
+             <div class="bg-slate-800 p-6 rounded-xl border-t-4 border-blue-500 shadow-lg">
+                <div class="text-xs opacity-70 font-bold uppercase tracking-wide mb-1">Discord Tienda</div>
+                <div class="text-sm font-bold font-mono text-blue-300 truncate bg-slate-900/50 p-1 rounded">${viewingUser.discord_tag}</div>
+            </div>
+        </div>
+      `;
+    }
+    
+    function renderAdminLog() {
+        const user = currentUser;
+        const viewingAs = adminViewTarget || user.username;
+        const completedOrdersLog = user.role === 'admin' 
+            ? allOrders.filter(o => o.order_status === 'completed' || o.order_status === 'rejected').reverse() 
+            : allOrders.filter(o => o.seller_username === viewingAs && (o.order_status === 'completed' || o.order_status === 'rejected')).reverse();
+            
+        return `
+            <div class="bg-slate-800 p-6 rounded-xl mb-8 border border-slate-700 shadow-lg">
+                <h2 class="text-xl font-bold mb-6 text-green-400 border-b border-slate-700 pb-2 flex items-center gap-2">
+                    📜 LOG DE PEDIDOS COMPLETADOS/RECHAZADOS (${completedOrdersLog.length})
+                    ${user.role === 'admin' ? `
+                        <button onclick="clearCompletedOrdersLog()" class="bg-red-700 hover:bg-red-600 text-white px-3 py-1 rounded text-xs font-bold transition ml-auto">
+                            🗑️ LIMPIAR LOG COMPLETO
+                        </button>
+                    ` : ''}
+                </h2>
+                <div class="overflow-x-auto rounded-lg border border-slate-700 max-h-64 overflow-y-auto">
+                    <table class="w-full text-sm text-left text-slate-300">
+                        <thead class="bg-slate-900 text-white uppercase font-bold text-xs sticky top-0 z-10">
+                            <tr>
+                                <th class="p-3">Estado</th>
+                                <th class="p-3">Fecha</th>
+                                <th class="p-3">Tienda/Vendedor</th>
+                                <th class="p-3">Comprador</th>
+                                <th class="p-3">Items</th>
+                                <th class="p-3 text-right">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-700">
+                            ${completedOrdersLog.length === 0 ? `
+                                <tr><td colspan="6" class="p-4 text-center opacity-50">No hay registro de pedidos.</td></tr>
+                            ` : completedOrdersLog.map(o => `
+                                <tr class="hover:bg-slate-700/30 transition font-mono ${o.order_status === 'rejected' ? 'bg-red-900/10' : ''}">
+                                    <td class="p-3 text-xs font-bold whitespace-nowrap">
+                                        <span class="px-2 py-1 rounded text-xs ${o.order_status === 'rejected' ? 'bg-red-700 text-white' : 'bg-green-700 text-green-100'}">
+                                            ${o.order_status.toUpperCase()}
+                                        </span>
+                                    </td>
+                                    <td class="p-3 text-xs text-slate-500">${new Date(o.created_at).toLocaleDateString()}</td>
+                                    <td class="p-3 font-bold text-blue-300">${o.seller_username}</td>
+                                    <td class="p-3 text-white">${o.buyer_username}</td>
+                                    <td class="p-3 text-xs truncate max-w-xs">${o.items}</td>
+                                    <td class="p-3 text-right font-bold text-green-400">$${o.total.toFixed(2)}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    }
+    
+    function renderAdminPendingOrders() {
+        const user = currentUser;
+        const viewingAs = adminViewTarget || user.username;
+        const myOrders = allOrders.filter(o => o.seller_username === viewingAs);
+        const pending = myOrders.filter(o => o.order_status === 'pending').reverse();
+        
+        return `
+            <h2 class="text-xl font-bold mb-4 text-yellow-400 border-b border-slate-700 pb-2 flex items-center gap-2">
+                📦 Pedidos por Despachar <span class="bg-slate-700 text-white px-2 rounded text-sm">${pending.length}</span>
+            </h2>
+           
+            ${pending.length === 0 ? `
+                <div class="text-center py-8 opacity-50">
+                    <p class="italic">No tienes pedidos pendientes. ¡Buen trabajo!</p>
+                </div>
+            ` : pending.map((o, i) => {
+                const sellerConfirmed = o.seller_confirmed;
+                const buyerConfirmed = o.buyer_confirmed;
+               
+                let confirmButtonText, confirmButtonClass, confirmButtonAction;
+               
+                if (buyerConfirmed) {
+                    confirmButtonText = 'Cliente CONFIRMADO';
+                    confirmButtonClass = 'bg-orange-700/50 disabled:opacity-100 disabled:cursor-wait';
+                    confirmButtonAction = 'disabled';
+                } else if (sellerConfirmed) {
+                    confirmButtonText = '⏳ Esperando Cliente';
+                    confirmButtonClass = 'bg-yellow-600/50 disabled:opacity-100 disabled:cursor-wait';
+                    confirmButtonAction = 'disabled';
+                } else {
+                    confirmButtonText = '✅ MARCAR ENTREGADO';
+                    confirmButtonClass = 'bg-green-600 hover:bg-green-500';
+                    confirmButtonAction = `onclick="confirmOrder('${o.__backendId}', true)"`;
+                }
+               
+                const statusBadgeText = buyerConfirmed ? 'Cliente Confirmó' : (sellerConfirmed ? 'Tú Confirmaste (Esperando Cliente)' : 'Pendiente de tu Entrega');
+                const statusBadgeClass = buyerConfirmed ? 'bg-orange-900 text-orange-200' : (sellerConfirmed ? 'bg-yellow-900 text-yellow-200' : 'bg-red-900 text-red-200');
+
+                return `
+                <div class="bg-slate-900 p-5 rounded-lg mb-4 border border-slate-600 flex flex-col md:flex-row justify-between gap-6 shadow-sm hover:bg-slate-900/80 transition">
+                    <div class="flex-1">
+                        <div class="flex items-center gap-3 mb-2">
+                            <span class="font-bold text-lg text-blue-300">PEDIDO #${pending.length - i}</span>
+                            <span class="px-2 py-1 rounded text-xs font-bold ${statusBadgeClass} whitespace-nowrap">${statusBadgeText}</span>
+                        </div>
+                        <div class="mb-1">Cliente: <span class="font-bold text-white">${o.buyer_username}</span></div>
+                        <div class="inline-block bg-purple-900/30 text-purple-300 px-2 py-1 rounded text-xs font-mono border border-purple-500/30 mb-3">
+                            📱 Discord: ${o.buyer_discord}
+                        </div>
+                        <div class="text-sm text-slate-300 bg-slate-800/50 p-3 rounded border-l-2 border-green-500 font-mono">
+                            ${o.items}
+                        </div>
+                    </div>
+                    <div class="text-right flex flex-col justify-between items-end min-w-[200px]">
+                        <div>
+                            <p class="text-xs text-slate-500 uppercase">Total a Cobrar</p>
+                            <div class="text-3xl font-bold text-green-400">$${o.total.toFixed(2)}</div>
+                        </div>
+                        <div class="flex gap-2 mt-3">
+                            <button onclick="openRejectModal('${o.__backendId}')" class="bg-red-600 hover:bg-red-500 px-4 py-2 rounded font-bold text-sm shadow transition text-white">
+                                ❌ RECHAZAR PEDIDO
+                            </button>
+                            <button onclick="openChatModal('${o.__backendId}')" class="bg-purple-600 hover:bg-purple-500 px-4 py-2 rounded font-bold text-sm shadow transition text-white">
+                                💬 CHAT
+                            </button>
+                        </div>
+                        <button ${confirmButtonAction} class="${confirmButtonClass} px-4 py-2 rounded font-bold text-sm shadow transition text-white mt-2 w-full">
+                            ${confirmButtonText}
+                        </button>
+                    </div>
+                </div>
+                `}).join('')}
+        `;
+    }
+    
+    function renderAdminInventoryList() {
+        const user = currentUser;
+        const viewingAs = adminViewTarget || user.username;
+        const myProducts = allProducts.filter(p => p.seller_username === viewingAs);
+        
+        return `
+            <h2 class="text-xl font-bold mb-6 text-blue-400 border-b border-slate-700 pb-2">🛍️ Gestión de Inventario</h2>
+           
+            <div class="mb-8 p-5 bg-slate-900 rounded-lg border border-slate-600">
+                <h3 class="text-sm font-bold mb-3 uppercase text-slate-400 flex items-center gap-2">
+                    <span>➕</span> Publicar Nuevo Item
+                </h3>
+                <form onsubmit="handleAddProduct(event)" class="grid grid-cols-1 md:grid-cols-12 gap-3">
+                    <div class="md:col-span-4">
+                        <input id="productName" placeholder="Nombre del Item" required class="w-full bg-slate-800 p-3 rounded text-white border border-slate-600 focus:border-blue-500 outline-none">
+                    </div>
+                    <div class="md:col-span-2">
+                        <select id="productCategory" class="w-full bg-slate-800 p-3 rounded text-white border border-slate-600 focus:border-blue-500">
+                            <option value="items">Arma/Escudo</option>
+                            <option value="sets">Set Completo</option>
+                            <option value="wings">Alas</option>
+                            <option value="jewels">Joyas</option>
+                        </select>
+                    </div>
+                    <div class="md:col-span-2">
+                        <input id="productPrice" type="number" step="0.01" placeholder="Precio $" required class="w-full bg-slate-800 p-3 rounded text-white border border-slate-600 focus:border-blue-500">
+                    </div>
+                    <div class="md:col-span-2">
+                        <input id="productStock" type="number" placeholder="Stock" required class="w-full bg-slate-800 p-3 rounded text-white border border-slate-600 focus:border-blue-500">
+                    </div>
+                    <div class="md:col-span-2">
+                        <button type="submit" class="w-full h-full bg-blue-600 hover:bg-blue-500 font-bold rounded text-white shadow transition uppercase text-sm">
+                            Publicar
+                        </button>
+                    </div>
+                   
+                    <input id="productDiscount" type="hidden" value="0">
+                    <input id="productImage" type="hidden" value="">
+                    <input id="productDescription" type="hidden" value="">
+                    <input id="productOnSale" type="checkbox" class="hidden">
+                </form>
+                <p class="text-xs text-slate-500 mt-3 ml-1 flex items-center gap-1">
+                    ℹ️ Para agregar imagen, descuento o descripción, usa el botón <span class="font-bold text-blue-400 bg-slate-800 px-1 rounded">EDITAR</span> una vez creado el item.
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                ${myProducts.map(p => `
+                    <div class="bg-slate-900 rounded-lg border border-slate-600 p-4 relative group hover:border-blue-500 transition shadow-sm flex flex-col justify-between h-full">
+                        <div>
+                            <div class="flex justify-between items-start mb-2">
+                                <div class="font-bold truncate text-white text-lg pr-2" title="${p.name}">${p.name}</div>
+                                <div class="font-mono text-xs bg-slate-800 px-2 py-1 rounded text-slate-400 border border-slate-700 whitespace-nowrap">
+                                    📦 Stock: ${p.stock}
+                                </div>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <div class="text-green-400 font-bold text-2xl">$${p.final_price.toFixed(2)}</div>
+                                ${p.discount > 0 ? `<div class="text-xs text-red-400 font-bold bg-red-900/20 inline-block px-1 rounded border border-red-900/50">-${p.discount}% OFF</div>` : '<div class="h-5"></div>'}
+                            </div>
+                        </div>
+                        
+                        <div class="flex gap-2 mt-auto pt-3 border-t border-slate-800">
+                            <button onclick="openEditModal('${p.__backendId}')" class="flex-1 bg-blue-600 hover:bg-blue-500 py-2 rounded text-xs font-bold text-white shadow transition flex items-center justify-center gap-1">
+                                ✏️ EDITAR
+                            </button>
+                            <button onclick="deleteProduct('${p.__backendId}')" class="bg-red-600 hover:bg-red-500 px-3 py-2 rounded text-xs font-bold text-white shadow transition flex items-center justify-center">
+                                🗑️
+                            </button>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+    
+    function renderAdminGlobalUserPanel() {
+        const user = currentUser;
+        const sellerSalesMap = getSellerSalesMap();
+
+        const displayUsers = allUsers.sort((a, b) => {
+            if (a.status === 'pending' && b.status !== 'pending') return -1;
+            if (a.status !== 'pending' && b.status === 'pending') return 1;
+            if (a.username === ADMIN_CREDENTIALS.username && user.username !== ADMIN_CREDENTIALS.username) return -1;
+            if (b.username === ADMIN_CREDENTIALS.username && user.username !== ADMIN_CREDENTIALS.username) return 1;
+            if (a.username === user.username) return -1;
+            if (b.username === user.username) return 1;
+            return a.username.localeCompare(b.username);
+        });
+        
+        if (user.role !== 'admin' || adminViewTarget) return '';
+
+        return `
+            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
+                <h2 class="text-xl font-bold mb-6 text-purple-400 border-b border-slate-700 pb-2 flex items-center gap-2">
+                    🌍 Panel Global de Usuarios <span class="text-xs bg-slate-900 text-slate-400 px-2 py-1 rounded ml-auto">Total: ${displayUsers.length}</span>
+                </h2>
+               
+                <div class="overflow-x-auto rounded-lg border border-slate-700">
+                    <table class="w-full text-sm text-left text-slate-300">
+                        <thead class="bg-slate-900 text-white uppercase font-bold text-xs">
+                            <tr>
+                                <th class="p-4">Usuario (Tienda)</th>
+                                <th class="p-4">Rol</th>
+                                <th class="p-4">Estado</th>
+                                <th class="p-4 text-center">VENTAS</th> 
+                                <th class="p-4">Discord</th>
+                                <th class="p-4 text-right">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-700">
+                            ${displayUsers.map(u => `
+                                <tr class="hover:bg-slate-700/30 transition ${u.status === 'pending' ? 'bg-yellow-900/20 border-l-4 border-yellow-500' : ''}">
+                                    <td class="p-4 font-bold flex flex-col justify-start">
+                                        <span class="text-white cursor-pointer hover:text-blue-400" onclick="openManageUserModal('${u.username}')">
+                                            ${u.username}
+                                        </span>
+                                        ${u.role === 'reseller' && u.shop_name ? `<span class="text-xs opacity-60 text-blue-300 italic">${u.shop_name}</span>` : ''}
+                                    </td>
+                                    <td class="p-4">
+                                        <span class="bg-slate-900 px-2 py-1 rounded text-xs border border-slate-600 font-mono">
+                                            ${u.role.toUpperCase()}
+                                        </span>
+                                    </td>
+                                    <td class="p-4">
+                                        <span class="px-2 py-1 rounded text-xs font-bold ${u.status==='banned'?'bg-red-900/30 text-red-400':u.status==='pending'?'bg-yellow-900/30 text-yellow-400':'bg-green-900/30 text-green-400'}">
+                                            ${u.status.toUpperCase()}
+                                        </span>
+                                    </td>
+                                    <td class="p-4 text-center">
+                                        ${u.role === 'reseller' ? `<span class="font-bold text-green-400">${sellerSalesMap[u.username] || 0}</span>` : 'N/A'}
+                                    </td>
+                                    <td class="p-4 font-mono text-xs text-blue-300">
+                                        ${u.discord_tag}
+                                    </td>
+                                    <td class="p-4 text-right flex justify-end gap-2">
+                                        ${u.status === 'pending' ? `
+                                            <button onclick="approveUser('${u.__backendId}')" class="bg-green-600 px-3 py-1 rounded text-xs font-bold hover:bg-green-500 text-white shadow transition">ACEPTAR</button>
+                                            <button onclick="deleteUserAccount('${u.__backendId}')" class="bg-red-600 px-3 py-1 rounded text-xs font-bold hover:bg-red-500 text-white shadow transition">RECHAZAR</button>
+                                        ` : `
+                                            ${u.role === 'reseller' ? `
+                                                <button onclick="enterShopManagement('${u.username}')" class="bg-indigo-600 hover:bg-indigo-500 px-3 py-1 rounded text-xs font-bold text-white shadow transition flex items-center gap-1 border border-indigo-400">
+                                                    👁️ GESTIONAR
+                                                </button>
+                                            ` : ''}
+                                            
+                                            <button onclick="openManageUserModal('${u.username}')" class="border border-blue-500 text-blue-500 px-2 py-1 rounded text-xs font-bold hover:bg-blue-500 hover:text-black transition">
+                                                ⚙️ DETALLE
+                                            </button>
+                                            
+                                        `}
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    }
+
+    // --- VISTA ADMIN / RESELLER (PANEL COMPLETO) ---
     function renderAdmin() {
       const user = currentUser;
       const viewingAs = adminViewTarget || user.username;
       const viewingUser = allUsers.find(u => u.username === viewingAs) || user;
      
-      const myProducts = allProducts.filter(p => p.seller_username === viewingAs);
-      const myOrders = allOrders.filter(o => o.seller_username === viewingAs);
-      const pending = myOrders.filter(o => o.order_status === 'pending').reverse();
-     
-      const completedOrdersLog = user.role === 'admin' 
-        ? allOrders.filter(o => o.order_status === 'completed' || o.order_status === 'rejected').reverse() 
-        : allOrders.filter(o => o.seller_username === viewingAs && (o.order_status === 'completed' || o.order_status === 'rejected')).reverse();
-     
-      const sellerSalesMap = getSellerSalesMap();
-
-      const displayUsers = allUsers.sort((a, b) => {
-          if (a.status === 'pending' && b.status !== 'pending') return -1;
-          if (a.status !== 'pending' && b.status === 'pending') return 1;
-          if (a.username === ADMIN_CREDENTIALS.username && user.username !== ADMIN_CREDENTIALS.username) return -1;
-          if (b.username === ADMIN_CREDENTIALS.username && user.username !== ADMIN_CREDENTIALS.username) return 1;
-          if (a.username === user.username) return -1;
-          if (b.username === user.username) return 1;
-          return a.username.localeCompare(b.username);
-      });
-
-      const stats = {
-          total: myProducts.length,
-          sales: myOrders.filter(o => o.order_status === 'completed').length,
-          revenue: myOrders.filter(o => o.order_status === 'completed').reduce((a,b)=>a+b.total,0),
-          online: onlineUsers.size
-      };
-
       return `
         <div class="min-h-full bg-slate-900 text-slate-100 p-6">
             <div class="max-w-7xl mx-auto">
@@ -2089,274 +2434,29 @@
                     </div>
                 </div>
 
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-                    <div class="bg-slate-800 p-6 rounded-xl border-t-4 border-purple-500 shadow-lg">
-                        <div class="text-3xl font-bold text-white">${stats.total}</div>
-                        <div class="text-xs opacity-70 font-bold uppercase tracking-wide">Productos Activos</div>
-                    </div>
-                    <div class="bg-slate-800 p-6 rounded-xl border-t-4 border-green-500 shadow-lg">
-                        <div class="text-3xl font-bold text-green-400">${stats.sales}</div>
-                        <div class="text-xs opacity-70 font-bold uppercase tracking-wide">Ventas Completadas</div>
-                    </div>
-                    <div class="bg-slate-800 p-6 rounded-xl border-t-4 border-yellow-500 shadow-lg">
-                        <div class="text-3xl font-bold text-yellow-400">${pending.length}</div>
-                        <div class="text-xs opacity-70 font-bold uppercase tracking-wide">Pedidos Pendientes</div>
-                    </div>
-                     <div class="bg-slate-800 p-6 rounded-xl border-t-4 border-blue-500 shadow-lg">
-                        <div class="text-xs opacity-70 font-bold uppercase tracking-wide mb-1">Discord Tienda</div>
-                        <div class="text-sm font-bold font-mono text-blue-300 truncate bg-slate-900/50 p-1 rounded">${viewingUser.discord_tag}</div>
-                    </div>
+                <div id="admin-stats-container" class="mb-8">
+                    ${renderAdminStats(viewingAs)}
                 </div>
                
+                <div id="admin-orders-log" class="mb-8">
+                    ${renderAdminLog()}
+                </div>
+                
                 <div class="bg-slate-800 p-6 rounded-xl mb-8 border border-slate-700 shadow-lg">
-                    <h2 class="text-xl font-bold mb-6 text-green-400 border-b border-slate-700 pb-2 flex items-center gap-2">
-                        📜 LOG DE PEDIDOS COMPLETADOS/RECHAZADOS (${completedOrdersLog.length})
-                        ${user.role === 'admin' ? `
-                            <button onclick="clearCompletedOrdersLog()" class="bg-red-700 hover:bg-red-600 text-white px-3 py-1 rounded text-xs font-bold transition ml-auto">
-                                🗑️ LIMPIAR LOG COMPLETO
-                            </button>
-                        ` : ''}
-                    </h2>
-                    <div class="overflow-x-auto rounded-lg border border-slate-700 max-h-64 overflow-y-auto">
-                        <table class="w-full text-sm text-left text-slate-300">
-                            <thead class="bg-slate-900 text-white uppercase font-bold text-xs sticky top-0 z-10">
-                                <tr>
-                                    <th class="p-3">Estado</th>
-                                    <th class="p-3">Fecha</th>
-                                    <th class="p-3">Tienda/Vendedor</th>
-                                    <th class="p-3">Comprador</th>
-                                    <th class="p-3">Items</th>
-                                    <th class="p-3 text-right">Total</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-slate-700">
-                                ${completedOrdersLog.length === 0 ? `
-                                    <tr><td colspan="6" class="p-4 text-center opacity-50">No hay registro de pedidos.</td></tr>
-                                ` : completedOrdersLog.map(o => `
-                                    <tr class="hover:bg-slate-700/30 transition font-mono ${o.order_status === 'rejected' ? 'bg-red-900/10' : ''}">
-                                        <td class="p-3 text-xs font-bold whitespace-nowrap">
-                                            <span class="px-2 py-1 rounded text-xs ${o.order_status === 'rejected' ? 'bg-red-700 text-white' : 'bg-green-700 text-green-100'}">
-                                                ${o.order_status.toUpperCase()}
-                                            </span>
-                                        </td>
-                                        <td class="p-3 text-xs text-slate-500">${new Date(o.created_at).toLocaleDateString()}</td>
-                                        <td class="p-3 font-bold text-blue-300">${o.seller_username}</td>
-                                        <td class="p-3 text-white">${o.buyer_username}</td>
-                                        <td class="p-3 text-xs truncate max-w-xs">${o.items}</td>
-                                        <td class="p-3 text-right font-bold text-green-400">$${o.total.toFixed(2)}</td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
+                    <div id="admin-pending-orders">
+                        ${renderAdminPendingOrders()}
                     </div>
                 </div>
                 
                 <div class="bg-slate-800 p-6 rounded-xl mb-8 border border-slate-700 shadow-lg">
-                    <h2 class="text-xl font-bold mb-4 text-yellow-400 border-b border-slate-700 pb-2 flex items-center gap-2">
-                        📦 Pedidos por Despachar <span class="bg-slate-700 text-white px-2 rounded text-sm">${pending.length}</span>
-                    </h2>
-                   
-                    ${pending.length === 0 ? `
-                        <div class="text-center py-8 opacity-50">
-                            <p class="italic">No tienes pedidos pendientes. ¡Buen trabajo!</p>
-                        </div>
-                    ` : pending.map((o, i) => {
-                        const sellerConfirmed = o.seller_confirmed;
-                        const buyerConfirmed = o.buyer_confirmed;
-                       
-                        let confirmButtonText, confirmButtonClass, confirmButtonAction;
-                       
-                        if (buyerConfirmed) {
-                            confirmButtonText = 'Cliente CONFIRMADO';
-                            confirmButtonClass = 'bg-orange-700/50 disabled:opacity-100 disabled:cursor-wait';
-                            confirmButtonAction = 'disabled';
-                        } else if (sellerConfirmed) {
-                            confirmButtonText = '⏳ Esperando Cliente';
-                            confirmButtonClass = 'bg-yellow-600/50 disabled:opacity-100 disabled:cursor-wait';
-                            confirmButtonAction = 'disabled';
-                        } else {
-                            confirmButtonText = '✅ MARCAR ENTREGADO';
-                            confirmButtonClass = 'bg-green-600 hover:bg-green-500';
-                            confirmButtonAction = `onclick="confirmOrder('${o.__backendId}', true)"`;
-                        }
-                       
-                        const statusBadgeText = buyerConfirmed ? 'Cliente Confirmó' : (sellerConfirmed ? 'Tú Confirmaste (Esperando Cliente)' : 'Pendiente de tu Entrega');
-                        const statusBadgeClass = buyerConfirmed ? 'bg-orange-900 text-orange-200' : (sellerConfirmed ? 'bg-yellow-900 text-yellow-200' : 'bg-red-900 text-red-200');
-
-                        return `
-                        <div class="bg-slate-900 p-5 rounded-lg mb-4 border border-slate-600 flex flex-col md:flex-row justify-between gap-6 shadow-sm hover:bg-slate-900/80 transition">
-                            <div class="flex-1">
-                                <div class="flex items-center gap-3 mb-2">
-                                    <span class="font-bold text-lg text-blue-300">PEDIDO #${pending.length - i}</span>
-                                    <span class="px-2 py-1 rounded text-xs font-bold ${statusBadgeClass} whitespace-nowrap">${statusBadgeText}</span>
-                                </div>
-                                <div class="mb-1">Cliente: <span class="font-bold text-white">${o.buyer_username}</span></div>
-                                <div class="inline-block bg-purple-900/30 text-purple-300 px-2 py-1 rounded text-xs font-mono border border-purple-500/30 mb-3">
-                                    📱 Discord: ${o.buyer_discord}
-                                </div>
-                                <div class="text-sm text-slate-300 bg-slate-800/50 p-3 rounded border-l-2 border-green-500 font-mono">
-                                    ${o.items}
-                                </div>
-                            </div>
-                            <div class="text-right flex flex-col justify-between items-end min-w-[200px]">
-                                <div>
-                                    <p class="text-xs text-slate-500 uppercase">Total a Cobrar</p>
-                                    <div class="text-3xl font-bold text-green-400">$${o.total.toFixed(2)}</div>
-                                </div>
-                                <div class="flex gap-2 mt-3">
-                                    <button onclick="openRejectModal('${o.__backendId}')" class="bg-red-600 hover:bg-red-500 px-4 py-2 rounded font-bold text-sm shadow transition text-white">
-                                        ❌ RECHAZAR PEDIDO
-                                    </button>
-                                    <button onclick="openChatModal('${o.__backendId}')" class="bg-purple-600 hover:bg-purple-500 px-4 py-2 rounded font-bold text-sm shadow transition text-white">
-                                        💬 CHAT
-                                    </button>
-                                </div>
-                                <button ${confirmButtonAction} class="${confirmButtonClass} px-4 py-2 rounded font-bold text-sm shadow transition text-white mt-2 w-full">
-                                    ${confirmButtonText}
-                                </button>
-                            </div>
-                        </div>
-                        `}).join('')}
-                </div>
-
-                <div class="bg-slate-800 p-6 rounded-xl mb-8 border border-slate-700 shadow-lg">
-                    <h2 class="text-xl font-bold mb-6 text-blue-400 border-b border-slate-700 pb-2">🛍️ Gestión de Inventario</h2>
-                   
-                    <div class="mb-8 p-5 bg-slate-900 rounded-lg border border-slate-600">
-                        <h3 class="text-sm font-bold mb-3 uppercase text-slate-400 flex items-center gap-2">
-                            <span>➕</span> Publicar Nuevo Item
-                        </h3>
-                        <form onsubmit="handleAddProduct(event)" class="grid grid-cols-1 md:grid-cols-12 gap-3">
-                            <div class="md:col-span-4">
-                                <input id="productName" placeholder="Nombre del Item" required class="w-full bg-slate-800 p-3 rounded text-white border border-slate-600 focus:border-blue-500 outline-none">
-                            </div>
-                            <div class="md:col-span-2">
-                                <select id="productCategory" class="w-full bg-slate-800 p-3 rounded text-white border border-slate-600 focus:border-blue-500">
-                                    <option value="items">Arma/Escudo</option>
-                                    <option value="sets">Set Completo</option>
-                                    <option value="wings">Alas</option>
-                                    <option value="jewels">Joyas</option>
-                                </select>
-                            </div>
-                            <div class="md:col-span-2">
-                                <input id="productPrice" type="number" step="0.01" placeholder="Precio $" required class="w-full bg-slate-800 p-3 rounded text-white border border-slate-600 focus:border-blue-500">
-                            </div>
-                            <div class="md:col-span-2">
-                                <input id="productStock" type="number" placeholder="Stock" required class="w-full bg-slate-800 p-3 rounded text-white border border-slate-600 focus:border-blue-500">
-                            </div>
-                            <div class="md:col-span-2">
-                                <button type="submit" class="w-full h-full bg-blue-600 hover:bg-blue-500 font-bold rounded text-white shadow transition uppercase text-sm">
-                                    Publicar
-                                </button>
-                            </div>
-                           
-                            <input id="productDiscount" type="hidden" value="0">
-                            <input id="productImage" type="hidden" value="">
-                            <input id="productDescription" type="hidden" value="">
-                            <input id="productOnSale" type="checkbox" class="hidden">
-                        </form>
-                        <p class="text-xs text-slate-500 mt-3 ml-1 flex items-center gap-1">
-                            ℹ️ Para agregar imagen, descuento o descripción, usa el botón <span class="font-bold text-blue-400 bg-slate-800 px-1 rounded">EDITAR</span> una vez creado el item.
-                        </p>
-                    </div>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        ${myProducts.map(p => `
-                            <div class="bg-slate-900 rounded-lg border border-slate-600 p-4 relative group hover:border-blue-500 transition shadow-sm flex flex-col justify-between h-full">
-                                <div>
-                                    <div class="flex justify-between items-start mb-2">
-                                        <div class="font-bold truncate text-white text-lg pr-2" title="${p.name}">${p.name}</div>
-                                        <div class="font-mono text-xs bg-slate-800 px-2 py-1 rounded text-slate-400 border border-slate-700 whitespace-nowrap">
-                                            📦 Stock: ${p.stock}
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="mb-4">
-                                        <div class="text-green-400 font-bold text-2xl">$${p.final_price.toFixed(2)}</div>
-                                        ${p.discount > 0 ? `<div class="text-xs text-red-400 font-bold bg-red-900/20 inline-block px-1 rounded border border-red-900/50">-${p.discount}% OFF</div>` : '<div class="h-5"></div>'}
-                                    </div>
-                                </div>
-                                
-                                <div class="flex gap-2 mt-auto pt-3 border-t border-slate-800">
-                                    <button onclick="openEditModal('${p.__backendId}')" class="flex-1 bg-blue-600 hover:bg-blue-500 py-2 rounded text-xs font-bold text-white shadow transition flex items-center justify-center gap-1">
-                                        ✏️ EDITAR
-                                    </button>
-                                    <button onclick="deleteProduct('${p.__backendId}')" class="bg-red-600 hover:bg-red-500 px-3 py-2 rounded text-xs font-bold text-white shadow transition flex items-center justify-center">
-                                        🗑️
-                                    </button>
-                                </div>
-                            </div>
-                        `).join('')}
+                    <div id="admin-inventory-list">
+                        ${renderAdminInventoryList()}
                     </div>
                 </div>
 
-                ${(user.role === 'admin' && !adminViewTarget) ? `
-                    <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
-                        <h2 class="text-xl font-bold mb-6 text-purple-400 border-b border-slate-700 pb-2 flex items-center gap-2">
-                            🌍 Panel Global de Usuarios <span class="text-xs bg-slate-900 text-slate-400 px-2 py-1 rounded ml-auto">Total: ${displayUsers.length}</span>
-                        </h2>
-                       
-                        <div class="overflow-x-auto rounded-lg border border-slate-700">
-                            <table class="w-full text-sm text-left text-slate-300">
-                                <thead class="bg-slate-900 text-white uppercase font-bold text-xs">
-                                    <tr>
-                                        <th class="p-4">Usuario (Tienda)</th>
-                                        <th class="p-4">Rol</th>
-                                        <th class="p-4">Estado</th>
-                                        <th class="p-4 text-center">VENTAS</th> 
-                                        <th class="p-4">Discord</th>
-                                        <th class="p-4 text-right">Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="divide-y divide-slate-700">
-                                    ${displayUsers.map(u => `
-                                        <tr class="hover:bg-slate-700/30 transition ${u.status === 'pending' ? 'bg-yellow-900/20 border-l-4 border-yellow-500' : ''}">
-                                            <td class="p-4 font-bold flex flex-col justify-start">
-                                                <span class="text-white cursor-pointer hover:text-blue-400" onclick="openManageUserModal('${u.username}')">
-                                                    ${u.username}
-                                                </span>
-                                                ${u.role === 'reseller' && u.shop_name ? `<span class="text-xs opacity-60 text-blue-300 italic">${u.shop_name}</span>` : ''}
-                                            </td>
-                                            <td class="p-4">
-                                                <span class="bg-slate-900 px-2 py-1 rounded text-xs border border-slate-600 font-mono">
-                                                    ${u.role.toUpperCase()}
-                                                </span>
-                                            </td>
-                                            <td class="p-4">
-                                                <span class="px-2 py-1 rounded text-xs font-bold ${u.status==='banned'?'bg-red-900/30 text-red-400':u.status==='pending'?'bg-yellow-900/30 text-yellow-400':'bg-green-900/30 text-green-400'}">
-                                                    ${u.status.toUpperCase()}
-                                                </span>
-                                            </td>
-                                            <td class="p-4 text-center">
-                                                ${u.role === 'reseller' ? `<span class="font-bold text-green-400">${sellerSalesMap[u.username] || 0}</span>` : 'N/A'}
-                                            </td>
-                                            <td class="p-4 font-mono text-xs text-blue-300">
-                                                ${u.discord_tag}
-                                            </td>
-                                            <td class="p-4 text-right flex justify-end gap-2">
-                                                ${u.status === 'pending' ? `
-                                                    <button onclick="approveUser('${u.__backendId}')" class="bg-green-600 px-3 py-1 rounded text-xs font-bold hover:bg-green-500 text-white shadow transition">ACEPTAR</button>
-                                                    <button onclick="deleteUserAccount('${u.__backendId}')" class="bg-red-600 px-3 py-1 rounded text-xs font-bold hover:bg-red-500 text-white shadow transition">RECHAZAR</button>
-                                                ` : `
-                                                    ${u.role === 'reseller' ? `
-                                                        <button onclick="enterShopManagement('${u.username}')" class="bg-indigo-600 hover:bg-indigo-500 px-3 py-1 rounded text-xs font-bold text-white shadow transition flex items-center gap-1 border border-indigo-400">
-                                                            👁️ GESTIONAR
-                                                        </button>
-                                                    ` : ''}
-                                                    
-                                                    <button onclick="openManageUserModal('${u.username}')" class="border border-blue-500 text-blue-500 px-2 py-1 rounded text-xs font-bold hover:bg-blue-500 hover:text-black transition">
-                                                        ⚙️ DETALLE
-                                                    </button>
-                                                    
-                                                `}
-                                            </td>
-                                        </tr>
-                                    `).join('')}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                ` : ''}
+                <div id="admin-user-panel">
+                    ${renderAdminGlobalUserPanel()}
+                </div>
 
             </div>
         </div>
@@ -2364,8 +2464,7 @@
     }
 
     function renderModal() {
-        // La función close ahora debe resetear selectedOrderToReject si está activo
-        const close = `onclick="closeChatModal(); showModal=null;selectedProductToEdit=null;managedUser=null;selectedOrder=null;selectedOrderToReject=null;render()"`;
+        const close = `onclick="closeChatModal(); showModal=null;selectedProductToEdit=null;managedUser=null;selectedOrder=null;selectedOrderToReject=null;setEditingState(false);render()"`;
         const box = "bg-slate-800 p-8 rounded-xl shadow-2xl max-w-md w-full border border-slate-600 relative transform transition-all scale-100";
        
         // --- MODAL: RECHAZAR PEDIDO ---
@@ -2709,11 +2808,9 @@
     }
 
     // ---------------------------------------------------------
-    // 15. INICIO DE LA APLICACIÓN
+    // 16. INICIO DE LA APLICACIÓN
     // ---------------------------------------------------------
     init();
   </script>
  </body>
 </html>
-
-
